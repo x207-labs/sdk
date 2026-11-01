@@ -1,0 +1,16 @@
+{
+  "name": "settle",
+  "description": "msg ft_transfer_call pelunasan residual epoch (Spec Antarmuka Kontrak 4.1). Urutan key: action, epoch, member_id.",
+  "input": {
+    "cases": [
+      { "epoch": 42 },
+      { "epoch": 42, "memberId": "scraper.x207-circle.near" }
+    ]
+  },
+  "expected": {
+    "msgs": [
+      "{\"action\":\"settle\",\"epoch\":42}",
+      "{\"action\":\"settle\",\"epoch\":42,\"member_id\":\"scraper.x207-circle.near\"}"
+    ]
+  }
+}

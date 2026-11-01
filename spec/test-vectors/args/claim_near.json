@@ -1,0 +1,10 @@
+{
+  "name": "claim_near",
+  "description": "Argumen claim(epoch, destination) tujuan near (ADR-19). Deposit tepat 1 yoctoNEAR, gas minimal CLAIM_MIN_GAS.",
+  "input": { "epoch": 42, "destination": "near" },
+  "expected": {
+    "args": "{\"epoch\":42,\"destination\":\"near\"}",
+    "deposit_yocto": "1",
+    "min_gas_tgas": 100
+  }
+}

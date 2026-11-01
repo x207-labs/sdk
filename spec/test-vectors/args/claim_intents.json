@@ -1,0 +1,10 @@
+{
+  "name": "claim_intents",
+  "description": "Argumen claim(epoch, destination) tujuan intents (ADR-19). Deposit tepat 1 yoctoNEAR, gas minimal CLAIM_MIN_GAS.",
+  "input": { "epoch": 42, "destination": "intents" },
+  "expected": {
+    "args": "{\"epoch\":42,\"destination\":\"intents\"}",
+    "deposit_yocto": "1",
+    "min_gas_tgas": 100
+  }
+}
