@@ -3,7 +3,7 @@
 
 export const X207_CIRCLE_ABI_VERSION = "0.0.1";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "20684d50ecdd8ef2baf458b34ae86e863ff88e6ab89f5e1684317237b8d60c45";
+export const X207_CIRCLE_ABI_SHA256 = "6ee8a2d450710c9aa565bda4f5f73ad476b6f310e49ce775c2027cc05ed27eef";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type Admission = "open" | "dao";

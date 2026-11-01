@@ -66,7 +66,8 @@ describe("SD-010 tipe client kontrak dari abi.json", () => {
   });
 
   it.skipIf(contractsAbi === null)("pin sama dengan abi.json yang ter-commit di repo contracts lokal", () => {
-    expect(contractsAbi).toBe(pinnedText);
+    // Isi sama; urutan key boleh beda (contracts menulis key terurut).
+    expect(JSON.parse(contractsAbi as string)).toEqual(pinned);
   });
 
   it("tipe @x207/core cocok dengan tipe ABI (diperiksa saat typecheck)", () => {
