@@ -1,5 +1,6 @@
 // Validasi runtime tipe publik x207. Tanda tangan hanya dicek bentuknya; isinya diperiksa
 // `verifyVoucher`, karena string rusak harus berakhir `invalid_signature`, bukan `invalid_payload`.
+import { CREDIT_DECIMALS, CREDIT_UNIT } from "./constants.js";
 import {
   EPOCH_PHASES,
   MEMBER_STATUSES,
@@ -96,7 +97,7 @@ function checkVoucherFields(v: Record<string, unknown>): Issue | null {
     ["epoch", isSafeUint(v.epoch, 1), "harus integer >= 1"],
     ["seq", isSafeUint(v.seq, 1), "harus integer >= 1"],
     ["cumulativeAmount", isU128String(v.cumulativeAmount), "harus string U128 desimal tanpa nol di depan"],
-    ["unit", v.unit === "credit", 'harus "credit"'],
+    ["unit", v.unit === CREDIT_UNIT, 'harus "credit"'],
     ["resource", typeof v.resource === "string" && ASCII.test(v.resource), "harus string ASCII"],
   ]);
 }
@@ -119,8 +120,8 @@ const checkExtra: Check = (value) => {
   if (!isRecord(value)) return issue("", "harus objek");
   return firstIssue([
     ["circleContract", isAccountId(value.circleContract), "harus akun NEAR"],
-    ["unit", value.unit === "credit", 'harus "credit"'],
-    ["decimals", value.decimals === 6, "harus 6"],
+    ["unit", value.unit === CREDIT_UNIT, 'harus "credit"'],
+    ["decimals", value.decimals === CREDIT_DECIMALS, "harus 6"],
     ["epoch", isSafeUint(value.epoch, 1), "harus integer >= 1"],
   ]);
 };
@@ -234,8 +235,8 @@ const checkClearingReport: Check = (value) => {
     ],
     ["phase", value.phase === undefined || isEpochPhase(value.phase), "bukan EpochPhase"],
     ["network", value.network === undefined || isCircleNetwork(value.network), "harus x207:<circleId>"],
-    ["unit", value.unit === undefined || value.unit === "credit", 'harus "credit"'],
-    ["decimals", value.decimals === undefined || value.decimals === 6, "harus 6"],
+    ["unit", value.unit === undefined || value.unit === CREDIT_UNIT, 'harus "credit"'],
+    ["decimals", value.decimals === undefined || value.decimals === CREDIT_DECIMALS, "harus 6"],
     ["members", Array.isArray(value.members), "harus array"],
   ]);
   if (found) return found;

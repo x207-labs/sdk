@@ -5,6 +5,7 @@ import type {
   PaymentRequirements as X402PaymentRequirements,
   SettleResponse as X402SettleResponse,
 } from "@x402/core/types";
+import type { CREDIT_DECIMALS, CREDIT_UNIT } from "./constants.js";
 
 export type AccountId = string;
 /** Bilangan bulat satuan terkecil (6 desimal), string desimal tanpa nol di depan. */
@@ -16,8 +17,8 @@ export type Ed25519Signature = `ed25519:${string}`;
 
 export type X207Extra = {
   circleContract: AccountId;
-  unit: "credit";
-  decimals: 6;
+  unit: typeof CREDIT_UNIT;
+  decimals: typeof CREDIT_DECIMALS;
   epoch: number;
 };
 
@@ -28,7 +29,7 @@ export type UnsignedVoucher = {
   epoch: number;
   seq: number;
   cumulativeAmount: U128String;
-  unit: "credit";
+  unit: typeof CREDIT_UNIT;
   resource: string;
 };
 
@@ -164,8 +165,8 @@ export type ClearingReport207 = {
   phase?: EpochPhase;
   committed?: boolean;
   finalized?: boolean;
-  unit?: "credit";
-  decimals?: 6;
+  unit?: typeof CREDIT_UNIT;
+  decimals?: typeof CREDIT_DECIMALS;
   totalObligation?: U128String;
   committedAt?: string;
   paymentDeadline?: string;
