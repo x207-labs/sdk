@@ -1,0 +1,21 @@
+{
+  "name": "@x207/example-seller",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Contoh penjual x207 minimal: satu endpoint berbayar dengan x207Middleware",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/seller.js",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@x207/scheme": "0.0.1",
+    "hono": "4.13.16"
+  }
+}

@@ -12,6 +12,9 @@
     },
     {
       "path": "examples/buyer"
+    },
+    {
+      "path": "examples/seller"
     }
   ]
 }
