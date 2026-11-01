@@ -8,7 +8,7 @@ import {
   buildClaimCall, buildSettleTransferCall, createCircleViewFn, onboardMember, parseEventLog, signVoucher,
   type ContractAbi, type ContractCall,
 } from "@x207/core";
-import { TERMS_HASH, deployCircle, type CircleFixture } from "../../../../test-support/circle.js";
+import { SHORT_PARAMS, TERMS_HASH, deployCircle, type CircleFixture } from "../../../../test-support/circle.js";
 import { sandboxAvailable, type SandboxAccount } from "../../../../test-support/sandbox.js";
 
 const OUT = fileURLToPath(new URL("../../../../spec/test-vectors/events/sandbox/", import.meta.url));
@@ -87,6 +87,10 @@ describe.skipIf(!sandboxAvailable)("SD-011 siklus hidup epoch di near-sandbox", 
       await new Promise((r) => setTimeout(r, 3_000));
     };
 
+    // params_updated: pemilik (dao) menjadwalkan params baru, berlaku saat close_epoch membuka epoch berikutnya.
+    const dao = await fx.sandbox.createAccount("dao", "5");
+    await call(dao, { receiverId: fx.circle.accountId, methodName: "set_params", args: { params: { ...SHORT_PARAMS, limit_cap: "900000000" } }, deposit: 0n });
+
     await at(epoch.cutoff_at);
     await call(fresh(payer.account), { receiverId: fx.circle.accountId, methodName: "close_epoch", args: { epoch: epoch.epoch }, deposit: 0n });
     const closing = await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", { epoch: epoch.epoch });
@@ -110,7 +114,7 @@ describe.skipIf(!sandboxAvailable)("SD-011 siklus hidup epoch di near-sandbox", 
 
     for (const name of [
       "member_joined", "stake_added", "voucher_registered", "epoch_cutoff", "clearing_submitted", "clearing_applied", "epoch_committed", "limits_updated",
-      "residual_paid", "epoch_finalized", "residual_claimed", "member_defaulted",
+      "residual_paid", "epoch_finalized", "residual_claimed", "member_defaulted", "params_updated",
     ]) {
       expect(seen.has(name), `${name} muncul di log sandbox`).toBe(true);
     }

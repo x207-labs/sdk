@@ -1,1 +1,1 @@
-EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"epoch_cutoff","data":[{"epoch":1,"closed_at":"1793544567708244000","proposal_deadline":"1793544627708244000","edge_count":3,"participant_count":3,"total_obligation":"19000000","next_epoch":2,"next_cutoff_at":"1793544784781649000"}]}
+EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"epoch_cutoff","data":[{"epoch":1,"closed_at":"1793544677803521000","proposal_deadline":"1793544737803521000","edge_count":3,"participant_count":3,"total_obligation":"19000000","next_epoch":2,"next_cutoff_at":"1793544895191876000"}]}
