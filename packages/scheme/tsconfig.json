@@ -4,6 +4,6 @@
     "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["index.ts", "client", "server", "facilitator"],
+  "include": ["index.ts", "shared", "client", "server", "facilitator"],
   "references": [{ "path": "../core" }]
 }
