@@ -111,6 +111,16 @@ export class SandboxAccount {
     this.secretKey = secretKey;
   }
 
+  /** Akun yang sama dengan function call key baru (ADR-11b): hanya boleh memanggil `contractId`, tanpa deposit. */
+  async withFunctionCallKey(contractId: string): Promise<SandboxAccount> {
+    const keyPair = KeyPair.fromRandom("ed25519");
+    await this.account.addFunctionCallAccessKey({
+      publicKey: keyPair.getPublicKey(), contractId, methodNames: [], allowance: BigInt(parseNearAmount(1)),
+    });
+    const restricted = new Account(this.accountId, this.sandbox.provider, KeyPairSigner.fromSecretKey(keyPair.toString() as never));
+    return new SandboxAccount(this.sandbox, this.accountId, restricted, keyPair.toString());
+  }
+
   /** Kirim function call dan tunggu final; kegagalan dikembalikan di `failures`, tidak dilempar. */
   async call(
     call: Pick<ContractCall, "receiverId" | "methodName" | "args" | "deposit" | "gas">,
