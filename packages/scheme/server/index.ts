@@ -13,6 +13,7 @@ import type { X207ExtraSource } from "./extra.js";
 import { priceToAmount } from "./price.js";
 
 export * from "./extra.js";
+export * from "./middleware.js";
 export * from "./price.js";
 
 /** `maxTimeoutSeconds` x402 (ADR-25). */
