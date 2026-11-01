@@ -123,15 +123,15 @@ describe("SD-011 parseEventLog", () => {
   });
 
   it("event yang belum dikenal diteruskan apa adanya", () => {
-    const event = one(log("exit_requested", { account_id: A, epoch: 42 }));
-    expect(event).toEqual({ event: "exit_requested", data: { account_id: A, epoch: 42 } });
+    const event = one(log("future_event", { account_id: A, epoch: 42 }));
+    expect(event).toEqual({ event: "future_event", data: { account_id: A, epoch: 42 } });
     expect(isKnownX207Event(event)).toBe(false);
   });
 
   it("skema parser cocok dengan abi.json 0.0.1 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
-    expect(inAbi.length).toBe(abi.events.length - 3); // exit_requested, stake_withdrawn, stake_withdraw_failed: SD-054
+    expect(inAbi.length).toBe(abi.events.length - 3); // exit_requested, stake_withdrawn, stake_withdraw_failed: tipe di test exit.test.ts (SD-054)
     for (const spec of inAbi) {
       const sample = SAMPLES[spec.name] as Record<string, unknown>;
       expect(Object.keys(sample).sort(), spec.name).toEqual([...spec.fields].sort());
