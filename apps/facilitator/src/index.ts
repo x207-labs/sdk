@@ -3,4 +3,4 @@ export { createApp, RETRY_AFTER_SECONDS, type FacilitatorService } from "./app.j
 export { ConfigError, DEFAULT_RPC_TIMEOUT_MS, loadConfig, type FacilitatorConfig } from "./config.js";
 export { ChainUnavailableError, NearRpc, RpcError, type NearRpcOptions } from "./rpc.js";
 export { PendingStore, type PendingKey, type PendingRow } from "./pending-store.js";
-export { NearChain, createVerify } from "./chain.js";
+export { NearChain, PendingStoreWriter, createSettle, createVerify } from "./chain.js";
