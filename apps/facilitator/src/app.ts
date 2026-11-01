@@ -10,16 +10,26 @@ import type {
 import { assertCircleId } from "@x207/scheme";
 import { ChainUnavailableError } from "./rpc.js";
 
-/** Logika bisnis di belakang rute; diisi SD-024 (`verify`), SD-026 (`settle`), SD-032 (`supported`). */
+export type PairStateQuery = { network: string; payer: string; payee: string; epoch: number };
+
+/** Respons `GET /x207/pair-state` (Spec Binding x402 8.5, K-29). */
+export type PairStateResponse = PairStateQuery & {
+  lastSeq: number;
+  lastCumulativeAmount: string;
+  source: "pending" | "onchain" | "none";
+};
+
+/** Logika bisnis di belakang rute; diisi SD-024 (`verify`), SD-026 (`settle`), SD-032 (`supported`, `pairState`). */
 export type FacilitatorService = {
   verify(request: VerifyRequest): Promise<VerifyResponse>;
   settle(request: SettleRequest): Promise<SettleResponse>;
   supported(): Promise<SupportedResponse>;
+  pairState?(query: PairStateQuery): Promise<PairStateResponse>;
 };
 
 export const RETRY_AFTER_SECONDS = 5;
 
-class InvalidRequestError extends Error {}
+export class InvalidRequestError extends Error {}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -43,6 +53,21 @@ function parsePaymentRequest(body: unknown): VerifyRequest {
   return body as unknown as VerifyRequest;
 }
 
+/** Query `GET /x207/pair-state`; semua parameter wajib dan network lolos regex CAIP-2. */
+function parsePairStateQuery(query: Record<string, string | undefined>): PairStateQuery {
+  const { network, payer, payee, epoch } = query;
+  if (!network || !payer || !payee || !epoch) throw new InvalidRequestError("network, payer, payee, dan epoch wajib");
+  try {
+    assertCircleId(network);
+  } catch (error) {
+    throw new InvalidRequestError((error as Error).message);
+  }
+  if (!/^[1-9]\d*$/.test(epoch) || !Number.isSafeInteger(Number(epoch))) {
+    throw new InvalidRequestError(`epoch harus integer >= 1, dapat "${epoch}"`);
+  }
+  return { network, payer, payee, epoch: Number(epoch) };
+}
+
 export function createApp(service: FacilitatorService): Hono {
   const app = new Hono();
 
@@ -59,6 +84,10 @@ export function createApp(service: FacilitatorService): Hono {
   app.post("/verify", handlePayment((request) => service.verify(request)));
   app.post("/settle", handlePayment((request) => service.settle(request)));
   app.get("/supported", async (c) => c.json(await service.supported(), 200));
+  app.get("/x207/pair-state", async (c) => {
+    if (!service.pairState) return c.json({ error: "not_found" }, 404);
+    return c.json(await service.pairState(parsePairStateQuery(c.req.query())), 200);
+  });
 
   app.notFound((c) => c.json({ error: "not_found" }, 404));
 

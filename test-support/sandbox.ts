@@ -1,5 +1,5 @@
 // Harness near-sandbox untuk test integrasi sdk (TC-SD-011-17, TC-SD-012-07/08, TC-SD-013-01/02, TC-SD-028-19).
-// Mencari binary near-sandbox di X207_SANDBOX_BIN atau di build `contracts` (near-workspaces mengunduhnya
+// Dijalankan lewat `npm run test:sandbox`. Mencari binary near-sandbox di X207_SANDBOX_BIN atau di build `contracts` (near-workspaces mengunduhnya
 // saat `cargo test` pertama), dan wasm kontrak di `../contracts/target/near` (hasil `cargo near build`).
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -29,8 +29,12 @@ export function findSandboxBinary(): string | null {
   return null;
 }
 
-/** `true` bila binary sandbox dan kedua wasm tersedia; test integrasi dilewati bila tidak. */
-export const sandboxAvailable = findSandboxBinary() !== null && existsSync(CIRCLE_WASM) && existsSync(MOCK_FT_WASM);
+/**
+ * Test sandbox hanya jalan bila diminta (`npm run test:sandbox`, env X207_SANDBOX=1) dan binary serta kedua wasm
+ * ada. Satu test butuh puluhan detik dan jauh lebih lama saat mesin sibuk, jadi tidak ikut `npm test`.
+ */
+export const sandboxAvailable =
+  process.env.X207_SANDBOX === "1" && findSandboxBinary() !== null && existsSync(CIRCLE_WASM) && existsSync(MOCK_FT_WASM);
 
 const freePort = () =>
   new Promise<number>((res, rej) => {

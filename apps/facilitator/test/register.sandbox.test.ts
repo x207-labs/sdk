@@ -18,7 +18,7 @@ describe.skipIf(!sandboxAvailable)("SD-028 registrasi di near-sandbox", () => {
   beforeAll(async () => {
     fx = await deployCircle();
     relayer = await fx.sandbox.createAccount("relayer", "20");
-  }, 180_000);
+  }, 300_000);
   afterAll(async () => {
     await fx?.stop();
   });
@@ -88,5 +88,5 @@ describe.skipIf(!sandboxAvailable)("SD-028 registrasi di near-sandbox", () => {
     expect(obligation.last_seq).toBe(50);
     expect(store.listOpen(fx.circle.accountId)).toEqual([]);
     store.close();
-  }, 180_000);
+  }, 300_000);
 });

@@ -37,7 +37,7 @@ describe.skipIf(!sandboxAvailable)("SD-011/012/013 onboarding di near-sandbox", 
   beforeAll(async () => {
     fx = await deployCircle();
     view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
-  }, 180_000);
+  }, 300_000);
   afterAll(async () => {
     await fx?.stop();
   });

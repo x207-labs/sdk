@@ -17,7 +17,8 @@
     "build": "tsc -b",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run --passWithNoTests",
-    "clean": "tsc -b --clean"
+    "clean": "tsc -b --clean",
+    "test:sandbox": "X207_SANDBOX=1 vitest run --passWithNoTests sandbox register.sandbox"
   },
   "devDependencies": {
     "@types/node": "26.6.6",

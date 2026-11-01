@@ -1,27 +1,33 @@
 // Menjalankan facilitator lokal: `npm run start -w @x207/facilitator`.
 import { serve } from "@hono/node-server";
-import { NotImplementedError } from "@x207/scheme";
-import { createApp, type FacilitatorService } from "./app.js";
+import type { KeyPairString } from "@near-js/crypto";
+import { createFacilitatorNearSigner } from "@x402/near";
+import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
-import { createSettle, createVerify } from "./chain.js";
 import { PendingStore } from "./pending-store.js";
 import { NearRegistrationChain } from "./relay.js";
+import { EXACT_NEAR_NETWORK, createFacilitatorService } from "./service.js";
 import { RegistrationScheduler } from "./scheduler.js";
 import { NearRpc } from "./rpc.js";
 
 const config = loadConfig();
 const pending = new PendingStore(config.pendingDbPath);
 
-// supported diisi SD-032; sampai itu rute menjawab 500 internal_error.
-const pending_ = (method: string, itemId: string) => async (): Promise<never> => {
-  throw new NotImplementedError(method, itemId);
-};
 const rpc = new NearRpc({ urls: config.rpcUrls, timeoutMs: config.rpcTimeoutMs });
-const service: FacilitatorService = {
-  verify: createVerify(config.circles, rpc, pending),
-  settle: createSettle(config.circles, rpc, pending),
-  supported: pending_("supported", "SD-032"),
-};
+// `exact` near:mainnet butuh akun relayer; tanpa itu facilitator hanya melayani x207.
+const exactSigner = config.relayer
+  ? createFacilitatorNearSigner({
+      relayers: [{ accountId: config.relayer.accountId, secretKey: config.relayer.privateKey as KeyPairString }],
+      rpcUrls: { [EXACT_NEAR_NETWORK]: config.rpcUrls[0]! },
+    })
+  : undefined;
+const service = createFacilitatorService({
+  circles: config.circles,
+  rpc,
+  pending,
+  ...(config.relayer ? { signers: [config.relayer.accountId] } : {}),
+  ...(exactSigner ? { exactSigner } : {}),
+});
 
 // Penjadwal registrasi (SD-028) jalan bila akun relayer dikonfigurasi; tanpa itu voucher hanya tersimpan di D3.
 const schedulers = config.relayer
