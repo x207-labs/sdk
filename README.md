@@ -64,6 +64,27 @@ Paket `@x207/*` belum di-publish; langkah di bawah memakai clone repo ini (`npm 
 
 Contoh lengkap yang diuji: [`examples/buyer`](examples/buyer). Dijalankan terhadap near-sandbox lewat `npm run test:sandbox`.
 
+## Quickstart penjual
+
+1. **Pasang middleware.** `x207Middleware` memakai `Request`/`Response` web standar, jadi cocok di Hono, Express (adapter), atau fetch handler apa pun:
+
+   ```ts
+   import { x207Middleware } from "@x207/scheme";
+
+   const paywall = x207Middleware({
+     routes: { "/api/summarize": { price: "$0.02", description: "Ringkas teks" } },
+     facilitatorUrl: process.env.FACILITATOR_URL!,
+     circleId: "agents-main",
+     payTo: "summarizer.agents.near",
+   });
+   // response = await paywall(request, (req) => handler(req))
+   ```
+
+2. **Arahkan ke facilitator.** Jalankan facilitator referensi (`apps/facilitator`, variabel di `.env.example`: `X207_CIRCLES`, `X207_RELAYER_ACCOUNT_ID`, `X207_RELAYER_PRIVATE_KEY`, `NEAR_RPC_URLS`) dan isi `FACILITATOR_URL` di penjual. `GET /supported` memuat `batch-settlement` di `x207:<circleId>` dan `exact` di `near:mainnet`; 402 penjual mengiklankan keduanya, sehingga anggota membayar dengan voucher dan non-anggota dengan `exact`.
+3. **Cek saldo klaim.** Piutang penjual terlihat di read API indexer: `GET /x207/circles/{circleId}/members/{akun}/settlements` (posisi `claimable` setelah `finalize_epoch`). Klaim dengan `claim(epoch, "near" | "intents")` dari dashboard.
+
+Contoh yang diuji: [`examples/seller`](examples/seller).
+
 ## Lisensi
 
 Apache-2.0
