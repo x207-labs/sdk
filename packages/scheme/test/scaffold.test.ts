@@ -18,6 +18,8 @@ import {
 const NETWORK = "x207:agents-main";
 const CIRCLE_CONTRACT = "x207-circle.near";
 
+const CLIENT_OPTIONS = { payer: "translator.x207-circle.near", secretKey: new Uint8Array(32).fill(1) };
+
 const REQUIREMENTS = {
   scheme: X207_SCHEME,
   network: NETWORK,
@@ -74,7 +76,7 @@ describe("SD-015 register x402 2.28.0", () => {
       }
     }
 
-    const client = new x402Client().register(X207_NETWORK_FAMILY, new ClientImpl());
+    const client = new x402Client().register(X207_NETWORK_FAMILY, new ClientImpl(CLIENT_OPTIONS));
     const created = await client.createPaymentPayload({
       x402Version: 2,
       resource: { url: "https://seller.example/api" },
@@ -125,8 +127,8 @@ describe("SD-015 register x402 2.28.0", () => {
     expect(typeof facilitator.getExtra).toBe("function");
     expect(facilitator.getSigners(NETWORK)).toEqual(["relayer.x207-circle.near"]);
 
-    expect(new X207SchemeClient().scheme).toBe("batch-settlement");
-    expect(typeof new X207SchemeClient().createPaymentPayload).toBe("function");
+    expect(new X207SchemeClient(CLIENT_OPTIONS).scheme).toBe("batch-settlement");
+    expect(typeof new X207SchemeClient(CLIENT_OPTIONS).createPaymentPayload).toBe("function");
     expect(new X207SchemeServer().scheme).toBe("batch-settlement");
     expect(typeof new X207SchemeServer().parsePrice).toBe("function");
   });

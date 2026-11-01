@@ -1,0 +1,96 @@
+{
+  "name": "client_seq1_seq2",
+  "description": "Klien kA membayar dua kali ke penjual yang sama di epoch 42; state kosong, lalu satu commit. Harga 20000 per panggilan.",
+  "input": {
+    "key": "kA",
+    "requirements": {
+      "scheme": "batch-settlement",
+      "network": "x207:agents-main",
+      "amount": "20000",
+      "asset": "USD",
+      "payTo": "summarizer.x207-circle.near",
+      "maxTimeoutSeconds": 60,
+      "extra": {
+        "circleContract": "x207-circle.near",
+        "unit": "credit",
+        "decimals": 6,
+        "epoch": 42
+      }
+    },
+    "resource": "https://summarizer.example/api/summarize"
+  },
+  "expected": {
+    "seq1": {
+      "paymentPayload": {
+        "x402Version": 2,
+        "payload": {
+          "voucher": {
+            "circle": "x207-circle.near",
+            "payer": "translator.x207-circle.near",
+            "payee": "summarizer.x207-circle.near",
+            "epoch": 42,
+            "seq": 1,
+            "cumulativeAmount": "20000",
+            "unit": "credit",
+            "resource": "https://summarizer.example/api/summarize"
+          },
+          "signature": "ed25519:xds6RCcuGxvQbN3xbWQsVSFX2iFRmhubSicmwzL7yAjQj5J6VfvNbRTyA1iEqS7mUcJgBUFGkfVw6hCn8cXfcmx"
+        },
+        "resource": {
+          "url": "https://summarizer.example/api/summarize"
+        },
+        "accepted": {
+          "scheme": "batch-settlement",
+          "network": "x207:agents-main",
+          "amount": "20000",
+          "asset": "USD",
+          "payTo": "summarizer.x207-circle.near",
+          "maxTimeoutSeconds": 60,
+          "extra": {
+            "circleContract": "x207-circle.near",
+            "unit": "credit",
+            "decimals": 6,
+            "epoch": 42
+          }
+        }
+      },
+      "header": "eyJ4NDAyVmVyc2lvbiI6MiwicGF5bG9hZCI6eyJ2b3VjaGVyIjp7ImNpcmNsZSI6IngyMDctY2lyY2xlLm5lYXIiLCJwYXllciI6InRyYW5zbGF0b3IueDIwNy1jaXJjbGUubmVhciIsInBheWVlIjoic3VtbWFyaXplci54MjA3LWNpcmNsZS5uZWFyIiwiZXBvY2giOjQyLCJzZXEiOjEsImN1bXVsYXRpdmVBbW91bnQiOiIyMDAwMCIsInVuaXQiOiJjcmVkaXQiLCJyZXNvdXJjZSI6Imh0dHBzOi8vc3VtbWFyaXplci5leGFtcGxlL2FwaS9zdW1tYXJpemUifSwic2lnbmF0dXJlIjoiZWQyNTUxOTp4ZHM2UkNjdUd4dlFiTjN4YldRc1ZTRlgyaUZSbWh1YlNpY213ekw3eUFqUWo1SjZWZnZOYlJUeUExaUVxUzdtVWNKZ0JVRkdrZlZ3NmhDbjhjWGZjbXgifSwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9zdW1tYXJpemVyLmV4YW1wbGUvYXBpL3N1bW1hcml6ZSJ9LCJhY2NlcHRlZCI6eyJzY2hlbWUiOiJiYXRjaC1zZXR0bGVtZW50IiwibmV0d29yayI6IngyMDc6YWdlbnRzLW1haW4iLCJhbW91bnQiOiIyMDAwMCIsImFzc2V0IjoiVVNEIiwicGF5VG8iOiJzdW1tYXJpemVyLngyMDctY2lyY2xlLm5lYXIiLCJtYXhUaW1lb3V0U2Vjb25kcyI6NjAsImV4dHJhIjp7ImNpcmNsZUNvbnRyYWN0IjoieDIwNy1jaXJjbGUubmVhciIsInVuaXQiOiJjcmVkaXQiLCJkZWNpbWFscyI6NiwiZXBvY2giOjQyfX19"
+    },
+    "seq2": {
+      "paymentPayload": {
+        "x402Version": 2,
+        "payload": {
+          "voucher": {
+            "circle": "x207-circle.near",
+            "payer": "translator.x207-circle.near",
+            "payee": "summarizer.x207-circle.near",
+            "epoch": 42,
+            "seq": 2,
+            "cumulativeAmount": "40000",
+            "unit": "credit",
+            "resource": "https://summarizer.example/api/summarize"
+          },
+          "signature": "ed25519:3dVmywQ4wvLWHh1vovaw84bfijo4ybEs9qrSDjWXNodeM8nnBwKinvN5Ht3HMBaxhuoRFUiA7WtkkzjiaX3k4AZN"
+        },
+        "resource": {
+          "url": "https://summarizer.example/api/summarize"
+        },
+        "accepted": {
+          "scheme": "batch-settlement",
+          "network": "x207:agents-main",
+          "amount": "20000",
+          "asset": "USD",
+          "payTo": "summarizer.x207-circle.near",
+          "maxTimeoutSeconds": 60,
+          "extra": {
+            "circleContract": "x207-circle.near",
+            "unit": "credit",
+            "decimals": 6,
+            "epoch": 42
+          }
+        }
+      },
+      "header": "eyJ4NDAyVmVyc2lvbiI6MiwicGF5bG9hZCI6eyJ2b3VjaGVyIjp7ImNpcmNsZSI6IngyMDctY2lyY2xlLm5lYXIiLCJwYXllciI6InRyYW5zbGF0b3IueDIwNy1jaXJjbGUubmVhciIsInBheWVlIjoic3VtbWFyaXplci54MjA3LWNpcmNsZS5uZWFyIiwiZXBvY2giOjQyLCJzZXEiOjIsImN1bXVsYXRpdmVBbW91bnQiOiI0MDAwMCIsInVuaXQiOiJjcmVkaXQiLCJyZXNvdXJjZSI6Imh0dHBzOi8vc3VtbWFyaXplci5leGFtcGxlL2FwaS9zdW1tYXJpemUifSwic2lnbmF0dXJlIjoiZWQyNTUxOTozZFZteXdRNHd2TFdIaDF2b3Zhdzg0YmZpam80eWJFczlxclNEaldYTm9kZU04bm5Cd0tpbnZONUh0M0hNQmF4aHVvUkZVaUE3V3Rra3pqaWFYM2s0QVpOIn0sInJlc291cmNlIjp7InVybCI6Imh0dHBzOi8vc3VtbWFyaXplci5leGFtcGxlL2FwaS9zdW1tYXJpemUifSwiYWNjZXB0ZWQiOnsic2NoZW1lIjoiYmF0Y2gtc2V0dGxlbWVudCIsIm5ldHdvcmsiOiJ4MjA3OmFnZW50cy1tYWluIiwiYW1vdW50IjoiMjAwMDAiLCJhc3NldCI6IlVTRCIsInBheVRvIjoic3VtbWFyaXplci54MjA3LWNpcmNsZS5uZWFyIiwibWF4VGltZW91dFNlY29uZHMiOjYwLCJleHRyYSI6eyJjaXJjbGVDb250cmFjdCI6IngyMDctY2lyY2xlLm5lYXIiLCJ1bml0IjoiY3JlZGl0IiwiZGVjaW1hbHMiOjYsImVwb2NoIjo0Mn19fQ=="
+    }
+  }
+}
