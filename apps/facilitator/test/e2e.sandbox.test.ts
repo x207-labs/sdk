@@ -4,7 +4,7 @@
 import { serve } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { onboardMember, createCircleViewFn, parseEventLog, type ContractAbi, type ContractCall } from "@x207/core";
+import { buildRequestExitCall, onboardMember, createCircleViewFn, parseEventLog, type ContractAbi, type ContractCall } from "@x207/core";
 import { defineCircleConfig } from "@x207/scheme";
 import { createBuyerFetch } from "../../../examples/buyer/src/buyer.js";
 import { createSeller } from "../../../examples/seller/src/seller.js";
@@ -82,6 +82,24 @@ describe.skipIf(!sandboxAvailable)("E2E pembeli, penjual, facilitator, kontrak d
       epoch: epoch.epoch, debtor: payer.account.accountId, creditor: payee.account.accountId,
     });
     expect(obligation).toMatchObject({ cumulative: "20000", last_seq: 1 });
+
+    // TC-SD-054-14: payer request_exit lalu voucher baru ditolak member_exiting; event exit_requested ter-parse.
+    const exit = await payer.account.call(buildRequestExitCall(fx.circle.accountId));
+    expect(exit.failures).toEqual([]);
+    expect(exit.logs.flatMap((log) => parseEventLog(log) ?? [])).toContainEqual(
+      expect.objectContaining({ event: "exit_requested", account_id: payer.account.accountId }),
+    );
+    const challenges: string[] = [];
+    const spying = (async (input: string | URL | Request, init?: RequestInit) => {
+      const response = await fetch(input, init);
+      const header = response.headers.get("PAYMENT-REQUIRED");
+      if (response.status === 402 && header) challenges.push(JSON.parse(Buffer.from(header, "base64").toString("utf8")).error);
+      return response;
+    }) as typeof fetch;
+    await createBuyerFetch({ accountId: payer.account.accountId, secretKey: payer.secretKey, rpcUrls: [fx.sandbox.rpcUrl], fetch: spying })(
+      `${seller.url}/api/summarize`,
+    ).catch(() => undefined);
+    expect(challenges).toContain("member_exiting");
 
     // TC-SD-016-10: close_epoch memajukan epoch; /supported ikut setelah cache 60 detik habis.
     await fx.sandbox.advanceTo(Number(BigInt(epoch.cutoff_at) / 1_000_000n) + 1_000);
