@@ -73,6 +73,8 @@ async function waitForRpc(rpcUrl: string, exited: () => boolean, timeoutMs: numb
 }
 
 export type TxResult = {
+  /** Hash transaksi. */
+  hash: string;
   /** Nilai sukses akhir (JSON), atau `undefined` bila kosong. */
   value: unknown;
   /** Semua baris log dari seluruh receipt, berurutan. */
@@ -82,7 +84,7 @@ export type TxResult = {
 };
 
 type Outcome = { logs: string[]; status: unknown };
-type RawResult = { status: unknown; transaction_outcome: { outcome: Outcome }; receipts_outcome: Array<{ outcome: Outcome }> };
+type RawResult = { status: unknown; transaction_outcome: { id: string; outcome: Outcome }; receipts_outcome: Array<{ outcome: Outcome }> };
 
 function summarize(raw: RawResult): TxResult {
   const outcomes = [raw.transaction_outcome.outcome, ...raw.receipts_outcome.map((r) => r.outcome)];
@@ -94,7 +96,7 @@ function summarize(raw: RawResult): TxResult {
   let value: unknown;
   const final = raw.status as { SuccessValue?: string };
   if (final?.SuccessValue) value = JSON.parse(Buffer.from(final.SuccessValue, "base64").toString("utf8"));
-  return { value, logs, failures };
+  return { hash: raw.transaction_outcome.id, value, logs, failures };
 }
 
 export class SandboxAccount {
@@ -138,7 +140,7 @@ export class SandboxAccount {
       })) as unknown as RawResult;
     } catch (error) {
       // near-api-js melempar bila transaksi gagal di akhir; log receipt hilang, pesan panic tetap ada.
-      return { value: undefined, logs: [], failures: [error instanceof Error ? error.message : String(error)] };
+      return { hash: "", value: undefined, logs: [], failures: [error instanceof Error ? error.message : String(error)] };
     }
     return summarize(raw);
   }
