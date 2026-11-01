@@ -1,0 +1,25 @@
+{
+  "name": "cleared_exceeds_obligation",
+  "description": "Edge C->A menghapus 70 credit padahal kewajibannya 60 (seimbang, tetapi melebihi obligation).",
+  "input": {
+    "epoch": 42,
+    "snapshot": { "obligations": [
+        { "debtor": "translator.x207-circle.near", "creditor": "summarizer.x207-circle.near", "amount": "100000000" },
+        { "debtor": "summarizer.x207-circle.near", "creditor": "scraper.x207-circle.near", "amount": "80000000" },
+        { "debtor": "scraper.x207-circle.near", "creditor": "translator.x207-circle.near", "amount": "60000000" },
+        { "debtor": "translator.x207-circle.near", "creditor": "scraper.x207-circle.near", "amount": "10000000" }
+      ] },
+    "edges": [
+      { "debtor": "translator.x207-circle.near", "creditor": "summarizer.x207-circle.near", "cleared": "70000000" },
+      { "debtor": "summarizer.x207-circle.near", "creditor": "scraper.x207-circle.near", "cleared": "70000000" },
+      { "debtor": "scraper.x207-circle.near", "creditor": "translator.x207-circle.near", "cleared": "70000000" }
+    ]
+  },
+  "expected": {
+    "valid": false,
+    "cleared_total": "0",
+    "edge_count": 3,
+    "better_than_current": false,
+    "reason": "ERR_CLEARED_EXCEEDS_OBLIGATION"
+  }
+}
