@@ -5,6 +5,8 @@ export type PendingVoucherRef = {
   payee: AccountId;
   seq: number;
   cumulativeAmount: U128String;
+  /** Percobaan registrasi gagal (ADR-23); tidak ada berarti 0. */
+  attempts?: number;
 };
 
 /** Pembacaan on-chain dan pending store D3 yang dibutuhkan facilitator. */

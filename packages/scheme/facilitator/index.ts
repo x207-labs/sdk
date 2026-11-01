@@ -14,12 +14,15 @@ import {
   defineCircleConfig,
   type CircleConfig,
 } from "../shared/circle.js";
+import { verifyPayment, type VerifyOptions } from "./verify.js";
 
 export type X207FacilitatorOptions = {
   network: string;
   circleContract: AccountId;
   /** Akun relayer yang mengirim `register_cumulative`. */
   signers?: readonly AccountId[];
+  /** Sumber data `verify` (SD-024); tanpa ini `verify` melempar `NotImplementedError`. */
+  verify?: VerifyOptions;
 };
 
 export class X207SchemeFacilitator implements SchemeNetworkFacilitator {
@@ -27,10 +30,12 @@ export class X207SchemeFacilitator implements SchemeNetworkFacilitator {
   readonly caipFamily = X207_NETWORK_FAMILY;
   readonly circle: CircleConfig;
   private readonly signers: readonly AccountId[];
+  private readonly verifyOptions: VerifyOptions | undefined;
 
   constructor(options: X207FacilitatorOptions) {
     this.circle = defineCircleConfig(options);
     this.signers = options.signers ?? [];
+    this.verifyOptions = options.verify;
   }
 
   getExtra(): Record<string, unknown> | undefined {
@@ -41,8 +46,9 @@ export class X207SchemeFacilitator implements SchemeNetworkFacilitator {
     return [...this.signers];
   }
 
-  async verify(_payload?: PaymentPayload, _requirements?: PaymentRequirements): Promise<VerifyResponse> {
-    throw new NotImplementedError("X207SchemeFacilitator.verify", "SD-024");
+  async verify(payload: PaymentPayload, requirements: PaymentRequirements): Promise<VerifyResponse> {
+    if (!this.verifyOptions) throw new NotImplementedError("X207SchemeFacilitator.verify", "SD-024");
+    return verifyPayment(this.circle, this.verifyOptions, payload, requirements);
   }
 
   async settle(_payload?: PaymentPayload, _requirements?: PaymentRequirements): Promise<SettleResponse> {
@@ -51,3 +57,4 @@ export class X207SchemeFacilitator implements SchemeNetworkFacilitator {
 }
 
 export * from "./headroom.js";
+export * from "./verify.js";
