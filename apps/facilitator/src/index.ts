@@ -17,3 +17,4 @@ export {
   type SchedulerOptions,
   type TickResult,
 } from "./scheduler.js";
+export { NearRegistrationChain, REGISTER_GAS, transactionFailure, type NearRelayOptions } from "./relay.js";

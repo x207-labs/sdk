@@ -15,6 +15,9 @@
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
+    "@near-js/crypto": "2.5.1",
+    "@near-js/signers": "2.5.1",
+    "@near-js/transactions": "2.5.1",
     "@x207/core": "0.0.1",
     "@x207/scheme": "0.0.1",
     "@x402/core": "2.28.0",
