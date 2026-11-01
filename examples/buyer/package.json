@@ -1,0 +1,16 @@
+{
+  "name": "@x207/example-buyer",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Contoh pembeli x207 minimal: satu wrapper @x402/fetch dan klien x207",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/buyer.js",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/main.js"
+  }
+}

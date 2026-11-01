@@ -1,8 +1,17 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/core" },
-    { "path": "packages/scheme" },
-    { "path": "apps/facilitator" }
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/scheme"
+    },
+    {
+      "path": "apps/facilitator"
+    },
+    {
+      "path": "examples/buyer"
+    }
   ]
 }
