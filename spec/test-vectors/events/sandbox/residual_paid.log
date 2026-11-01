@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"residual_paid","data":[{"epoch":1,"account_id":"translator.test.near","sender_id":"translator.test.near","amount":"6000000","refunded":"0","settled_history":"6000000"}]}

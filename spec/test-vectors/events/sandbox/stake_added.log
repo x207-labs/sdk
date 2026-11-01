@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"stake_added","data":[{"account_id":"translator.test.near","sender_id":"translator.test.near","amount":"50000000","stake":"50000000","limit":"40000000","status":"active"}]}

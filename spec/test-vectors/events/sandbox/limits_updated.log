@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"limits_updated","data":[{"epoch":1,"changes":[{"account_id":"translator.test.near","old_limit":"40000000","new_limit":"40600000","status":"active"}],"chunk":0,"chunks":1}]}

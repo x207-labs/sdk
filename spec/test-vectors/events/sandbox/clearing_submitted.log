@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"clearing_submitted","data":[{"epoch":1,"solver":"summarizer.test.near","cleared_total":"8000000","edge_count":2,"replaced_solver":null,"replaced_cleared_total":null}]}
