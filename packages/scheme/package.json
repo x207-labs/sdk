@@ -37,5 +37,8 @@
   "dependencies": {
     "@x207/core": "0.0.1",
     "@x402/core": "2.28.0"
+  },
+  "devDependencies": {
+    "@x402/fetch": "2.28.0"
   }
 }
