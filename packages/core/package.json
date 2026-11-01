@@ -11,7 +11,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./signer": {
+      "types": "./dist/signer.d.ts",
+      "default": "./dist/signer.js"
+    }
   },
   "files": [
     "dist"

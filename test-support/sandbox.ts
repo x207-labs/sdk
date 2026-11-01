@@ -98,7 +98,18 @@ function summarize(raw: RawResult): TxResult {
 }
 
 export class SandboxAccount {
-  constructor(readonly sandbox: Sandbox, readonly accountId: string, readonly account: Account, readonly secretKey: string) {}
+  readonly sandbox: Sandbox;
+  readonly accountId: string;
+  readonly account: Account;
+  readonly secretKey: string;
+
+  // Tanpa parameter property: agents mengimpor berkas ini dan memakai erasableSyntaxOnly.
+  constructor(sandbox: Sandbox, accountId: string, account: Account, secretKey: string) {
+    this.sandbox = sandbox;
+    this.accountId = accountId;
+    this.account = account;
+    this.secretKey = secretKey;
+  }
 
   /** Kirim function call dan tunggu final; kegagalan dikembalikan di `failures`, tidak dilempar. */
   async call(
@@ -125,17 +136,21 @@ export class SandboxAccount {
 
 export class Sandbox {
   readonly provider: JsonRpcProvider;
-  constructor(
-    readonly rpcUrl: string,
-    readonly rootAccountId: string,
-    private readonly rootSecretKey: string,
-    private readonly stopFn: () => Promise<void>,
-  ) {
+  readonly rpcUrl: string;
+  readonly rootAccountId: string;
+  readonly #rootSecretKey: string;
+  readonly #stopFn: () => Promise<void>;
+
+  constructor(rpcUrl: string, rootAccountId: string, rootSecretKey: string, stopFn: () => Promise<void>) {
+    this.rpcUrl = rpcUrl;
+    this.rootAccountId = rootAccountId;
+    this.#rootSecretKey = rootSecretKey;
+    this.#stopFn = stopFn;
     this.provider = new JsonRpcProvider({ url: rpcUrl });
   }
 
   root(): SandboxAccount {
-    return new SandboxAccount(this, this.rootAccountId, new Account(this.rootAccountId, this.provider, KeyPairSigner.fromSecretKey(this.rootSecretKey as never)), this.rootSecretKey);
+    return new SandboxAccount(this, this.rootAccountId, new Account(this.rootAccountId, this.provider, KeyPairSigner.fromSecretKey(this.#rootSecretKey as never)), this.#rootSecretKey);
   }
 
   /** Buat `<name>.<root>` dengan saldo NEAR dan kunci baru. */
@@ -187,7 +202,7 @@ export class Sandbox {
   }
 
   stop(): Promise<void> {
-    return this.stopFn();
+    return this.#stopFn();
   }
 }
 
