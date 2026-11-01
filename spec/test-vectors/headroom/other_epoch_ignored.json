@@ -1,0 +1,20 @@
+{
+  "name": "other_epoch_ignored",
+  "description": "Pending epoch lain tidak mengurangi (TC-SD-023-08).",
+  "input": {
+    "epoch": 42,
+    "payer": "a.x207-circle.near",
+    "onchainHeadroom": "100000",
+    "pending": [
+      {
+        "payee": "b.x207-circle.near",
+        "epoch": 41,
+        "cumulativeAmount": "50000"
+      }
+    ],
+    "obligations": []
+  },
+  "expected": {
+    "headroom": "100000"
+  }
+}

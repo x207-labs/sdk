@@ -1,0 +1,20 @@
+{
+  "name": "pending_exceeds_headroom",
+  "description": "Pending melebihi headroom on-chain: diklem ke 0, tidak negatif.",
+  "input": {
+    "epoch": 42,
+    "payer": "a.x207-circle.near",
+    "onchainHeadroom": "30000",
+    "pending": [
+      {
+        "payee": "b.x207-circle.near",
+        "epoch": 42,
+        "cumulativeAmount": "50000"
+      }
+    ],
+    "obligations": []
+  },
+  "expected": {
+    "headroom": "0"
+  }
+}

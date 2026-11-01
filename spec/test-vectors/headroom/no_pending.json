@@ -1,0 +1,14 @@
+{
+  "name": "no_pending",
+  "description": "Tanpa voucher pending: headroom on-chain apa adanya (TC-SD-023-01).",
+  "input": {
+    "epoch": 42,
+    "payer": "a.x207-circle.near",
+    "onchainHeadroom": "100000",
+    "pending": [],
+    "obligations": []
+  },
+  "expected": {
+    "headroom": "100000"
+  }
+}

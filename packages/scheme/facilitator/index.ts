@@ -49,3 +49,5 @@ export class X207SchemeFacilitator implements SchemeNetworkFacilitator {
     throw new NotImplementedError("X207SchemeFacilitator.settle", "SD-026");
   }
 }
+
+export * from "./headroom.js";

@@ -1,0 +1,20 @@
+{
+  "name": "clamped_at_zero",
+  "description": "Headroom on-chain 0 (anggota tidak active) dengan pending: hasil 0 (TC-SD-023-09, K-27).",
+  "input": {
+    "epoch": 42,
+    "payer": "a.x207-circle.near",
+    "onchainHeadroom": "0",
+    "pending": [
+      {
+        "payee": "b.x207-circle.near",
+        "epoch": 42,
+        "cumulativeAmount": "20000"
+      }
+    ],
+    "obligations": []
+  },
+  "expected": {
+    "headroom": "0"
+  }
+}

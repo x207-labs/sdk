@@ -1,0 +1,25 @@
+{
+  "name": "pending_two_payees",
+  "description": "Pending ke dua payee dijumlahkan (TC-SD-023-04).",
+  "input": {
+    "epoch": 42,
+    "payer": "a.x207-circle.near",
+    "onchainHeadroom": "100000",
+    "pending": [
+      {
+        "payee": "b.x207-circle.near",
+        "epoch": 42,
+        "cumulativeAmount": "30000"
+      },
+      {
+        "payee": "c.x207-circle.near",
+        "epoch": 42,
+        "cumulativeAmount": "50000"
+      }
+    ],
+    "obligations": []
+  },
+  "expected": {
+    "headroom": "20000"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "pending_partly_registered",
+  "description": "Terdaftar 20000 sudah ada di headroom on-chain 80000; hanya selisih 40000 dikurangkan (TC-SD-023-03).",
+  "input": {
+    "epoch": 42,
+    "payer": "a.x207-circle.near",
+    "onchainHeadroom": "80000",
+    "pending": [
+      {
+        "payee": "b.x207-circle.near",
+        "epoch": 42,
+        "cumulativeAmount": "60000"
+      }
+    ],
+    "obligations": [
+      {
+        "payee": "b.x207-circle.near",
+        "cumulative": "20000"
+      }
+    ]
+  },
+  "expected": {
+    "headroom": "40000"
+  }
+}
