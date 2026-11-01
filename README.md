@@ -27,6 +27,14 @@ npm run build
 npm test
 ```
 
+Test yang butuh node near-sandbox dan wasm kontrak (`../contracts/target/near/*.wasm`, hasil `cargo near build`) dilewati oleh `npm test` dan dijalankan terpisah:
+
+```bash
+npm run test:sandbox
+```
+
+Binary near-sandbox dicari di `X207_SANDBOX_BIN`, atau di build output repo `contracts` setelah `cargo test` berjalan sekali.
+
 Konfigurasi facilitator disalin dari `.env.example` ke `.env`. Rahasia hanya di `.env`, yang tidak di-commit.
 
 ## Quickstart pembuat agent (pembeli)
