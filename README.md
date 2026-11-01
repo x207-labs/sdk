@@ -29,6 +29,41 @@ npm test
 
 Konfigurasi facilitator disalin dari `.env.example` ke `.env`. Rahasia hanya di `.env`, yang tidak di-commit.
 
+## Quickstart pembuat agent (pembeli)
+
+Paket `@x207/*` belum di-publish; langkah di bawah memakai clone repo ini (`npm install` memasang workspace). Syarat: akun NEAR agent dengan USDT, dan lingkaran x207 yang sudah berjalan (alamat kontrak `x207-circle`, `circleId`, dan hash syarat lingkaran dari operatornya).
+
+1. **Instal dan bangun.** `npm install`, lalu `npm run build`.
+2. **Kunci voucher.** Agent memakai satu kunci ed25519 khusus voucher. Kunci ini bukan access key NEAR dan tidak bisa memindahkan aset; baca dampak bila bocor di [Keamanan kunci voucher](docs/voucher-key-security.md).
+3. **Onboarding (join + stake).** `onboardMember` membuat kunci voucher, mengirim `join`, mengirim stake lewat `ft_transfer_call`, dan menunggu status `active`. Transaksinya ditandatangani access key pemilik akun:
+
+   ```ts
+   import { onboardMember, createCircleViewFn } from "@x207/core";
+   import { createNearSender } from "@x207/core/signer";
+
+   const view = createCircleViewFn({ circleContract: "x207-circle.near" });
+   const { secretKey, member } = await onboardMember(
+     { sendCall: createNearSender({ rpcUrl, accountId: "agent.near", secretKey: ownerAccessKey }), view },
+     { circleContract: "x207-circle.near", circleId: "agents-main", accountId: "agent.near", termsHash, stakeAmount: "50000000" },
+   );
+   // simpan `secretKey` (kunci voucher) di tempat rahasia; member.status === "active"
+   ```
+
+4. **Daftarkan `x207:*` dan panggil.** Satu wrapper `@x402/fetch`; `X207PaymentClient` sudah mendaftarkan `x207:*` dan jatuh ke entri `exact` bila headroom habis:
+
+   ```ts
+   import { wrapFetchWithPayment } from "@x402/fetch";
+   import { X207PaymentClient, headroomFromRpc } from "@x207/scheme";
+
+   const client = new X207PaymentClient({ payer: "agent.near", secretKey, headroom: headroomFromRpc({}) });
+   const paidFetch = wrapFetchWithPayment(fetch, client);
+   const response = await paidFetch("https://seller.example/api/summarize");
+   ```
+
+5. **Baca hasilnya.** Respons 200 membawa header `PAYMENT-RESPONSE` (base64 JSON): `transaction` berisi commitment id `<payer>:<payee>:<epoch>:<seq>` dan `extensions.x207.registration` berisi `pending`, `retrying`, atau `registered`.
+
+Contoh lengkap yang diuji: [`examples/buyer`](examples/buyer). Dijalankan terhadap near-sandbox lewat `npm run test:sandbox`.
+
 ## Lisensi
 
 Apache-2.0
