@@ -1,0 +1,41 @@
+{
+  "name": "payment_signature_agents_main",
+  "input": {
+    "paymentPayload": {
+      "x402Version": 2,
+      "resource": {
+        "url": "https://summarizer.example/api/summarize"
+      },
+      "accepted": {
+        "scheme": "batch-settlement",
+        "network": "x207:agents-main",
+        "amount": "20000",
+        "asset": "USD",
+        "payTo": "summarizer.x207-circle.near",
+        "maxTimeoutSeconds": 60,
+        "extra": {
+          "circleContract": "x207-circle.near",
+          "unit": "credit",
+          "decimals": 6,
+          "epoch": 42
+        }
+      },
+      "payload": {
+        "voucher": {
+          "circle": "x207-circle.near",
+          "payer": "translator.x207-circle.near",
+          "payee": "summarizer.x207-circle.near",
+          "epoch": 42,
+          "seq": 137,
+          "cumulativeAmount": "2740000",
+          "unit": "credit",
+          "resource": "https://summarizer.example/api/summarize"
+        },
+        "signature": "ed25519:4XUKL8orbakw3LPbZ1YFPj739ciqDQkSHBwvw9ovoevxsGneEw6ZGj4GLuCdLrmYtZPmg8okUuJVnaFn2TLyF4gv"
+      }
+    }
+  },
+  "expected": {
+    "header": "eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9zdW1tYXJpemVyLmV4YW1wbGUvYXBpL3N1bW1hcml6ZSJ9LCJhY2NlcHRlZCI6eyJzY2hlbWUiOiJiYXRjaC1zZXR0bGVtZW50IiwibmV0d29yayI6IngyMDc6YWdlbnRzLW1haW4iLCJhbW91bnQiOiIyMDAwMCIsImFzc2V0IjoiVVNEIiwicGF5VG8iOiJzdW1tYXJpemVyLngyMDctY2lyY2xlLm5lYXIiLCJtYXhUaW1lb3V0U2Vjb25kcyI6NjAsImV4dHJhIjp7ImNpcmNsZUNvbnRyYWN0IjoieDIwNy1jaXJjbGUubmVhciIsInVuaXQiOiJjcmVkaXQiLCJkZWNpbWFscyI6NiwiZXBvY2giOjQyfX0sInBheWxvYWQiOnsidm91Y2hlciI6eyJjaXJjbGUiOiJ4MjA3LWNpcmNsZS5uZWFyIiwicGF5ZXIiOiJ0cmFuc2xhdG9yLngyMDctY2lyY2xlLm5lYXIiLCJwYXllZSI6InN1bW1hcml6ZXIueDIwNy1jaXJjbGUubmVhciIsImVwb2NoIjo0Miwic2VxIjoxMzcsImN1bXVsYXRpdmVBbW91bnQiOiIyNzQwMDAwIiwidW5pdCI6ImNyZWRpdCIsInJlc291cmNlIjoiaHR0cHM6Ly9zdW1tYXJpemVyLmV4YW1wbGUvYXBpL3N1bW1hcml6ZSJ9LCJzaWduYXR1cmUiOiJlZDI1NTE5OjRYVUtMOG9yYmFrdzNMUGJaMVlGUGo3MzljaXFEUWtTSEJ3dnc5b3ZvZXZ4c0duZUV3NlpHajRHTHVDZExybVl0WlBtZzhva1V1SlZuYUZuMlRMeUY0Z3YifX0="
+  }
+}

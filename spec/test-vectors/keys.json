@@ -1,0 +1,30 @@
+{
+  "name": "keys",
+  "description": "Seed ed25519 32 byte: 0x01 kA (translator), 0x02 kB, 0x03 kC, 0x04 kD, 0x05 kunci S/P/X/L, 0x0f kZ (penyerang, tidak terdaftar).",
+  "keys": {
+    "kA": {
+      "seed": "0101010101010101010101010101010101010101010101010101010101010101",
+      "publicKey": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9"
+    },
+    "kB": {
+      "seed": "0202020202020202020202020202020202020202020202020202020202020202",
+      "publicKey": "ed25519:9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"
+    },
+    "kC": {
+      "seed": "0303030303030303030303030303030303030303030303030303030303030303",
+      "publicKey": "ed25519:GyGKxMyg1p9SsHfm15MkNUu1u9TN2JtTspcdmrtGUdse"
+    },
+    "kD": {
+      "seed": "0404040404040404040404040404040404040404040404040404040404040404",
+      "publicKey": "ed25519:EdmxWPmx2WH6WgFfTdu9xfkYf3k1g5wD1zccTVySEEh1"
+    },
+    "kOther": {
+      "seed": "0505050505050505050505050505050505050505050505050505050505050505",
+      "publicKey": "ed25519:8SFqwqnq4whPhs8icwHA2hQg3hUoN1qrCLK1SBx3WKwe"
+    },
+    "kZ": {
+      "seed": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+      "publicKey": "ed25519:FezWPm3UEFa4nbF76D45V3gg9eZzhSxfw3tUES1Gr3o1"
+    }
+  }
+}
