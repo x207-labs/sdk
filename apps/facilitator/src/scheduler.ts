@@ -1,0 +1,217 @@
+// Penjadwal registrasi (SD-028): relay `register_cumulative` per pasangan saat ambang terlewati atau
+// menjelang `cutoff_at`; gagal disimpan di D3 dan diulang dengan backoff sampai `cutoff_at`
+// (Spec Binding x402 6.3 dan 13; ADR-17, ADR-23, K-31).
+import { contractErrorCode, type AccountId, type ContractAbi, type Ed25519Signature, type UnsignedVoucher } from "@x207/core";
+import type { PendingRow, PendingStore } from "./pending-store.js";
+
+/** `registerThreshold` default: 1 credit (Spec Binding x402 6.3). */
+export const DEFAULT_REGISTER_THRESHOLD = 1_000_000n;
+/** `flushLead` default dalam detik (Spec Binding x402 6.3). */
+export const DEFAULT_FLUSH_LEAD_SECONDS = 120;
+/** Jeda backoff: 5, 10, 20, 40 detik, maksimum 60 detik (ADR-23). */
+export const BACKOFF_BASE_SECONDS = 5;
+export const BACKOFF_MAX_SECONDS = 60;
+
+export type RegisterMode = "cumulative";
+
+/** Sisi kontrak yang dibutuhkan penjadwal; `register` melempar bila transaksi gagal. */
+export interface RegistrationChain {
+  register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode): Promise<void>;
+  lastSeq(payer: AccountId, payee: AccountId, epoch: number): Promise<number>;
+  /** View `get_epoch(epoch)`; `null` bila epoch tidak dikenal. */
+  getEpoch(epoch: number): Promise<ContractAbi.EpochView | null>;
+}
+
+export type SchedulerLogEntry = {
+  event: string;
+  payer: AccountId;
+  payee: AccountId;
+  epoch: number;
+  seq: number;
+  /** Kode spec (mis. `insufficient_credit`), bukan kode kontrak. */
+  code?: string;
+  error?: string;
+  attempts?: number;
+  nextAttemptAt?: number;
+  /** `cumulative_amount − registered_cumulative`, risiko penjual saat baris gagal (K-31). */
+  risk?: string;
+};
+
+export type SchedulerOptions = {
+  circleContract: AccountId;
+  store: PendingStore;
+  chain: RegistrationChain;
+  /** Unix ms. */
+  now?: () => number;
+  log?: (entry: SchedulerLogEntry) => void;
+  registerThreshold?: bigint;
+  flushLeadSeconds?: number;
+  mode?: RegisterMode;
+};
+
+export type TickResult = {
+  registered: number;
+  retrying: number;
+  dropped: number;
+  failedAtCutoff: number;
+};
+
+/** Pemetaan kode kontrak ke kode spec; `drop` membuang baris, `retry` mengulang dengan backoff. */
+const ERROR_MAP: Record<string, { code: string; action: "drop" | "retry" }> = {
+  ERR_WRONG_CIRCLE: { code: "circle_mismatch", action: "drop" },
+  ERR_BAD_UNIT: { code: "invalid_payload", action: "drop" },
+  ERR_RESOURCE_NOT_ASCII: { code: "invalid_payload", action: "drop" },
+  ERR_SELF_PAYMENT: { code: "self_payment", action: "drop" },
+  ERR_EPOCH_MISMATCH: { code: "epoch_mismatch", action: "drop" },
+  ERR_PAST_CUTOFF: { code: "epoch_closing", action: "drop" },
+  ERR_PAYER_NOT_ACTIVE: { code: "member_not_active", action: "drop" },
+  ERR_PAYEE_NOT_ACTIVE: { code: "payee_not_active", action: "drop" },
+  ERR_EXITING: { code: "member_exiting", action: "drop" },
+  ERR_CUMULATIVE_DECREASED: { code: "cumulative_decreased", action: "drop" },
+  ERR_BAD_SIGNATURE: { code: "invalid_signature", action: "drop" },
+  ERR_INSUFFICIENT_CREDIT: { code: "insufficient_credit", action: "retry" },
+  ERR_SEQ_NOT_INCREASING: { code: "seq_not_increasing", action: "retry" },
+};
+
+/** Jeda sebelum percobaan berikutnya setelah `attempts` kegagalan (1 = 5 detik). */
+export function backoffSeconds(attempts: number): number {
+  return Math.min(BACKOFF_BASE_SECONDS * 2 ** Math.max(0, attempts - 1), BACKOFF_MAX_SECONDS);
+}
+
+export class RegistrationScheduler {
+  readonly #opts: SchedulerOptions;
+  readonly #now: () => number;
+  readonly #threshold: bigint;
+  readonly #flushLeadMs: number;
+  #timer: ReturnType<typeof setInterval> | undefined;
+  #running = false;
+
+  constructor(options: SchedulerOptions) {
+    this.#opts = options;
+    this.#now = options.now ?? Date.now;
+    this.#threshold = options.registerThreshold ?? DEFAULT_REGISTER_THRESHOLD;
+    this.#flushLeadMs = (options.flushLeadSeconds ?? DEFAULT_FLUSH_LEAD_SECONDS) * 1000;
+  }
+
+  /** Jalankan `tick` berkala; kesalahan tak terduga dicatat dan tidak menghentikan jadwal. */
+  start(intervalMs = 1000): void {
+    if (this.#timer) return;
+    this.#timer = setInterval(() => {
+      this.tick().catch((error: unknown) => {
+        console.error("x207 scheduler tick gagal:", error instanceof Error ? error.message : error);
+      });
+    }, intervalMs);
+    this.#timer.unref();
+  }
+
+  stop(): void {
+    if (this.#timer) clearInterval(this.#timer);
+    this.#timer = undefined;
+  }
+
+  /** Satu putaran: proses semua baris yang belum lunas dan sudah waktunya. Putaran yang tumpang tindih dilewati. */
+  async tick(): Promise<TickResult> {
+    const result: TickResult = { registered: 0, retrying: 0, dropped: 0, failedAtCutoff: 0 };
+    if (this.#running) return result;
+    this.#running = true;
+    try {
+      const cutoffs = new Map<number, number | undefined>();
+      for (const row of this.#opts.store.listOpen(this.#opts.circleContract)) {
+        await this.#process(row, cutoffs, result);
+      }
+    } finally {
+      this.#running = false;
+    }
+    return result;
+  }
+
+  async #cutoffMs(epoch: number, cache: Map<number, number | undefined>, row: PendingRow): Promise<number | undefined> {
+    if (cache.has(epoch)) return cache.get(epoch);
+    let cutoff: number | undefined;
+    try {
+      const view = await this.#opts.chain.getEpoch(epoch);
+      if (view) cutoff = Number(BigInt(view.cutoff_at) / 1_000_000n);
+    } catch (error) {
+      this.#log("cutoff_unknown", row, { error: errorText(error) });
+    }
+    cache.set(epoch, cutoff);
+    return cutoff;
+  }
+
+  async #process(row: PendingRow, cutoffs: Map<number, number | undefined>, result: TickResult): Promise<void> {
+    const now = this.#now();
+    if (row.nextAttemptAt !== null && now < row.nextAttemptAt) return;
+
+    const unregistered = BigInt(row.cumulativeAmount) - BigInt(row.registeredCumulative);
+    const cutoff = await this.#cutoffMs(row.epoch, cutoffs, row);
+    const key = { circleContract: row.circleContract, payer: row.payer, payee: row.payee, epoch: row.epoch };
+
+    if (cutoff !== undefined && now >= cutoff) {
+      this.#opts.store.markFailed(key, row.lastError ?? "cutoff");
+      this.#log("registration_failed_until_cutoff", row, { risk: unregistered.toString(), error: row.lastError ?? undefined });
+      result.failedAtCutoff += 1;
+      return;
+    }
+
+    const due =
+      row.attempts >= 1 || unregistered >= this.#threshold || (cutoff !== undefined && now >= cutoff - this.#flushLeadMs);
+    if (!due) return;
+
+    try {
+      await this.#opts.chain.register(row.voucher, row.signature, this.#opts.mode ?? "cumulative");
+    } catch (error) {
+      await this.#failed(row, key, error, result);
+      return;
+    }
+    this.#opts.store.recordRegistered(key, row.seq, row.cumulativeAmount);
+    this.#log("registered", row, {});
+    result.registered += 1;
+  }
+
+  async #failed(
+    row: PendingRow,
+    key: Parameters<PendingStore["recordFailure"]>[0],
+    error: unknown,
+    result: TickResult,
+  ): Promise<void> {
+    const text = errorText(error);
+    const mapped = ERROR_MAP[contractErrorCode(error) ?? ""];
+
+    if (contractErrorCode(error) === "ERR_SEQ_NOT_INCREASING") {
+      // Idempoten: kontrak sudah memegang seq ini atau yang lebih tinggi (ADR-23).
+      let last = -1;
+      try {
+        last = await this.#opts.chain.lastSeq(row.payer, row.payee, row.epoch);
+      } catch {
+        // gagal membaca last_seq diperlakukan sebagai belum terbukti; retry di bawah
+      }
+      if (last >= row.seq) {
+        this.#opts.store.recordRegistered(key, row.seq, row.cumulativeAmount);
+        this.#log("registered", row, { code: "seq_not_increasing" });
+        result.registered += 1;
+        return;
+      }
+    }
+
+    if (mapped?.action === "drop") {
+      this.#opts.store.markFailed(key, `${mapped.code}: ${text}`);
+      this.#log("registration_dropped", row, { code: mapped.code, error: text });
+      result.dropped += 1;
+      return;
+    }
+
+    const attempts = row.attempts + 1;
+    const nextAttemptAt = this.#now() + backoffSeconds(attempts) * 1000;
+    this.#opts.store.recordFailure(key, text, nextAttemptAt);
+    this.#log("registration_retry", row, { code: mapped?.code, error: text, attempts, nextAttemptAt });
+    result.retrying += 1;
+  }
+
+  #log(event: string, row: PendingRow, extra: Partial<SchedulerLogEntry>): void {
+    const entry: SchedulerLogEntry = { event, payer: row.payer, payee: row.payee, epoch: row.epoch, seq: row.seq };
+    for (const [k, v] of Object.entries(extra)) if (v !== undefined) (entry as Record<string, unknown>)[k] = v;
+    (this.#opts.log ?? ((e) => console.log(JSON.stringify(e))))(entry);
+  }
+}
+
+const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));

@@ -80,6 +80,7 @@ export class PendingStore {
   readonly #fail: StatementSync;
   readonly #ok: StatementSync;
   readonly #giveUp: StatementSync;
+  readonly #open: StatementSync;
 
   /** `path` berkas SQLite, atau `":memory:"`. `now` mengembalikan unix ms. */
   constructor(path: string, now: () => number = Date.now) {
@@ -109,8 +110,13 @@ export class PendingStore {
          next_attempt_at = ?, updated_at = ? WHERE ${where}`,
     );
     this.#ok = this.#db.prepare(
-      `UPDATE pending_vouchers SET registered_seq = ?, registered_cumulative = ?, state = 'registered',
+      `UPDATE pending_vouchers SET registered_seq = ?, registered_cumulative = ?,
+         state = CASE WHEN seq <= ? THEN 'registered' ELSE 'pending' END,
          attempts = 0, next_attempt_at = NULL, updated_at = ? WHERE ${where}`,
+    );
+    this.#open = this.#db.prepare(
+      `SELECT * FROM pending_vouchers WHERE circle_contract = ? AND state IN ('pending','retrying')
+         ORDER BY epoch, payer, payee`,
     );
     this.#giveUp = this.#db.prepare(
       `UPDATE pending_vouchers SET state = 'failed', last_error = ?, next_attempt_at = NULL, updated_at = ?
@@ -137,14 +143,19 @@ export class PendingStore {
     return (this.#byPayer.all(circleContract, payer, epoch) as Raw[]).map(toRow);
   }
 
+  /** Baris yang belum lunas registrasi (`pending` atau `retrying`) untuk satu kontrak, urut epoch lalu pasangan. */
+  listOpen(circleContract: AccountId): PendingRow[] {
+    return (this.#open.all(circleContract) as Raw[]).map(toRow);
+  }
+
   /** Registrasi gagal: `attempts + 1`, status `retrying`. */
   recordFailure(key: PendingKey, error: string, nextAttemptAt: number | null = null): void {
     this.#fail.run(error, nextAttemptAt, this.#now(), key.circleContract, key.payer, key.payee, key.epoch);
   }
 
-  /** Registrasi sukses sampai `seq`/kumulatif itu; baris lunas bila `seq` sama dengan yang tersimpan. */
+  /** Registrasi sukses sampai `seq`/kumulatif itu; baris lunas bila `seq` sama dengan yang tersimpan, selain itu kembali `pending`. */
   recordRegistered(key: PendingKey, seq: number, cumulativeAmount: U128String): void {
-    this.#ok.run(seq, cumulativeAmount, this.#now(), key.circleContract, key.payer, key.payee, key.epoch);
+    this.#ok.run(seq, cumulativeAmount, seq, this.#now(), key.circleContract, key.payer, key.payee, key.epoch);
   }
 
   /** Tetap gagal sampai `cutoff` atau error permanen; status `failed` hanya internal (K-31). */

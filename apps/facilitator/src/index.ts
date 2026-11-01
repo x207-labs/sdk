@@ -4,3 +4,16 @@ export { ConfigError, DEFAULT_RPC_TIMEOUT_MS, loadConfig, type FacilitatorConfig
 export { ChainUnavailableError, NearRpc, RpcError, type NearRpcOptions } from "./rpc.js";
 export { PendingStore, type PendingKey, type PendingRow } from "./pending-store.js";
 export { NearChain, PendingStoreWriter, createSettle, createVerify } from "./chain.js";
+export {
+  BACKOFF_BASE_SECONDS,
+  BACKOFF_MAX_SECONDS,
+  DEFAULT_FLUSH_LEAD_SECONDS,
+  DEFAULT_REGISTER_THRESHOLD,
+  RegistrationScheduler,
+  backoffSeconds,
+  type RegisterMode,
+  type RegistrationChain,
+  type SchedulerLogEntry,
+  type SchedulerOptions,
+  type TickResult,
+} from "./scheduler.js";
