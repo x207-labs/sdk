@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "paths": {
+      "@x207/core": ["./packages/core/src/index.ts"],
+      "@x207/scheme": ["./packages/scheme/index.ts"]
+    }
+  },
+  "include": ["packages/*/test", "apps/*/test", "vitest.config.ts"]
+}

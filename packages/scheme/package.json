@@ -1,0 +1,41 @@
+{
+  "name": "@x207/scheme",
+  "version": "0.0.1",
+  "description": "Binding x402 batch-settlement di network x207:<circleId> untuk klien, server, dan facilitator",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
+    },
+    "./facilitator": {
+      "types": "./dist/facilitator/index.d.ts",
+      "default": "./dist/facilitator/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@x207/core": "0.0.1",
+    "@x402/core": "2.28.0"
+  }
+}

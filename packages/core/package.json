@@ -1,0 +1,29 @@
+{
+  "name": "@x207/core",
+  "version": "0.0.1",
+  "description": "x207 core: tipe voucher, tanda tangan, client kontrak x207-circle, parser event NEP-297",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@x402/core": "2.28.0",
+    "near-api-js": "7.4.0"
+  }
+}

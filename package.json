@@ -1,0 +1,26 @@
+{
+  "name": "sdk",
+  "version": "0.0.1",
+  "private": true,
+  "description": "x207 SDK: @x207/core, @x207/scheme, spec + test vector, facilitator referensi",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}
