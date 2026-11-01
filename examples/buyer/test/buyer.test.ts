@@ -1,9 +1,11 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createApp, createSettle, createVerify, PendingStore, type NearRpc } from "../../../apps/facilitator/src/index.js";
 import { defineCircleConfig, x207Middleware } from "@x207/scheme";
 import { createBuyerFetch } from "../src/buyer.js";
+import { readBuyerEnv } from "../src/env.js";
 
 const keys = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../../spec/test-vectors/keys.json", import.meta.url)), "utf8"),
@@ -82,5 +84,21 @@ describe("SD-035 contoh pembeli", () => {
     const second = await paidFetch("https://seller.test/api/summarize");
     expect(second.status).toBe(200);
     expect(pending.get({ circleContract: CIRCLE, payer: A, payee: B, epoch: 42 })).toMatchObject({ seq: 2, cumulativeAmount: "40000" });
+  });
+
+  it("TC-SD-035-02 kode minimal: satu wrapper @x402/fetch dan tanpa signVoucher langsung", () => {
+    const dir = fileURLToPath(new URL("../src/", import.meta.url));
+    const source = readdirSync(dir).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(`${dir}${f}`, "utf8")).join("\n");
+    expect(source.match(/wrapFetchWithPayment\(/g)).toHaveLength(1);
+    expect(source).not.toMatch(/signVoucher/);
+  });
+
+  it("TC-SD-035-03 variabel hilang: pesan menyebut nama variabel", () => {
+    const base = { ACCOUNT_ID: A, VOUCHER_SECRET_KEY: `ed25519:${"1".repeat(44)}`, SELLER_URL: "http://seller.test/x" };
+    for (const name of Object.keys(base)) {
+      expect(() => readBuyerEnv({ ...base, [name]: undefined })).toThrow(new RegExp(name));
+    }
+    expect(() => readBuyerEnv({ ...base, VOUCHER_SECRET_KEY: "abc" })).toThrow(/VOUCHER_SECRET_KEY/);
+    expect(readBuyerEnv({ ...base, NEAR_RPC_URLS: "http://a, http://b" }).rpcUrls).toEqual(["http://a", "http://b"]);
   });
 });

@@ -101,7 +101,10 @@ export class SandboxAccount {
   constructor(readonly sandbox: Sandbox, readonly accountId: string, readonly account: Account, readonly secretKey: string) {}
 
   /** Kirim function call dan tunggu final; kegagalan dikembalikan di `failures`, tidak dilempar. */
-  async call(call: Pick<ContractCall, "receiverId" | "methodName" | "args" | "deposit" | "gas">): Promise<TxResult> {
+  async call(
+    call: Pick<ContractCall, "receiverId" | "methodName" | "args" | "deposit" | "gas">,
+    waitUntil: "FINAL" | "EXECUTED_OPTIMISTIC" = "FINAL",
+  ): Promise<TxResult> {
     let raw: RawResult;
     try {
       raw = (await this.account.callFunctionRaw({
@@ -110,7 +113,7 @@ export class SandboxAccount {
         args: call.args,
         deposit: call.deposit,
         gas: call.gas ?? 150_000_000_000_000n,
-        waitUntil: "FINAL",
+        waitUntil,
       })) as unknown as RawResult;
     } catch (error) {
       // near-api-js melempar bila transaksi gagal di akhir; log receipt hilang, pesan panic tetap ada.
@@ -147,6 +150,11 @@ export class Sandbox {
     return new SandboxAccount(this, accountId, new Account(accountId, this.provider, KeyPairSigner.fromSecretKey(keyPair.toString() as never)), keyPair.toString());
   }
 
+  /** Objek akun baru dari kunci yang ada; dipakai setelah `fastForward` karena Account menyimpan block hash lama. */
+  accountFrom(accountId: string, secretKey: string): SandboxAccount {
+    return new SandboxAccount(this, accountId, new Account(accountId, this.provider, KeyPairSigner.fromSecretKey(secretKey as never)), secretKey);
+  }
+
   async deploy(account: SandboxAccount, wasmPath: string): Promise<void> {
     await account.account.deployContract(readFileSync(wasmPath));
   }
@@ -165,12 +173,25 @@ export class Sandbox {
     return Number(BigInt(block.header.timestamp_nanosec) / 1_000_000n);
   }
 
+  /** Maju `blocks` blok sekaligus (`sandbox_fast_forward`); waktu blok ikut maju. */
+  async fastForward(blocks: number): Promise<void> {
+    await rpcCall(this.rpcUrl, "sandbox_fast_forward", { delta_height: blocks });
+  }
+
+  /** Maju sampai waktu blok mencapai `targetMs` (unix ms). */
+  async advanceTo(targetMs: number): Promise<void> {
+    while ((await this.blockTimestampMs()) < targetMs) {
+      const missingSeconds = Math.ceil((targetMs - (await this.blockTimestampMs())) / 1000);
+      await this.fastForward(Math.min(Math.max(missingSeconds, 20), 4000));
+    }
+  }
+
   stop(): Promise<void> {
     return this.stopFn();
   }
 }
 
-export async function startSandbox(timeoutMs = 60_000): Promise<Sandbox> {
+export async function startSandbox(timeoutMs = 180_000): Promise<Sandbox> {
   const bin = findSandboxBinary();
   if (!bin) throw new Error("near-sandbox tidak ditemukan; set X207_SANDBOX_BIN atau jalankan `cargo test` di contracts");
   const home = mkdtempSync(join(tmpdir(), "x207-sdk-sandbox-"));
