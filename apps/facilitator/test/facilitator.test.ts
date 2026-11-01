@@ -149,7 +149,9 @@ describe("SD-021 scaffold apps/facilitator", () => {
     expect(importsNearApi(`${root}apps/facilitator/src`)).toEqual([]);
     expect(importsNearApi(`${root}packages/scheme`).filter((e) => !e.parentPath.includes("node_modules") && !e.parentPath.includes("dist"))).toEqual([]);
     // Entry root @x207/core tidak boleh menarik near-api-js 7 (client kontrak ada di subpath terpisah).
-    expect(importsNearApi(`${root}packages/core/src`)).toEqual([]);
+    // Satu-satunya berkas core yang boleh mengimpor near-api-js adalah entry terpisah `signer.ts`, yang tidak diekspor dari root.
+    expect(importsNearApi(`${root}packages/core/src`).map((e) => e.name)).toEqual(["signer.ts"]);
+    expect(readFileSync(`${root}packages/core/src/index.ts`, "utf8")).not.toMatch(/signer/);
   });
 
   it("TC-SD-021-09 variabel konfigurasi ada di .env.example dan variabel wajib dicek", () => {
