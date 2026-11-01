@@ -83,7 +83,7 @@ Contoh lengkap yang diuji: [`examples/buyer`](examples/buyer). Dijalankan terhad
 2. **Arahkan ke facilitator.** Jalankan facilitator referensi (`apps/facilitator`, variabel di `.env.example`: `X207_CIRCLES`, `X207_RELAYER_ACCOUNT_ID`, `X207_RELAYER_PRIVATE_KEY`, `NEAR_RPC_URLS`) dan isi `FACILITATOR_URL` di penjual. `GET /supported` memuat `batch-settlement` di `x207:<circleId>` dan `exact` di `near:mainnet`; 402 penjual mengiklankan keduanya, sehingga anggota membayar dengan voucher dan non-anggota dengan `exact`.
 3. **Cek saldo klaim.** Piutang penjual terlihat di read API indexer: `GET /x207/circles/{circleId}/members/{akun}/settlements` (posisi `claimable` setelah `finalize_epoch`). Klaim dengan `claim(epoch, "near" | "intents")` dari dashboard.
 
-Contoh yang diuji: [`examples/seller`](examples/seller).
+Contoh yang diuji: [`examples/seller`](examples/seller). Jaminan pembayaran untuk penjual: [Jaminan pembayaran](docs/seller-guarantees.md).
 
 ## Lisensi
 
