@@ -1,0 +1,98 @@
+// GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
+// Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
+
+export const X207_CIRCLE_ABI_VERSION = "0.0.1";
+export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
+export const X207_CIRCLE_ABI_SHA256 = "20684d50ecdd8ef2baf458b34ae86e863ff88e6ab89f5e1684317237b8d60c45";
+export const X207_CIRCLE_EVENT_STANDARD = "x207";
+
+export type Admission = "open" | "dao";
+export type CircleConfig = { "circle_id": string; "contract_id": string; "decimals": number; "intents_id": string; "member_count": number; "network": string; "owner_id": string; "unit": string; "usdt_token_id": string };
+export type ClaimDestination = "near" | "intents";
+export type ClearingEdge = { "cleared": string; "creditor": string; "debtor": string };
+export type ClearingProposal = { "cleared_total": string; "committed": boolean; "edge_count": number; "edges": ClearingEdge[]; "epoch": number; "solver": string; "submitted_at": string };
+export type EpochPhaseView = "open" | "cutoff" | "clearing" | "commit" | "payment_window" | "finalized";
+export type EpochView = { "closed_at"?: string | null; "committed_at"?: string | null; "cutoff_at": string; "edge_count": number; "epoch": number; "finalized_at"?: string | null; "opened_at": string; "params": Params; "participant_count": number; "payment_deadline"?: string | null; "phase": EpochPhaseView; "pool": string; "proposal_deadline"?: string | null; "shortfall": string; "total_cleared": string; "total_obligation": string };
+export type Fees = { "clearing_fee_bps": number; "solver_fee_bps": number };
+export type MemberStatus = "pending" | "active" | "suspended" | "exited";
+export type MemberView = { "account_id": string; "admitted": boolean; "exit_requested_epoch"?: number | null; "joined_at": string; "last_active_epoch": number; "limit": string; "pubkey_voucher": string; "settled_history": string; "stake": string; "status": MemberStatus; "terms_hash": string };
+export type ObligationView = { "cleared": string; "creditor": string; "cumulative": string; "debtor": string; "epoch": number; "last_seq": number; "obligation": string };
+export type Params = { "admission": Admission; "base_limit_ratio": number; "epoch_length": number; "fees": Fees; "limit_cap": string; "limit_decay": number; "limit_growth": number; "payment_window": number; "proposal_window": number };
+export type PendingParams = { "effective_epoch": number; "params": Params };
+export type PoolView = { "accounted": string; "epoch_pools": string; "in_flight": string; "reserve": string; "solver_fees": string; "total_stake": string };
+export type PositionRole = "debtor" | "creditor";
+export type PositionStatus = "due" | "paid" | "defaulted" | "claimable" | "claimed";
+export type PositionView = { "account_id": string; "amount": string; "epoch": number; "net": string; "payment_deadline": string; "recovered": string; "role": PositionRole; "status": PositionStatus; "updated_at_block": number };
+export type Promise = unknown;
+export type PromiseOrValueBoolean = boolean;
+export type PromiseOrValueString = string;
+export type SimulationResult = { "better_than_current": boolean; "cleared_total": string; "edge_count": number; "reason"?: string | null; "valid": boolean };
+export type Voucher = { "circle": string; "cumulativeAmount": string; "epoch": number; "payee": string; "payer": string; "resource": string; "seq": number; "unit": string };
+
+/** View: `args` = argumen JSON, `result` = nilai kembalian. */
+export type CircleViews = {
+  "get_circle": { args: Record<string, never>; result: CircleConfig };
+  "get_clearing_proposal": { args: { "epoch": number }; result: ClearingProposal | null };
+  "get_epoch": { args: { "epoch"?: number | null }; result: EpochView | null };
+  "get_owner": { args: Record<string, never>; result: string };
+  "get_params": { args: Record<string, never>; result: Params };
+  "get_pending_params": { args: Record<string, never>; result: PendingParams | null };
+  "get_pool": { args: Record<string, never>; result: PoolView };
+  "headroom": { args: { "account_id": string }; result: string };
+  "interface_version": { args: Record<string, never>; result: string };
+  "last_seq": { args: { "payer": string; "payee": string; "epoch": number }; result: number };
+  "limit": { args: { "account_id": string }; result: string };
+  "list_members": { args: { "from_index": number; "limit": number }; result: MemberView[] };
+  "list_obligations": { args: { "epoch": number; "from_index": number; "limit": number }; result: ObligationView[] };
+  "list_positions": { args: { "epoch": number; "from_index": number; "limit": number }; result: PositionView[] };
+  "member": { args: { "account_id": string }; result: MemberView | null };
+  "net_position": { args: { "epoch": number; "account_id": string }; result: PositionView | null };
+  "obligation": { args: { "epoch": number; "debtor": string; "creditor": string }; result: ObligationView | null };
+  "outstanding_debt": { args: { "account_id": string }; result: string };
+  "simulate_clearing": { args: { "epoch": number; "edges": ClearingEdge[] }; result: SimulationResult };
+};
+
+/** Call: transaksi. `payable`, `init`, `private` dari modifier ABI. */
+export type CircleCalls = {
+  "claim": { args: { "epoch": number; "destination": ClaimDestination }; result: Promise; payable: true };
+  "close_epoch": { args: { "epoch": number }; result: void };
+  "commit_epoch": { args: { "epoch": number }; result: void };
+  "finalize_epoch": { args: { "epoch": number }; result: void };
+  "ft_on_transfer": { args: { "sender_id": string; "amount": string; "msg": string }; result: PromiseOrValueString };
+  "join": { args: { "circle_id": string; "pubkey_voucher": string; "terms_hash": string }; result: MemberView; payable: true };
+  "new": { args: { "owner_id": string; "circle_id": string; "usdt_token_id": string; "intents_id": string; "params"?: Params | null }; result: void; init: true };
+  "on_claim_resolved": { args: { "epoch": number; "account_id": string; "amount": string; "destination": ClaimDestination }; result: string; private: true };
+  "on_withdraw_resolved": { args: { "account_id": string; "amount": string }; result: boolean; private: true };
+  "register_cumulative": { args: { "voucher": Voucher; "signature": string }; result: string };
+  "register_voucher": { args: { "voucher": Voucher; "signature": string }; result: string };
+  "request_exit": { args: Record<string, never>; result: void; payable: true };
+  "set_params": { args: { "params": Params }; result: void };
+  "submit_clearing": { args: { "epoch": number; "edges": ClearingEdge[] }; result: string };
+  "withdraw_stake": { args: Record<string, never>; result: PromiseOrValueBoolean; payable: true };
+};
+
+export const CIRCLE_VIEW_METHODS = ["get_circle","get_clearing_proposal","get_epoch","get_owner","get_params","get_pending_params","get_pool","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing"] as const;
+export const CIRCLE_CALL_METHODS = ["claim","close_epoch","commit_epoch","finalize_epoch","ft_on_transfer","join","new","on_claim_resolved","on_withdraw_resolved","register_cumulative","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
+
+/** Nama event NEP-297 dan urutan field `data`-nya. */
+export const CIRCLE_EVENTS = {
+  "member_joined": ["account_id","pubkey_voucher","terms_hash","status","joined_at"],
+  "stake_added": ["account_id","sender_id","amount","stake","limit","status"],
+  "voucher_registered": ["payer","payee","epoch","seq","cumulative_amount","delta","obligation","outstanding_debt","mode"],
+  "epoch_cutoff": ["epoch","closed_at","proposal_deadline","edge_count","participant_count","total_obligation","next_epoch","next_cutoff_at"],
+  "clearing_submitted": ["epoch","solver","cleared_total","edge_count","replaced_solver","replaced_cleared_total"],
+  "clearing_applied": ["epoch","solver","cleared_total","edges","clearing_fee","solver_fee","chunk","chunks"],
+  "epoch_committed": ["epoch","committed_at","payment_deadline","total_due","total_claimable","positions","chunk","chunks"],
+  "residual_paid": ["epoch","account_id","sender_id","amount","refunded","settled_history"],
+  "member_defaulted": ["epoch","account_id","due","from_stake","from_reserve","shortfall","stake","status","position_status","outstanding_debt"],
+  "limits_updated": ["epoch","changes","chunk","chunks"],
+  "epoch_finalized": ["epoch","finalized_at","defaulted_count","total_defaulted","pool","shortfall"],
+  "residual_claimed": ["epoch","account_id","amount","destination","status"],
+  "residual_claim_failed": ["epoch","account_id","amount","destination","status"],
+  "params_updated": ["old","new","changed","effective_epoch"],
+  "exit_requested": ["account_id","epoch"],
+  "stake_withdrawn": ["account_id","amount"],
+  "stake_withdraw_failed": ["account_id","amount"],
+} as const;
+
+export type CircleEventName = keyof typeof CIRCLE_EVENTS;

@@ -4,3 +4,4 @@ export * from "./types.js";
 export * from "./validate.js";
 export * from "./base58.js";
 export * from "./voucher.js";
+export * as ContractAbi from "./contract/types.generated.js";
