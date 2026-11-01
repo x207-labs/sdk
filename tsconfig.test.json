@@ -10,5 +10,5 @@
       "@x207/scheme": ["./packages/scheme/index.ts"]
     }
   },
-  "include": ["packages/*/test", "apps/*/test", "examples/*/test", "vitest.config.ts"]
+  "include": ["test-support", "packages/*/test", "apps/*/test", "examples/*/test", "vitest.config.ts"]
 }
