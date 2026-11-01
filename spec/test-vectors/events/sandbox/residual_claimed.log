@@ -1,1 +1,1 @@
-EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"residual_claimed","data":[{"epoch":1,"account_id":"summarizer.test.near","amount":"6000000","destination":"near","status":"claimed"}]}
+EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"residual_claimed","data":[{"epoch":1,"account_id":"summarizer.test.near","amount":"11000000","destination":"near","status":"claimed"}]}

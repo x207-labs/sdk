@@ -56,6 +56,7 @@ describe.skipIf(!sandboxAvailable)("SD-011 siklus hidup epoch di near-sandbox", 
     };
     const payer = await onboard("translator");
     const payee = await onboard("summarizer");
+    const defaulter = await onboard("scraper");
     const epoch = await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", {});
 
     // voucher_registered: 10 credit dari payer ke payee
@@ -71,6 +72,14 @@ describe.skipIf(!sandboxAvailable)("SD-011 siklus hidup epoch di near-sandbox", 
     );
     const { signature: backSignature, ...backVoucher } = back;
     await call(payee.account, { receiverId: fx.circle.accountId, methodName: "register_cumulative", args: { voucher: backVoucher, signature: backSignature }, deposit: 0n, gas: 100_000_000_000_000n });
+
+    // Debtor ketiga berutang 5 credit dan tidak membayar, supaya finalize_epoch menghasilkan member_defaulted.
+    const owed = signVoucher(
+      { circle: fx.circle.accountId, payer: defaulter.account.accountId, payee: payee.account.accountId, epoch: epoch.epoch, seq: 1, cumulativeAmount: "5000000", unit: "credit", resource: "https://seller.example/api" },
+      defaulter.secretKey,
+    );
+    const { signature: owedSignature, ...owedVoucher } = owed;
+    await call(defaulter.account, { receiverId: fx.circle.accountId, methodName: "register_cumulative", args: { voucher: owedVoucher, signature: owedSignature }, deposit: 0n, gas: 100_000_000_000_000n });
 
     const fresh = (account: SandboxAccount) => fx.sandbox.accountFrom(account.accountId, account.secretKey);
     const at = async (ns: string | null | undefined) => {
@@ -101,7 +110,7 @@ describe.skipIf(!sandboxAvailable)("SD-011 siklus hidup epoch di near-sandbox", 
 
     for (const name of [
       "member_joined", "stake_added", "voucher_registered", "epoch_cutoff", "clearing_submitted", "clearing_applied", "epoch_committed", "limits_updated",
-      "residual_paid", "epoch_finalized", "residual_claimed",
+      "residual_paid", "epoch_finalized", "residual_claimed", "member_defaulted",
     ]) {
       expect(seen.has(name), `${name} muncul di log sandbox`).toBe(true);
     }

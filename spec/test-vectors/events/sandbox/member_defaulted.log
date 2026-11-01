@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"member_defaulted","data":[{"epoch":1,"account_id":"scraper.test.near","due":"5000000","from_stake":"5000000","from_reserve":"0","shortfall":"0","stake":"45000000","status":"suspended","position_status":"defaulted","outstanding_debt":"0"}]}

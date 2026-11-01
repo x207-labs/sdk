@@ -10,7 +10,7 @@ describe("SD-011 fixture log nyata dari near-sandbox", () => {
   it("TC-SD-011-17 log kontrak asli untuk event siklus hidup ter-parse tanpa error", () => {
     for (const expected of [
       "member_joined", "stake_added", "voucher_registered", "epoch_cutoff", "clearing_submitted", "clearing_applied",
-      "epoch_committed", "limits_updated", "residual_paid", "epoch_finalized", "residual_claimed",
+      "epoch_committed", "limits_updated", "residual_paid", "epoch_finalized", "residual_claimed", "member_defaulted",
     ]) {
       expect(files, expected).toContain(`${expected}.log`);
     }
