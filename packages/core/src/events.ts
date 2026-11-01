@@ -72,6 +72,10 @@ export type X207EventMap = {
   residual_claimed: { epoch: number; account_id: AccountId; amount: U128String; destination: "near" | "intents"; status: "claimed" };
   residual_claim_failed: { epoch: number; account_id: AccountId; amount: U128String; destination: "near" | "intents"; status: "claimable" };
   params_updated: { old: Params; new: Params; changed: string[]; effective_epoch: number };
+  exit_requested: { account_id: AccountId; epoch: number };
+  stake_withdrawn: { account_id: AccountId; amount: U128String };
+  stake_withdraw_failed: { account_id: AccountId; amount: U128String };
+  member_reactivated: { account_id: AccountId; stake: U128String; limit: U128String; effective_epoch: number };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
 };
 
@@ -96,6 +100,10 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   member_joined: { account_id: "str", pubkey_voucher: "str", terms_hash: "str", status: { enum: ["pending"] }, joined_at: "str" },
   stake_added: { account_id: "str", sender_id: "str", amount: "str", stake: "str", limit: "str", status: MEMBER_STATUS },
   member_admitted: { account_id: "str", status: MEMBER_STATUS },
+  exit_requested: { account_id: "str", epoch: "int" },
+  stake_withdrawn: { account_id: "str", amount: "str" },
+  stake_withdraw_failed: { account_id: "str", amount: "str" },
+  member_reactivated: { account_id: "str", stake: "str", limit: "str", effective_epoch: "int" },
   voucher_registered: {
     payer: "str", payee: "str", epoch: "int", seq: "int", cumulative_amount: "str", delta: "str",
     obligation: "str", outstanding_debt: "str", mode: { enum: ["cumulative", "per_request"] },

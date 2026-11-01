@@ -89,3 +89,18 @@ export function contractErrorCode(error: unknown): string | null {
   const text = error instanceof Error ? error.message : String(error);
   return /\bERR_[A-Z0-9_]+\b/.exec(text)?.[0] ?? null;
 }
+
+/** `request_exit()` tanpa argumen, deposit 1 yoctoNEAR (ADR-29). */
+export function buildRequestExitCall(circleContract: AccountId): ContractCall {
+  return { receiverId: circleContract, methodName: "request_exit", args: {}, deposit: 1n };
+}
+
+/** `withdraw_stake()` tanpa argumen, deposit 1 yoctoNEAR (ADR-29); kontrak bisa menjawab `ERR_EXIT_NOT_READY` atau `ERR_HAS_DUE`. */
+export function buildWithdrawStakeCall(circleContract: AccountId): ContractCall {
+  return { receiverId: circleContract, methodName: "withdraw_stake", args: {}, deposit: 1n, gas: 100_000_000_000_000n };
+}
+
+/** View `outstanding_debt(account_id)` sebagai string U128. */
+export async function getOutstandingDebt(view: CircleViewFn, accountId: AccountId): Promise<U128String> {
+  return String(await view("outstanding_debt", { account_id: accountId }));
+}

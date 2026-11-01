@@ -294,3 +294,14 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(chain.calls).toHaveLength(1);
   });
 });
+
+describe("SD-054 pemetaan ERR_EXITING", () => {
+  it("TC-SD-054-11 registrasi ditolak ERR_EXITING: dicatat member_exiting dan baris state failed", async () => {
+    const { store, chain, logs, scheduler } = setup();
+    store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
+    chain.failWith = fail("ERR_EXITING");
+    await scheduler.tick();
+    expect(store.get(KEY)?.state).toBe("failed");
+    expect(logs[0]).toMatchObject({ event: "registration_dropped", code: "member_exiting" });
+  });
+});
