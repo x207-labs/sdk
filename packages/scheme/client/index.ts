@@ -197,3 +197,4 @@ export class X207SchemeClient implements SchemeNetworkClient {
   }
 }
 export * from "./select.js";
+export * from "./headroom-rpc.js";
