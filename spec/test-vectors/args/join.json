@@ -1,0 +1,13 @@
+{
+  "name": "join",
+  "description": "Argumen join(circle_id, pubkey_voucher, terms_hash). Deposit minimal JOIN_STORAGE_DEPOSIT = 0,01 NEAR (10^22 yoctoNEAR). pubkey_voucher = kA di keys.json.",
+  "input": {
+    "circleId": "agents-main",
+    "pubkeyVoucher": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "termsHash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  },
+  "expected": {
+    "args": "{\"circle_id\":\"agents-main\",\"pubkey_voucher\":\"ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9\",\"terms_hash\":\"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08\"}",
+    "min_deposit_yocto": "10000000000000000000000"
+  }
+}

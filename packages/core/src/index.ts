@@ -7,3 +7,4 @@ export * from "./voucher.js";
 export * as ContractAbi from "./contract/types.generated.js";
 export * from "./events.js";
 export * from "./contract/settlement.js";
+export * from "./contract/client.js";
