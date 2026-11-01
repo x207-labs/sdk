@@ -1,6 +1,6 @@
 # x207 SDK
 
-SDK publik x207: binding x402 `batch-settlement` model *credit-backed* di network `x207:<circleId>`, plus facilitator referensi dan test vector. Bagian dari [`x207-protocol/x207`](https://github.com/x207-protocol/x207).
+SDK publik x207: binding x402 `batch-settlement` model *credit-backed* di network `x207:<circleId>`, plus facilitator referensi dan test vector. Bagian dari [`x207-labs/x207`](https://github.com/x207-labs/x207).
 
 | Folder | Paket | Modul | Fitur | Isi |
 | --- | --- | --- | --- | --- |
