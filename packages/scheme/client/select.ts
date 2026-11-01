@@ -112,6 +112,9 @@ export function selectX207Requirements(estimator: HeadroomEstimator): SelectPaym
   };
 }
 
+/** Penolakan yang bisa dipulihkan dengan jatuh ke entri `exact`: headroom habis (SD-019) dan payer keluar (TC-SD-033-07). */
+const RECOVERABLE_REASONS = new Set(["insufficient_credit", "member_exiting"]);
+
 export type X207PaymentClientOptions = {
   payer: AccountId;
   /** Kunci voucher ed25519 payer (ADR-06), bukan access key NEAR. */
@@ -156,7 +159,7 @@ export class X207PaymentClient extends x402Client {
         this.headroom.consume(circle, requirements.amount);
         return undefined;
       }
-      if (context.paymentRequired?.error === "insufficient_credit") {
+      if (RECOVERABLE_REASONS.has(context.paymentRequired?.error ?? "")) {
         this.headroom.markExhausted(circle);
         return { recovered: true };
       }

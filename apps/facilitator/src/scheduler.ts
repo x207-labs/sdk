@@ -2,12 +2,11 @@
 // menjelang `cutoff_at`; gagal disimpan di D3 dan diulang dengan backoff sampai `cutoff_at`
 // (Spec Binding x402 6.3 dan 13; ADR-17, ADR-23, K-31).
 import { contractErrorCode, type AccountId, type ContractAbi, type Ed25519Signature, type UnsignedVoucher } from "@x207/core";
+import { DEFAULT_FLUSH_LEAD_SECONDS } from "@x207/scheme";
 import type { PendingRow, PendingStore } from "./pending-store.js";
 
 /** `registerThreshold` default: 1 credit (Spec Binding x402 6.3). */
 export const DEFAULT_REGISTER_THRESHOLD = 1_000_000n;
-/** `flushLead` default dalam detik (Spec Binding x402 6.3). */
-export const DEFAULT_FLUSH_LEAD_SECONDS = 120;
 /** Jeda backoff: 5, 10, 20, 40 detik, maksimum 60 detik (ADR-23). */
 export const BACKOFF_BASE_SECONDS = 5;
 export const BACKOFF_MAX_SECONDS = 60;

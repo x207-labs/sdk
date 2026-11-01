@@ -14,7 +14,6 @@ export { NearChain, PendingStoreWriter, createSettle, createVerify } from "./cha
 export {
   BACKOFF_BASE_SECONDS,
   BACKOFF_MAX_SECONDS,
-  DEFAULT_FLUSH_LEAD_SECONDS,
   DEFAULT_REGISTER_THRESHOLD,
   RegistrationScheduler,
   backoffSeconds,
