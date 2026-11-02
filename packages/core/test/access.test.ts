@@ -88,8 +88,8 @@ describe("SD-050 tipe dan antarmuka F8", () => {
 
 describe("SD-050 event F8", () => {
   const dir = fileURLToPath(new URL("../../../spec/test-vectors/events/sandbox/", import.meta.url));
-  it("TC-SD-050-05 log nyata dari near-sandbox: asset_class_set, grant_offered dan grant_activated dikenal parser", () => {
-    for (const name of ["asset_class_set", "grant_offered", "grant_activated"]) {
+  it("TC-SD-050-05 log nyata dari near-sandbox: keempat event F8 dikenal parser", () => {
+    for (const name of ["asset_class_set", "grant_offered", "grant_activated", "grant_revoked"]) {
       const events = parseEventLog(readFileSync(`${dir}${name}.log`, "utf8").trim());
       expect(events, name).not.toBeNull();
       expect(isKnownX207Event(events![0]!), name).toBe(true);
@@ -99,7 +99,7 @@ describe("SD-050 event F8", () => {
     expect(offered).toMatchObject({ grant_id: 1, class: "B", unit: "call", unit_price: "10000" });
   });
 
-  it("TC-SD-050-06 grant_revoked dari spec 15.4: dikenal dengan alasan yang sah, alasan lain ditolak", () => {
+  it("TC-SD-050-06 grant_revoked: dikenal dengan lima alasan yang sah, alasan lain ditolak", () => {
     const log = (reason: string) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.6", event: "grant_revoked", data: [{ grant_id: 1, reason }] })}`;
     for (const reason of ["grantor", "grantee", "operator", "expired", "defaulted"]) {
       expect(parseEventLog(log(reason))![0], reason).toMatchObject({ event: "grant_revoked", grant_id: 1, reason });

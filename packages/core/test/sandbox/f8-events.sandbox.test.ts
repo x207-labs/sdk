@@ -1,6 +1,6 @@
 // SD-050 di near-sandbox (interface 0.0.6): log nyata `asset_class_set`, `grant_offered`, `grant_activated` dari kontrak ter-parse oleh parser,
 // dan tipe `AccessGrant` cocok dengan view `get_grant`. Dengan X207_UPDATE_FIXTURES=1 log disimpan ke spec/test-vectors/events/sandbox/.
-// `grant_revoked` belum ada di kontrak 0.0.6 (CT-071), jadi tidak ada fixture sandbox untuknya.
+// `grant_revoked` datang dari `revoke_grant` (CT-071): pemberi mencabut grant dan statusnya final.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
@@ -64,18 +64,22 @@ describe.skipIf(!sandboxAvailable)("SD-050 event dan view F8 di near-sandbox", (
     expect(accepted.failures).toEqual([]);
     collect(accepted.logs);
 
-    for (const name of ["asset_class_set", "grant_offered", "grant_activated"]) expect(lines.has(name), name).toBe(true);
+    const active = await fx.sandbox.view<AccessGrant | null>(fx.circle.accountId, "get_grant", { grant_id: 1 });
+    expect(active).toMatchObject({ grant_id: 1, status: "active", grantor: grantor.accountId, grantee: grantee.accountId, class: "B", unit: "call", unit_price: "10000" });
+    // meter: tagihan 3 panggilan = 30000 dari penerima ke pemberi, resource memuat grantId
+    expect(meterGrant(active!, { quantity: 3 })).toEqual({ payer: grantee.accountId, payee: grantor.accountId, amount: "30000", resource: grantResource(1) });
+    const revoked = await grantor.call({ receiverId: fx.circle.accountId, methodName: "revoke_grant", args: { grant_id: 1, reason: "grantor" }, deposit: 0n });
+    expect(revoked.failures).toEqual([]);
+    collect(revoked.logs);
+    expect(await fx.sandbox.view<AccessGrant | null>(fx.circle.accountId, "get_grant", { grant_id: 1 })).toMatchObject({ status: "revoked" });
+
+    for (const name of ["asset_class_set", "grant_offered", "grant_activated", "grant_revoked"]) expect(lines.has(name), name).toBe(true);
     const [offeredEvent] = parseEventLog(lines.get("grant_offered")!)!;
     expect(offeredEvent).toMatchObject({ event: "grant_offered", grant_id: 1, asset_type: "near-rpc:access", grantor: grantor.accountId, class: "B", unit: "call", unit_price: "10000" });
 
-    const grant = await fx.sandbox.view<AccessGrant | null>(fx.circle.accountId, "get_grant", { grant_id: 1 });
-    expect(grant).toMatchObject({ grant_id: 1, status: "active", grantor: grantor.accountId, grantee: grantee.accountId, class: "B", unit: "call", unit_price: "10000" });
-    // meter: tagihan 3 panggilan = 30000 dari penerima ke pemberi, resource memuat grantId
-    expect(meterGrant(grant!, { quantity: 3 })).toEqual({ payer: grantee.accountId, payee: grantor.accountId, amount: "30000", resource: grantResource(1) });
-
     if (process.env.X207_UPDATE_FIXTURES === "1") {
       mkdirSync(OUT, { recursive: true });
-      for (const name of ["asset_class_set", "grant_offered", "grant_activated"]) writeFileSync(`${OUT}${name}.log`, `${lines.get(name)}\n`);
+      for (const name of ["asset_class_set", "grant_offered", "grant_activated", "grant_revoked"]) writeFileSync(`${OUT}${name}.log`, `${lines.get(name)}\n`);
     }
   }, 600_000);
 });

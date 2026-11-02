@@ -21,8 +21,8 @@ export type GrantStatus = Abi.GrantStatus;
 export type GrantRole = Abi.GrantRole;
 /** `GrantId` kontrak: angka, urutan sendiri dan terpisah dari `bundle_id`. */
 export type GrantId = number;
-/** Alasan `revoke_grant` (Spec 15.3). Dipakai event `grant_revoked`; method `revoke_grant` menyusul lewat CT-071. */
-export type RevokeReason = "grantor" | "grantee" | "operator" | "expired" | "defaulted";
+/** Alasan `revoke_grant` (Spec 15.3), juga di event `grant_revoked`. */
+export type RevokeReason = Abi.RevokeReason;
 
 /** Unit harga yang dikenal kontrak (`GrantInput.unit`). */
 export const GRANT_UNITS = ["call", "minute", "day", "once"] as const;
