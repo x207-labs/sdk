@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   bundleSigningHash, listingHash, listingHashBase58, listingSigningHash, offerHash, offerSigningHash, quickBarter, quickPay, serializeListing,
   serializeOffer, signListing, signOffer, intentHash, intentHashBase58, intentSigningHash, serializeBundleTerms, serializeIntent, signBundle,
-  signIntent, termsHash, voucherPublicKey,
+  signIntent, termsHash, voucherPublicKey, referralHash, referralSigningHash, serializeReferral, signReferral,
 } from "../../packages/core/dist/index.js";
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url));
@@ -68,3 +68,13 @@ writeFileSync(`${out}quick_barter.json`, JSON.stringify({
   expected: { pay: { counterpartyPays: "93000000", sellerReceives: "90000000", searcher: "3000000" }, barter: { cashback: "7000000", searcher: "3000000", sellerBears: "10000000" } },
 }, null, 2) + "\n");
 console.log("barter vectors ditulis");
+
+// Ajakan pencari (SV-015): scraper (kC) mengajak summarizer (kB) menawar listing Andi dengan jatah 3% (300 bps).
+const referral = {
+  circle: CIRCLE, seeker: C, to: B, listing_hash: listingHash(listing), mode: "barter", value: "100000000", quantity: 5000, deliver_by: 1793000000,
+  searcher_share_bps: 300, expires_at: 1793300000, nonce: "r1",
+};
+writeFileSync(`${out}referral.json`, JSON.stringify({
+  circle: CIRCLE, referral, message: serializeReferral(referral), referralHash: referralHash(referral), signingHash: hex(referralSigningHash(referral)),
+  pubkey: voucherPublicKey(seed("kC")), signature: signReferral(referral, seed("kC")),
+}, null, 2) + "\n");

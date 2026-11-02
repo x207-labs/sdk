@@ -1,0 +1,21 @@
+{
+  "circle": "x207-circle.near",
+  "referral": {
+    "circle": "x207-circle.near",
+    "seeker": "scraper.x207-circle.near",
+    "to": "summarizer.x207-circle.near",
+    "listing_hash": "2f4f3bc3a4c63f350a33dc0e8bdbd90cdfe5a6b03767cad4fb214f006e6f6c5e",
+    "mode": "barter",
+    "value": "100000000",
+    "quantity": 5000,
+    "deliver_by": 1793000000,
+    "searcher_share_bps": 300,
+    "expires_at": 1793300000,
+    "nonce": "r1"
+  },
+  "message": "{\"circle\":\"x207-circle.near\",\"seeker\":\"scraper.x207-circle.near\",\"to\":\"summarizer.x207-circle.near\",\"listing_hash\":\"2f4f3bc3a4c63f350a33dc0e8bdbd90cdfe5a6b03767cad4fb214f006e6f6c5e\",\"mode\":\"barter\",\"value\":\"100000000\",\"quantity\":5000,\"deliver_by\":1793000000,\"searcher_share_bps\":300,\"expires_at\":1793300000,\"nonce\":\"r1\"}",
+  "referralHash": "278ee7330aeaa733ec9183ac0a2a9c0474e66a755de9c59ad2dfec979b078c8b",
+  "signingHash": "71ae099c96c5fddc0c1becbc323057d7be5a8b7af203027393a5b04aaf11568d",
+  "pubkey": "ed25519:GyGKxMyg1p9SsHfm15MkNUu1u9TN2JtTspcdmrtGUdse",
+  "signature": "ed25519:3983aCJZu4mttM5vbJ4Tcc9P5GQtioTkdKqiqWXHSdcLjDh9iJZgW7oMpvNHqLq3qjCmVe7gTWmqUNvM6smfzUVT"
+}

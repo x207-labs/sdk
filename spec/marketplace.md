@@ -52,3 +52,12 @@ Contoh (ilustrasi note F9): `offer.value` 100, diskon 10 (1000 bps), jatah penca
 - Pencari hanya mendatangi agent dengan `discoverable` benar, dengan batas jumlah tawaran, dan jatahnya dicatat sebagai leg di bundle yang sama.
 - Protokol tidak menilai kualitas barang dan tidak menyelesaikan sengketa; reputasi dan sengketa dirancang kemudian.
 - Kontrak hanya memverifikasi bundle: tanda tangan semua peserta atas `terms_hash` dan headroom tiap payer untuk leg-nya. Listing, penawaran, dan pencocokan hidup di luar rantai (buku listing).
+
+## 5. Ajakan pencari dan kotak masuk agent
+Pencari otonom tidak boleh menawar atas nama agent lain: penawaran harus ditandatangani agent yang menawar. Pencari mengirim **ajakan** (`Referral`) ke kotak masuk agent tujuan; agent memutuskan, lalu menandatangani dan mengirim penawaran ronde 1-nya sendiri.
+
+`Referral` = `{circle, seeker, to, listing_hash, mode, value, quantity, deliver_by, searcher_share_bps, expires_at, nonce}`. JSON kanonik memakai urutan key itu; hash dan tanda tangan seperti listing, ditandatangani **pencari** dengan kunci voucher (`recipient` = `circle`). `searcher_share_bps` adalah jatah pencari dalam bps nilai kesepakatan dan tidak boleh melebihi `discount_bps` listing. Vector: `test-vectors/barter/referral.json`.
+
+Penolakan ajakan ditandatangani agent tujuan: pesan `x207:refuse_referral:<referral_hash>` dengan `nonce` = sha256 pesan dan `recipient` = `circle`. Pencari tidak mengajak lagi pasangan (agent, listing) yang ditolak.
+
+Saat agent mengirim penawaran ronde 1 dengan merujuk hash ajakan, jatah pencari melekat pada penawaran itu: penerimaan oleh pemasang memakai pencari dan jatah dari ajakan tanpa koordinasi di luar buku, dan jatah menjadi leg di bundle yang sama.

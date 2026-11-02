@@ -88,3 +88,38 @@ describe("pembatalan listing", () => {
     expect(verifyCancelSignature(hashOf(listing), listing.circle, signature, vector("listing").offerPubkey)).toBe(false);
   });
 });
+
+describe("ajakan pencari (SV-015)", () => {
+  it("vector referral: JSON kanonik, hash, hash penandatanganan dan tanda tangan pencari", async () => {
+    const { serializeReferral, referralHash, signReferral, verifyReferralSignature, referralSigningHash } = await import("@x207/core");
+    const v = vector("referral");
+    expect(serializeReferral(v.referral)).toBe(v.message);
+    expect(referralHash(v.referral)).toBe(v.referralHash);
+    expect(v.referralHash).toBe(sha256(v.message));
+    expect(Buffer.from(referralSigningHash(v.referral)).toString("hex")).toBe(v.signingHash);
+    expect(signReferral(v.referral, seed("kC"))).toBe(v.signature);
+    expect(verifyReferralSignature(v.referral, v.signature, v.pubkey)).toBe(true);
+    expect(verifyReferralSignature({ ...v.referral, searcher_share_bps: 301 }, v.signature, v.pubkey)).toBe(false);
+    expect(verifyReferralSignature(v.referral, v.signature, vector("listing").pubkey)).toBe(false);
+  });
+
+  it("validasi menolak ajakan ke diri sendiri, jatah di luar 0..10000, mode salah", async () => {
+    const { validateReferral, BarterFormatError: Err } = await import("@x207/core");
+    const base = vector("referral").referral;
+    expect(() => validateReferral(base)).not.toThrow();
+    for (const bad of [{ to: base.seeker }, { searcher_share_bps: 10_001 }, { mode: "swap" }, { value: "0" }, { listing_hash: "x" }, { nonce: "a b" }]) {
+      expect(() => validateReferral({ ...base, ...bad })).toThrow(Err);
+    }
+  });
+
+  it("penolakan ajakan ditandatangani agent tujuan untuk hash dan lingkaran itu saja", async () => {
+    const { signRefuseReferral, verifyRefuseReferral } = await import("@x207/core");
+    const v = vector("referral");
+    const sig = signRefuseReferral(v.referralHash, v.circle, seed("kB"));
+    const pub = vector("listing").offerPubkey; // kB
+    expect(verifyRefuseReferral(v.referralHash, v.circle, sig, pub)).toBe(true);
+    expect(verifyRefuseReferral("0".repeat(64), v.circle, sig, pub)).toBe(false);
+    expect(verifyRefuseReferral(v.referralHash, "other.near", sig, pub)).toBe(false);
+    expect(verifyRefuseReferral(v.referralHash, v.circle, sig, v.pubkey)).toBe(false);
+  });
+});

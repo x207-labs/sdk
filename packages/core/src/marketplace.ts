@@ -209,3 +209,79 @@ export function verifyCancelSignature(hash: string, circle: AccountId, signature
     return false;
   }
 }
+
+// --- Ajakan pencari (SV-015, FIT-F9-08) ---
+
+/**
+ * Ajakan dari pencari otonom ke agent `to` agar ia menawar `listing_hash`: bidang penawaran yang disiapkan (cara, nilai, jumlah, jadwal) dan jatah
+ * pencari dalam bps nilai kesepakatan. Ditandatangani pencari dengan kunci voucher; penawaran sebenarnya tetap harus ditandatangani agent `to`.
+ */
+export type Referral = {
+  circle: AccountId;
+  seeker: AccountId;
+  to: AccountId;
+  listing_hash: string;
+  mode: OfferMode;
+  value: U128String;
+  quantity: number;
+  deliver_by: number;
+  searcher_share_bps: number;
+  /** Detik unix; ajakan yang lewat tidak muncul di kotak masuk. */
+  expires_at: number;
+  nonce: string;
+};
+
+export function validateReferral(referral: Referral): void {
+  if (!isAccount(referral.circle) || !isAccount(referral.seeker) || !isAccount(referral.to)) throw new BarterFormatError("circle, seeker, dan to harus akun NEAR");
+  if (referral.seeker === referral.to) throw new BarterFormatError("pencari tidak mengajak dirinya sendiri");
+  if (typeof referral.listing_hash !== "string" || !HASH_HEX.test(referral.listing_hash)) throw new BarterFormatError("listing_hash harus heks huruf kecil 64 karakter");
+  if (referral.mode !== "pay" && referral.mode !== "barter") throw new BarterFormatError('mode harus "pay" atau "barter"');
+  if (!isAmount(referral.value)) throw new BarterFormatError("value harus string desimal > 0 tanpa nol di depan dan <= U128");
+  if (!isInt(referral.quantity, 1)) throw new BarterFormatError("quantity harus integer >= 1");
+  if (!isInt(referral.deliver_by, 1)) throw new BarterFormatError("deliver_by harus integer detik unix >= 1");
+  if (!isInt(referral.searcher_share_bps, 0) || referral.searcher_share_bps > 10_000) throw new BarterFormatError("searcher_share_bps harus integer 0..10000");
+  if (!isInt(referral.expires_at, 1)) throw new BarterFormatError("expires_at harus integer detik unix >= 1");
+  if (typeof referral.nonce !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(referral.nonce)) throw new BarterFormatError("nonce harus 1-64 karakter [A-Za-z0-9_-]");
+}
+
+/** JSON kanonik ajakan: key `circle, seeker, to, listing_hash, mode, value, quantity, deliver_by, searcher_share_bps, expires_at, nonce`. */
+export function serializeReferral(referral: Referral): string {
+  validateReferral(referral);
+  return JSON.stringify({
+    circle: referral.circle, seeker: referral.seeker, to: referral.to, listing_hash: referral.listing_hash, mode: referral.mode, value: referral.value,
+    quantity: referral.quantity, deliver_by: referral.deliver_by, searcher_share_bps: referral.searcher_share_bps, expires_at: referral.expires_at,
+    nonce: referral.nonce,
+  });
+}
+
+export const referralHash = (referral: Referral): string => hex(sha256(serializeReferral(referral)));
+export const referralSigningHash = (referral: Referral): Uint8Array =>
+  nep413SigningHash(serializeReferral(referral), sha256(serializeReferral(referral)), referral.circle);
+export const signReferral = (referral: Referral, secretKey: VoucherSecretKey): Ed25519Signature => signHash(referralSigningHash(referral), secretKey);
+
+export function verifyReferralSignature(referral: Referral, signature: string, publicKey: string): boolean {
+  try {
+    return verifyHash(referralSigningHash(referral), signature, publicKey);
+  } catch {
+    return false;
+  }
+}
+
+/** Pesan penolakan ajakan yang ditandatangani agent tujuan: `x207:refuse_referral:<referral_hash>`. */
+export const refuseReferralMessage = (hash: string): string => `x207:refuse_referral:${hash}`;
+
+export function refuseReferralSigningHash(hash: string, circle: AccountId): Uint8Array {
+  const message = refuseReferralMessage(hash);
+  return nep413SigningHash(message, sha256(message), circle);
+}
+
+export const signRefuseReferral = (hash: string, circle: AccountId, secretKey: VoucherSecretKey): Ed25519Signature =>
+  signHash(refuseReferralSigningHash(hash, circle), secretKey);
+
+export function verifyRefuseReferral(hash: string, circle: AccountId, signature: string, publicKey: string): boolean {
+  try {
+    return verifyHash(refuseReferralSigningHash(hash, circle), signature, publicKey);
+  } catch {
+    return false;
+  }
+}
