@@ -18,3 +18,8 @@ Akun menawarkan `offer` dan membutuhkan `need`. Nilai dalam credit satuan terkec
 5. **Peserta** = semua akun yang muncul sebagai `payer` atau `payee`. Bundle sah bila setiap peserta punya tepat satu tanda tangan sah atas `terms_hash` yang sama.
 
 Contoh A→B→C→A (10, 8, 6 credit): [`test-vectors/barter/bundle_abca.json`](./test-vectors/barter/bundle_abca.json).
+
+## Aturan kontrak yang berlaku untuk bundle
+- **`terms_hash` unik.** `commit_bundle` menolak `terms_hash` yang sudah tercatat dengan `ERR_BUNDLE_EXISTS`. Syarat bundle yang identik (hash sama) tidak bisa dipakai dua kali; bundle berikutnya dengan leg yang sama harus berbeda di salah satu field kanonik, yaitu `epoch` atau nilai `max_amount`. Hash sama berarti `circle`, `epoch`, dan seluruh leg sama.
+- **Epoch berjalan.** `bundle.epoch` harus epoch berjalan dengan fase `open`. Bundle untuk epoch lain atau yang sudah ditutup ditolak.
+- **Error muncul apa adanya.** SDK tidak menerjemahkan atau membungkus kode kontrak: pesan panic `ERR_*` (mis. `ERR_BUNDLE_EXISTS`, `ERR_BUNDLE_SIGNATURES`, `ERR_BUNDLE_HEADROOM`) sampai ke pemanggil, dan `contractErrorCode(error)` mengembalikan kodenya. Penyebab umum `ERR_BUNDLE_EXISTS`: pemanggil mengirim ulang usulan yang sama dalam satu epoch.

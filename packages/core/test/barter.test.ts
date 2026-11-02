@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  BarterFormatError, base58Encode, bundleFullySigned, bundleParticipants, intentHash, intentHashBase58, serializeBundleTerms, serializeIntent,
+  BarterFormatError, base58Encode, contractErrorCode, bundleFullySigned, bundleParticipants, intentHash, intentHashBase58, serializeBundleTerms, serializeIntent,
   signBundle, signIntent, termsHash, verifyBundleSignature, verifyIntentSignature, voucherPublicKey,
   type BarterIntent, type BundleTerms,
 } from "@x207/core";
@@ -84,5 +84,19 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(() => serializeIntent({ ...intent, need: { ...intent.need, service: "Translate!" } })).toThrow(/service/);
     expect(() => serializeIntent({ ...intent, offer: { ...intent.offer, value: "340282366920938463463374607431768211456" } })).toThrow(/value/);
     expect(() => serializeIntent({ ...intent, nonce: "bad nonce" })).toThrow(/nonce/);
+  });
+
+  it("kode error bundle dari kontrak sampai apa adanya ke pemanggil", () => {
+    for (const code of ["ERR_BUNDLE_EXISTS", "ERR_BUNDLE_SIGNATURES", "ERR_BUNDLE_HEADROOM"]) {
+      const error = new Error(`Smart contract panicked: ${code}: terms_hash ${bundleVector.termsHash}`);
+      expect(contractErrorCode(error)).toBe(code);
+      expect(error.message).toContain(bundleVector.termsHash);
+    }
+  });
+
+  it("syarat identik menghasilkan terms_hash sama (kontrak menolak yang kedua dengan ERR_BUNDLE_EXISTS); ganti epoch mengubah hash", () => {
+    const terms = bundleVector.terms as BundleTerms;
+    expect(termsHash({ ...terms })).toBe(termsHash(terms));
+    expect(termsHash({ ...terms, epoch: terms.epoch + 1 })).not.toBe(termsHash(terms));
   });
 });
