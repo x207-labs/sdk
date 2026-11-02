@@ -38,6 +38,8 @@ const SAMPLES: Record<string, unknown> = {
   stake_withdraw_failed: { account_id: A, amount: "50000000" },
   member_reactivated: { account_id: A, stake: "50000000", limit: "40000000", effective_epoch: 44 },
   solver_fee_claimed: { account_id: B, amount: "150000" },
+  upgrade_proposed: { code_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ", eta: "1793900000000000000" },
+  upgrade_applied: { code_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ", applied_at: "1793990000000000000" },
   solver_fee_claim_failed: { account_id: B, amount: "150000" },
   bundle_committed: { bundle_id: "b1", terms_hash: "b".repeat(64), epoch: 42, legs: [{ payer: A, payee: B, max_amount: "1000000" }], solver: B },
   // event P0 lain di abi 0.0.1 dan member_admitted (spec)
@@ -134,7 +136,7 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.2 untuk setiap event yang dikenal", () => {
+  it("skema parser cocok dengan abi.json 0.0.3 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);

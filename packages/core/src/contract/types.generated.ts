@@ -1,9 +1,9 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.2";
+export const X207_CIRCLE_ABI_VERSION = "0.0.3";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "4ef306f33a662349da310abbc58c2bae79fe1884bb60852c228481950631e7a9";
+export const X207_CIRCLE_ABI_SHA256 = "3acbe96760c103ea1f083bb6760f3fe17e1768ec067ed408d9452fbba727edd2";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type Admission = "open" | "dao";
@@ -27,6 +27,7 @@ export type Promise = unknown;
 export type PromiseOrValueBoolean = boolean;
 export type PromiseOrValueString = string;
 export type SimulationResult = { "better_than_current": boolean; "cleared_total": string; "edge_count": number; "reason"?: string | null; "valid": boolean };
+export type UpgradeView = { "code_hash": string; "eta": string };
 export type Voucher = { "circle": string; "cumulativeAmount": string; "epoch": number; "payee": string; "payer": string; "resource": string; "seq": number; "unit": string };
 
 /** View: `args` = argumen JSON, `result` = nilai kembalian. */
@@ -38,6 +39,7 @@ export type CircleViews = {
   "get_params": { args: Record<string, never>; result: Params };
   "get_pending_params": { args: Record<string, never>; result: PendingParams | null };
   "get_pool": { args: Record<string, never>; result: PoolView };
+  "get_upgrade": { args: Record<string, never>; result: UpgradeView | null };
   "headroom": { args: { "account_id": string }; result: string };
   "interface_version": { args: Record<string, never>; result: string };
   "last_seq": { args: { "payer": string; "payee": string; "epoch": number }; result: number };
@@ -56,6 +58,7 @@ export type CircleViews = {
 /** Call: transaksi. `payable`, `init`, `private` dari modifier ABI. */
 export type CircleCalls = {
   "admit_member": { args: { "account_id": string }; result: void };
+  "apply_upgrade": { args: Record<string, never>; result: Promise };
   "claim": { args: { "epoch": number; "destination": ClaimDestination }; result: Promise; payable: true };
   "claim_solver_fee": { args: Record<string, never>; result: Promise; payable: true };
   "close_epoch": { args: { "epoch": number }; result: void };
@@ -63,10 +66,12 @@ export type CircleCalls = {
   "finalize_epoch": { args: { "epoch": number }; result: void };
   "ft_on_transfer": { args: { "sender_id": string; "amount": string; "msg": string }; result: PromiseOrValueString };
   "join": { args: { "circle_id": string; "pubkey_voucher": string; "terms_hash": string }; result: MemberView; payable: true };
+  "migrate": { args: Record<string, never>; result: void; init: true; private: true };
   "new": { args: { "owner_id": string; "circle_id": string; "usdt_token_id": string; "intents_id": string; "params"?: Params | null }; result: void; init: true };
   "on_claim_resolved": { args: { "epoch": number; "account_id": string; "amount": string; "destination": ClaimDestination }; result: string; private: true };
   "on_solver_fee_resolved": { args: { "account_id": string; "amount": string }; result: string; private: true };
   "on_withdraw_resolved": { args: { "account_id": string; "amount": string }; result: boolean; private: true };
+  "propose_upgrade": { args: { "code_hash": string }; result: void };
   "register_cumulative": { args: { "voucher": Voucher; "signature": string }; result: string };
   "register_voucher": { args: { "voucher": Voucher; "signature": string }; result: string };
   "request_exit": { args: Record<string, never>; result: void; payable: true };
@@ -75,8 +80,8 @@ export type CircleCalls = {
   "withdraw_stake": { args: Record<string, never>; result: PromiseOrValueBoolean; payable: true };
 };
 
-export const CIRCLE_VIEW_METHODS = ["get_circle","get_clearing_proposal","get_epoch","get_owner","get_params","get_pending_params","get_pool","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
-export const CIRCLE_CALL_METHODS = ["admit_member","claim","claim_solver_fee","close_epoch","commit_epoch","finalize_epoch","ft_on_transfer","join","new","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","register_cumulative","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
+export const CIRCLE_VIEW_METHODS = ["get_circle","get_clearing_proposal","get_epoch","get_owner","get_params","get_pending_params","get_pool","get_upgrade","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
+export const CIRCLE_CALL_METHODS = ["admit_member","apply_upgrade","claim","claim_solver_fee","close_epoch","commit_epoch","finalize_epoch","ft_on_transfer","join","migrate","new","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","propose_upgrade","register_cumulative","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
 
 /** Nama event NEP-297 dan urutan field `data`-nya. */
 export const CIRCLE_EVENTS = {
@@ -101,6 +106,8 @@ export const CIRCLE_EVENTS = {
   "member_reactivated": ["account_id","stake","limit","effective_epoch"],
   "solver_fee_claimed": ["account_id","amount"],
   "solver_fee_claim_failed": ["account_id","amount"],
+  "upgrade_proposed": ["code_hash","eta"],
+  "upgrade_applied": ["code_hash","applied_at"],
 } as const;
 
 export type CircleEventName = keyof typeof CIRCLE_EVENTS;
