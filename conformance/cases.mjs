@@ -55,6 +55,14 @@ export function loadCases() {
   add("offer/verify", "offer.verify", { offer: listing.offer, signature: listing.offerSignature, publicKey: listing.offerPubkey }, { valid: true });
   add("offer/verify-wrong-key", "offer.verify", { offer: listing.offer, signature: listing.offerSignature, publicKey: listing.pubkey }, { valid: false });
 
+  // Ajakan pencari F9 (SV-015)
+  const referral = json("barter/referral.json");
+  add("referral/message", "referral.message", { referral: referral.referral }, referral.message);
+  add("referral/hash", "referral.hash", { referral: referral.referral }, referral.referralHash);
+  add("referral/signingHash", "referral.signingHash", { referral: referral.referral }, referral.signingHash);
+  add("referral/verify", "referral.verify", { referral: referral.referral, signature: referral.signature, publicKey: referral.pubkey }, { valid: true });
+  add("referral/verify-tampered", "referral.verify", { referral: { ...referral.referral, searcher_share_bps: 301 }, signature: referral.signature, publicKey: referral.pubkey }, { valid: false });
+
   // Barter cepat F9: angka contoh note F9 sebagai parameter
   const quick = json("barter/quick_barter.json");
   add("quick/pay", "quick.pay", quick.params, quick.pay);

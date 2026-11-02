@@ -16,12 +16,12 @@ describe("SD-058 conformance suite", () => {
     const total = loadCases().length;
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(`conformance: ${total}/${total} passed`);
-    expect(total).toBeGreaterThanOrEqual(40);
+    expect(total).toBeGreaterThanOrEqual(45);
   });
 
   it("TC-SD-058-02 kasus mencakup voucher, intent, bundle, listing, penawaran, dan barter cepat", () => {
     const ops = new Set(loadCases().map((c) => c.op.split(".")[0]));
-    expect(ops).toEqual(new Set(["voucher", "intent", "bundle", "listing", "offer", "quick"]));
+    expect(ops).toEqual(new Set(["voucher", "intent", "bundle", "listing", "offer", "referral", "quick"]));
   });
 
   it("TC-SD-058-03 adapter yang selalu menjawab salah gagal dan menyebut kasusnya", () => {

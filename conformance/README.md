@@ -1,6 +1,6 @@
 # x207 conformance suite
 
-Checks that an implementation of the x207 binding and the marketplace formats (voucher, intent, bundle, listing, offer, quick barter) produces the same bytes, hashes and verdicts as the reference. Cases come from `spec/test-vectors/`, the single source of the formats; nothing here is invented by the runner.
+Checks that an implementation of the x207 binding and the marketplace formats (voucher, intent, bundle, listing, offer, referral, quick barter) produces the same bytes, hashes and verdicts as the reference. Cases come from `spec/test-vectors/`, the single source of the formats; nothing here is invented by the runner.
 
 ```bash
 npm run conformance                                  # reference adapter (@x207/core)
@@ -26,6 +26,8 @@ The runner starts the command, writes one JSON object per line `{"id", "op", "in
 | `listing.verify` | `{listing, signature, publicKey}` | `{valid}` |
 | `offer.message`, `offer.hash`, `offer.signingHash` | `{offer}` | string |
 | `offer.verify` | `{offer, signature, publicKey}` | `{valid}` |
+| `referral.message`, `referral.hash`, `referral.signingHash` | `{referral}` | string |
+| `referral.verify` | `{referral, signature, publicKey}` | `{valid}` |
 | `quick.pay` | `{value, discountBps, searcherShareBps}` | `{counterpartyPays, sellerReceives, searcher, discount}` |
 | `quick.barter` | same | `{cashback, searcher, sellerBears, counterpartyGives}` |
 

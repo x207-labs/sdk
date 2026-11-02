@@ -29,6 +29,10 @@ const ops = {
   "offer.hash": ({ offer }) => core.offerHash(offer),
   "offer.signingHash": ({ offer }) => hex(core.offerSigningHash(offer)),
   "offer.verify": ({ offer, signature, publicKey }) => verify(() => core.verifyOfferSignature(offer, signature, publicKey)),
+  "referral.message": ({ referral }) => core.serializeReferral(referral),
+  "referral.hash": ({ referral }) => core.referralHash(referral),
+  "referral.signingHash": ({ referral }) => hex(core.referralSigningHash(referral)),
+  "referral.verify": ({ referral, signature, publicKey }) => verify(() => core.verifyReferralSignature(referral, signature, publicKey)),
   "quick.pay": (params) => core.quickPay(params),
   "quick.barter": (params) => core.quickBarter(params),
 };
