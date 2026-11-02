@@ -13,6 +13,7 @@ import type {
 import type { FacilitatorNearSigner } from "@x402/near";
 import { ExactNearScheme } from "@x402/near/exact/facilitator";
 import type { AccountId } from "@x207/core";
+import type { RegisterOutcome } from "./scheduler.js";
 import { X207SchemeFacilitator, type CircleConfig, type VerifyOptions } from "@x207/scheme";
 import { InvalidRequestError, type FacilitatorService, type PairStateQuery, type PairStateResponse } from "./app.js";
 import { NearChain, PendingStoreWriter } from "./chain.js";
@@ -31,7 +32,22 @@ export type FacilitatorServiceOptions = {
   exactSigner?: FacilitatorNearSigner;
   verify?: Omit<VerifyOptions, "chain">;
   now?: () => number;
+  /**
+   * Mode demo `register_voucher` per request (SD-029, SD-030): setiap `/settle` yang berhasil menyimpan voucher langsung meminta
+   * registrasi on-chain dan menunggu final paling lama `timeoutMs` (default 10 detik, ADR-25). Final: `registration: "registered"`.
+   * Belum final: `success: false, errorReason: "settlement_pending"` (non-terminal, resource tetap dilayani) dan registrasi
+   * berjalan terus lalu diulang penjadwal sesuai ADR-23. Gagal terminal (mis. `insufficient_credit` dibuang): kode itu dikembalikan.
+   */
+  perRequest?: {
+    registerNow: (circleContract: AccountId, key: { payer: AccountId; payee: AccountId; epoch: number }) => Promise<RegisterOutcome>;
+    timeoutMs?: number;
+  };
 };
+
+/** Batas tunggu registrasi per request (ADR-25). */
+export const DEFAULT_SETTLE_TIMEOUT_MS = 10_000;
+
+const PENDING = Symbol("pending");
 
 const invalidNetwork = (network: SettleResponse["network"]): SettleResponse => ({
   success: false, errorReason: "invalid_network", transaction: "", network,
@@ -75,7 +91,28 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
 
     async settle({ paymentPayload, paymentRequirements }: SettleRequest): Promise<SettleResponse> {
       if (!registered(paymentRequirements as PaymentRequirements)) return invalidNetwork(paymentRequirements.network);
-      return facilitator.settle(paymentPayload as PaymentPayload, paymentRequirements as PaymentRequirements);
+      const response = await facilitator.settle(paymentPayload as PaymentPayload, paymentRequirements as PaymentRequirements);
+      const perRequest = options.perRequest;
+      const entry = byNetwork.get(paymentRequirements.network);
+      const x207 = (response.extensions as { x207?: { epoch?: number; registration?: string } } | undefined)?.x207;
+      if (!perRequest || !entry || !response.success || !response.payer || x207?.epoch === undefined || x207.registration === "registered") return response;
+
+      const key = { payer: response.payer, payee: paymentRequirements.payTo, epoch: x207.epoch };
+      const attempt = perRequest.registerNow(entry.circle.circleContract, key);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const outcome = await Promise.race([
+        attempt,
+        new Promise<typeof PENDING>((resolve) => {
+          timer = setTimeout(() => resolve(PENDING), perRequest.timeoutMs ?? DEFAULT_SETTLE_TIMEOUT_MS);
+        }),
+      ]).finally(() => clearTimeout(timer));
+      // Registrasi yang terlambat tetap berjalan; kegagalannya dicatat penjadwal, jadi tidak boleh menjadi penolakan tak tertangani.
+      attempt.catch(() => undefined);
+
+      const withRegistration = (registration: string) => ({ ...response, extensions: { ...response.extensions, x207: { ...x207, registration } } });
+      if (outcome === PENDING || outcome.status === "retrying") return { ...withRegistration("pending"), success: false, errorReason: "settlement_pending" };
+      if (outcome.status === "failed") return { ...withRegistration("pending"), success: false, errorReason: outcome.code };
+      return withRegistration("registered");
     },
 
     async supported(): Promise<SupportedResponse> {
