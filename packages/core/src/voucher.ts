@@ -103,6 +103,33 @@ export function generateVoucherKeypair(): { secretKey: `ed25519:${string}`; publ
   return { secretKey: `${ED25519_PREFIX}${base58Encode(Buffer.concat([seed, pub]))}`, publicKey };
 }
 
+/** `sha256` dari payload NEP-413 untuk pesan apa pun: `u32 tag` + borsh `{ message, nonce[32], recipient, callback_url: None }`. */
+export function nep413SigningHash(message: string, nonce: Uint8Array, recipient: string): Uint8Array {
+  if (nonce.length !== 32) throw new Error("nonce NEP-413 harus 32 byte");
+  return sha256(
+    Buffer.concat([u32le(NEP413_TAG), borshString(message), nonce, borshString(recipient), Uint8Array.of(0)]),
+  );
+}
+
+/** Tanda tangan ed25519 atas hash 32 byte, ditulis `ed25519:<base58 64 byte>`. */
+export function signHash(hash: Uint8Array, secretKey: VoucherSecretKey): Ed25519Signature {
+  return `${ED25519_PREFIX}${base58Encode(nodeSign(null, hash, privateKeyOf(seedOf(secretKey))))}` as Ed25519Signature;
+}
+
+/** `true` hanya bila `signature` sah atas `hash` untuk `publicKey`; input rusak menghasilkan `false`. */
+export function verifyHash(hash: Uint8Array, signature: string, publicKey: string): boolean {
+  try {
+    if (!publicKey.startsWith(ED25519_PREFIX) || !signature.startsWith(ED25519_PREFIX)) return false;
+    const pub = base58Decode(publicKey.slice(ED25519_PREFIX.length));
+    const sig = base58Decode(signature.slice(ED25519_PREFIX.length));
+    if (pub.length !== 32 || sig.length !== 64) return false;
+    const key = createPublicKey({ key: Buffer.concat([SPKI_PREFIX, pub]), format: "der", type: "spki" });
+    return nodeVerify(null, hash, key, sig);
+  } catch {
+    return false;
+  }
+}
+
 export function signVoucher(voucher: UnsignedVoucher, secretKey: VoucherSecretKey): Voucher {
   const hash = voucherSigningHash(voucher);
   const signature = nodeSign(null, hash, privateKeyOf(seedOf(secretKey)));
