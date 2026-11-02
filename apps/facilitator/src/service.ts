@@ -21,6 +21,8 @@ import type { PendingStore } from "./pending-store.js";
 import type { NearRpc } from "./rpc.js";
 
 export const EXACT_NEAR_NETWORK = "near:mainnet" as const;
+/** Jaringan `exact` yang didukung `@x402/near`; testnet hanya untuk gladi (SD-034). */
+export type ExactNearNetwork = "near:mainnet" | "near:testnet";
 
 export type FacilitatorServiceOptions = {
   circles: readonly CircleConfig[];
@@ -30,6 +32,8 @@ export type FacilitatorServiceOptions = {
   signers?: readonly AccountId[];
   /** Signer `exact` NEAR; tanpa ini `exact` tidak didaftarkan. */
   exactSigner?: FacilitatorNearSigner;
+  /** Jaringan untuk `exactSigner`; bawaan `near:mainnet`. */
+  exactNetwork?: ExactNearNetwork;
   verify?: Omit<VerifyOptions, "chain">;
   now?: () => number;
   /**
@@ -78,7 +82,7 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
     facilitator.register(circle.network, scheme);
     byNetwork.set(circle.network, { circle, scheme, chain });
   }
-  if (options.exactSigner) facilitator.register(EXACT_NEAR_NETWORK, new ExactNearScheme(options.exactSigner));
+  if (options.exactSigner) facilitator.register(options.exactNetwork ?? EXACT_NEAR_NETWORK, new ExactNearScheme(options.exactSigner));
 
   const registered = (requirements: PaymentRequirements): boolean =>
     facilitator.getSupported().kinds.some((k) => k.scheme === requirements.scheme && k.network === requirements.network);

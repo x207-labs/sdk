@@ -6,19 +6,21 @@ import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { PendingStore } from "./pending-store.js";
 import { NearRegistrationChain } from "./relay.js";
-import { EXACT_NEAR_NETWORK, createFacilitatorService } from "./service.js";
+import { EXACT_NEAR_NETWORK, createFacilitatorService, type ExactNearNetwork } from "./service.js";
 import { RegistrationScheduler } from "./scheduler.js";
 import { NearRpc } from "./rpc.js";
 
 const config = loadConfig();
 const pending = new PendingStore(config.pendingDbPath);
 
+// Bawaan near:mainnet; X207_EXACT_NETWORK=near:testnet hanya untuk gladi testnet.
+const exactNetwork: ExactNearNetwork = process.env.X207_EXACT_NETWORK === "near:testnet" ? "near:testnet" : EXACT_NEAR_NETWORK;
 const rpc = new NearRpc({ urls: config.rpcUrls, timeoutMs: config.rpcTimeoutMs });
 // `exact` near:mainnet butuh akun relayer; tanpa itu facilitator hanya melayani x207.
 const exactSigner = config.relayer
   ? createFacilitatorNearSigner({
       relayers: [{ accountId: config.relayer.accountId, secretKey: config.relayer.privateKey as KeyPairString }],
-      rpcUrls: { [EXACT_NEAR_NETWORK]: config.rpcUrls[0]! },
+      rpcUrls: { [exactNetwork]: config.rpcUrls[0]! },
     })
   : undefined;
 // Penjadwal registrasi (SD-028) jalan bila akun relayer dikonfigurasi; tanpa itu voucher hanya tersimpan di D3.
@@ -39,7 +41,7 @@ const service = createFacilitatorService({
   rpc,
   pending,
   ...(config.relayer ? { signers: [config.relayer.accountId] } : {}),
-  ...(exactSigner ? { exactSigner } : {}),
+  ...(exactSigner ? { exactSigner, exactNetwork } : {}),
   // Mode demo SD-029: `/settle` menunggu registrasi on-chain, atau menjawab `settlement_pending` setelah timeout (SD-030).
   ...(config.registerMode === "per_request"
     ? {

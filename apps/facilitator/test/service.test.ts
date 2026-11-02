@@ -97,6 +97,13 @@ describe("SD-032 rangkaian facilitator", () => {
     expect(body.signers["x207:*"]).toEqual([RELAYER]);
   });
 
+  it("TC-SD-034-01 exactNetwork near:testnet mendaftarkan exact di testnet saja (gladi), bawaan tetap near:mainnet", async () => {
+    const kinds = async (options: Parameters<typeof appOf>[0]) =>
+      ((await (await appOf(options).app.request("/supported")).json()) as { kinds: Array<{ scheme: string; network: string }> }).kinds.filter((k) => k.scheme === "exact");
+    expect(await kinds({ exactNetwork: "near:testnet" })).toEqual([{ x402Version: 2, scheme: "exact", network: "near:testnet" }]);
+    expect(await kinds({})).toEqual([{ x402Version: 2, scheme: "exact", network: "near:mainnet" }]);
+  });
+
   it("TC-SD-032-02 extra.epoch dari kontrak: dipakai ulang <60 detik, dibaca ulang sesudahnya", async () => {
     let now = NOW;
     const { app } = appOf({ now: () => now });

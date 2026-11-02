@@ -25,4 +25,4 @@ export {
 } from "./scheduler.js";
 export { GasKeyLanes, MAX_GAS_KEY_LANES, encodeGasKeyTransaction, signGasKeyTransaction, type GasKeyCall } from "./gas-key.js";
 export { NearRegistrationChain, REGISTER_GAS, transactionFailure, type NearRelayOptions } from "./relay.js";
-export { EXACT_NEAR_NETWORK, createFacilitatorService, type FacilitatorServiceOptions } from "./service.js";
+export { EXACT_NEAR_NETWORK, createFacilitatorService, type ExactNearNetwork, type FacilitatorServiceOptions } from "./service.js";
