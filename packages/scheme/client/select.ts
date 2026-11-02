@@ -8,7 +8,7 @@ import type {
 } from "@x402/core/types";
 import type { AccountId, VoucherSecretKey } from "@x207/core";
 import { X207_SCHEME } from "../shared/circle.js";
-import { X207SchemeClient } from "./index.js";
+import { X207SchemeClient, type SpendLimit } from "./index.js";
 import type { VoucherStateStore } from "./store.js";
 
 type SelectPaymentRequirements = (
@@ -132,6 +132,8 @@ export type X207PaymentClientOptions = {
   store?: VoucherStateStore;
   /** Leg bundle F5 (SD-048); lihat `X207ClientOptions.bundleFor`. */
   bundleFor?: BundleLookup;
+  /** Batas belanja lokal pemilik (SD-020); lihat `X207ClientOptions.spendLimit`. */
+  spendLimit?: SpendLimit;
   headroomCacheMs?: number;
   now?: () => number;
 };
@@ -159,6 +161,7 @@ export class X207PaymentClient extends x402Client {
       secretKey: options.secretKey,
       ...(options.store ? { store: options.store } : {}),
       ...(options.bundleFor ? { bundleFor: options.bundleFor } : {}),
+      ...(options.spendLimit ? { spendLimit: options.spendLimit } : {}),
     });
     this.register("x207:*", this.x207);
 

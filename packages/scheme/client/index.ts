@@ -31,6 +31,35 @@ const USD_CREDIT: DefaultAsset = { asset: "USD", decimals: CREDIT_DECIMALS, symb
 const U128_MAX = 340282366920938463463374607431768211455n;
 const UINT_STRING = /^(?:0|[1-9]\d*)$/;
 
+/** Batas belanja lokal dari pemilik agent, dalam satuan terkecil credit (string desimal). Dicek sebelum voucher ditandatangani. */
+export type SpendLimit = {
+  /** Batas satu panggilan berbayar. */
+  maxPerCall?: string;
+  /** Batas total semua pembayaran payer ini dalam satu epoch (lintas payee). */
+  maxPerEpoch?: string;
+};
+
+/** Pembayaran ditolak klien karena batas belanja pemilik; tidak ada voucher yang ditandatangani. */
+export class SpendLimitError extends Error {
+  readonly limit: "per_call" | "per_epoch";
+  readonly amount: string;
+  readonly max: string;
+  readonly spent: string;
+
+  constructor(limit: "per_call" | "per_epoch", amount: bigint, max: bigint, spent: bigint) {
+    super(
+      limit === "per_call"
+        ? `batas belanja per panggilan terlampaui: ${amount} > ${max}`
+        : `batas belanja per epoch terlampaui: ${spent} terpakai + ${amount} > ${max}`,
+    );
+    this.name = "SpendLimitError";
+    this.limit = limit;
+    this.amount = amount.toString();
+    this.max = max.toString();
+    this.spent = spent.toString();
+  }
+}
+
 export type X207ClientOptions = {
   payer: AccountId;
   /** Kunci voucher ed25519 payer (ADR-06), bukan access key NEAR. */
@@ -47,9 +76,13 @@ export type X207ClientOptions = {
    * `register_in_bundle` (headroom cadangan).
    */
   bundleFor?: (payee: AccountId, epoch: number) => number | undefined;
+  /** Batas belanja lokal (SD-020): voucher yang melampauinya tidak ditandatangani walau headroom kontrak cukup. */
+  spendLimit?: SpendLimit;
 };
 
 type InFlight = {
+  epoch: number;
+  amount: bigint;
   key: VoucherPairKey;
   next: VoucherState;
   release: () => void;
@@ -80,6 +113,9 @@ export class X207SchemeClient implements SchemeNetworkClient {
   private readonly secretKey: VoucherSecretKey;
   private readonly confirmTimeoutMs: number;
   private readonly bundleFor: ((payee: AccountId, epoch: number) => number | undefined) | undefined;
+  private readonly spendLimit: SpendLimit | undefined;
+  /** Belanja per epoch yang sudah dicadangkan: voucher yang ditandatangani dan belum ditolak server. */
+  private readonly spent = new Map<number, bigint>();
   /** `createPaymentPayload` x402 tidak menerima `resource`; hook sebelum pembuatan menitipkannya. */
   private readonly resources = new WeakMap<PaymentRequirements, string>();
   private readonly inFlight = new WeakMap<X207Payload, InFlight>();
@@ -94,6 +130,28 @@ export class X207SchemeClient implements SchemeNetworkClient {
     this.store = options.store ?? new MemoryVoucherStateStore();
     this.confirmTimeoutMs = options.confirmTimeoutMs ?? 60_000;
     this.bundleFor = options.bundleFor;
+    this.spendLimit = options.spendLimit;
+  }
+
+  /** Belanja epoch `epoch` yang terhitung terhadap `maxPerEpoch`. */
+  spentInEpoch(epoch: number): bigint {
+    return this.spent.get(epoch) ?? 0n;
+  }
+
+  private reserve(epoch: number, amount: bigint): void {
+    const limit = this.spendLimit;
+    const spent = this.spentInEpoch(epoch);
+    if (limit?.maxPerCall !== undefined && amount > BigInt(limit.maxPerCall)) {
+      throw new SpendLimitError("per_call", amount, BigInt(limit.maxPerCall), spent);
+    }
+    if (limit?.maxPerEpoch !== undefined && spent + amount > BigInt(limit.maxPerEpoch)) {
+      throw new SpendLimitError("per_epoch", amount, BigInt(limit.maxPerEpoch), spent);
+    }
+    this.spent.set(epoch, spent + amount);
+  }
+
+  private refund(epoch: number, amount: bigint): void {
+    this.spent.set(epoch, this.spentInEpoch(epoch) - amount);
   }
 
   readonly schemeHooks: SchemeClientHooks = {
@@ -124,9 +182,17 @@ export class X207SchemeClient implements SchemeNetworkClient {
       throw new Error("resource.url tidak diketahui: buat payload lewat x402Client agar hook terpasang");
     }
 
+    // Batas belanja dicek dan dicadangkan secara sinkron, sebelum antrian pasangan dan sebelum signVoucher.
+    this.reserve(extra.epoch, BigInt(amount));
     const key: VoucherPairKey = { payer: this.payer, payee: payTo, epoch: extra.epoch };
     const pairId = JSON.stringify([key.payer, key.payee]);
-    const release = await this.acquire(pairId);
+    let release: () => void;
+    try {
+      release = await this.acquire(pairId);
+    } catch (error) {
+      this.refund(extra.epoch, BigInt(amount));
+      throw error;
+    }
     try {
       const last = await this.store.get(key);
       const next: VoucherState = {
@@ -149,11 +215,12 @@ export class X207SchemeClient implements SchemeNetworkClient {
 
       const timer = setTimeout(() => this.settleFlight(payload), this.confirmTimeoutMs);
       timer.unref?.();
-      this.inFlight.set(payload, { key, next, release, timer });
+      this.inFlight.set(payload, { key, next, release, timer, epoch: extra.epoch, amount: BigInt(amount) });
       if (this.retryPending.delete(pairId)) this.retried.add(payload);
       return { x402Version: 2, payload };
     } catch (error) {
       release();
+      this.refund(extra.epoch, BigInt(amount));
       throw error;
     }
   }
@@ -191,6 +258,8 @@ export class X207SchemeClient implements SchemeNetworkClient {
         await this.store.commit(flight.key, flight.next);
         return undefined;
       }
+      // Ditolak server: voucher tidak jadi kewajiban, anggaran dikembalikan
+      this.refund(flight.epoch, flight.amount);
       const resync = readResync(response);
       if (!resync) return undefined;
       await this.store.commit(
