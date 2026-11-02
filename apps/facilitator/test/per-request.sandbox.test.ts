@@ -57,7 +57,7 @@ describe.skipIf(!sandboxAvailable)("SD-029 per_request di near-sandbox", () => {
       );
       store.upsert(fx.circle.accountId, voucher, signature);
     };
-    const modes = () => logs.flatMap((l) => l.flatMap((log) => parseEventLog(log) ?? [])).filter((e) => e.event === "voucher_registered").map((e) => `${e.seq}:${e.mode}`);
+    const modes = () => logs.flatMap((l) => l.flatMap((log) => parseEventLog(log) ?? [])).flatMap((e) => (e.event === "voucher_registered" ? [`${(e as { seq: number }).seq}:${(e as { mode: string }).mode}`] : []));
 
     for (const seq of [1, 2]) {
       save(seq);
