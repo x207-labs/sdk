@@ -1,4 +1,4 @@
-// F8 Adaptor Aset Akses (SD-050, interface 0.0.6): tipe D10/D11 dari `abi.json` yang dipin dan antarmuka `AccessAssetAdapter` dengan lima fungsi
+// F8 Adaptor Aset Akses (SD-050, interface 0.0.7): tipe D10/D11 dari `abi.json` yang dipin dan antarmuka `AccessAssetAdapter` dengan lima fungsi
 // `price`, `prove`, `deliver`, `meter`, `revoke` (Spec Antarmuka Kontrak 15, note Fitur F8). Prinsip: serahkan akses, bukan rahasia. `meter`
 // selalu menghasilkan voucher ADR-17 biasa, dengan `payee` = pemberi grant (bukan akun broker), jadi inti x207 tidak berubah.
 import type * as Abi from "./contract/types.generated.js";
@@ -23,6 +23,16 @@ export type GrantRole = Abi.GrantRole;
 export type GrantId = number;
 /** Alasan `revoke_grant` (Spec 15.3), juga di event `grant_revoked`. */
 export type RevokeReason = Abi.RevokeReason;
+
+/**
+ * Escrow kelas A (interface 0.0.7, CT-075): NFT dipegang kontrak lingkaran sampai grant selesai. Grant kelas A tidak memakai `accept_grant`
+ * (ditolak); pembeli memanggil `complete_escrow` dengan voucher bertanda tangan, pemberi bisa `cancel_escrow` setelah `expires_at`.
+ */
+export type EscrowState = Abi.EscrowState;
+/** Langkah yang diselesaikan `on_escrow_resolved`, juga di event `escrow_failed`. */
+export type EscrowStep = Abi.EscrowStep;
+/** Hasil view `get_escrow`; `null` bila grant tidak punya escrow. */
+export type EscrowView = Abi.EscrowView;
 
 /** Unit harga yang dikenal kontrak (`GrantInput.unit`). */
 export const GRANT_UNITS = ["call", "minute", "day", "once"] as const;

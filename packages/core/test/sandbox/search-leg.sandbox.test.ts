@@ -18,7 +18,7 @@ describe.skipIf(!sandboxAvailable)("SD-047 search_leg di near-sandbox", () => {
   });
 
   it("TC-SD-047-20 terms_hash kontrak sama dengan SDK dengan dan tanpa search_leg; batas bagian pencari dan tanda tangan atas search_leg ditegakkan", async () => {
-    expect(await fx.sandbox.view<string>(fx.circle.accountId, "interface_version", {})).toBe("0.0.5");
+    expect(await fx.sandbox.view<string>(fx.circle.accountId, "interface_version", {})).toBe("0.0.7");
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {
       const account = await fx.member(name);

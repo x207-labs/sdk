@@ -37,6 +37,8 @@ const SAMPLES: Record<string, unknown> = {
   grant_offered: { grant_id: 1, asset_type: "near-rpc:access", grantor: A, class: "B", unit: "call", unit_price: "10000", expires_at: "1793600000000000000" },
   grant_activated: { grant_id: 1, grantee: B, delivery_pubkey: null },
   grant_revoked: { grant_id: 1, reason: "defaulted" },
+  escrow_held: { grant_id: 1, nft_contract: "nft.test.near", token_id: "t1" },
+  escrow_failed: { grant_id: 1, step: "complete", epoch: 42, payer: B, payee: A, delta: "10000000", reverted: true },
   exit_requested: { account_id: A, epoch: 42 },
   stake_withdrawn: { account_id: A, amount: "50000000" },
   stake_withdraw_failed: { account_id: A, amount: "50000000" },
@@ -141,7 +143,7 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.6 untuk setiap event yang dikenal", () => {
+  it("skema parser cocok dengan abi.json 0.0.7 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);

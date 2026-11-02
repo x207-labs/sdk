@@ -1,12 +1,12 @@
 // Parser event NEP-297 kontrak `x207-circle` (SD-011, Spec Antarmuka Kontrak bagian 6).
-// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.6","event":"<nama>","data":[{…}]}`.
+// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.7","event":"<nama>","data":[{…}]}`.
 import type { Params } from "./contract/types.generated.js";
 import type { AccountId, U128String } from "./types.js";
 
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.6";
+export const KNOWN_EVENT_VERSION = "0.0.7";
 
 export class EventParseError extends Error {
   constructor(message: string) {
@@ -18,6 +18,7 @@ export class EventParseError extends Error {
 type Ns = string; // timestamp nanodetik sebagai string
 type MemberStatusValue = "pending" | "active" | "suspended" | "exited";
 type AssetClassValue = "A" | "B" | "C" | "D" | "X";
+type EscrowStepValue = "complete" | "cancel";
 type PositionStatusValue = "due" | "paid" | "defaulted" | "claimable" | "claimed";
 
 export type ClearingAppliedEdge = { debtor: AccountId; creditor: AccountId; cleared: U128String };
@@ -86,6 +87,8 @@ export type X207EventMap = {
   grant_offered: { grant_id: number; asset_type: string; grantor: AccountId; class: AssetClassValue; unit: string; unit_price: U128String; expires_at: string };
   grant_activated: { grant_id: number; grantee: AccountId; delivery_pubkey: string | null };
   grant_revoked: { grant_id: number; reason: "grantor" | "grantee" | "operator" | "expired" | "defaulted" };
+  escrow_held: { grant_id: number; nft_contract: AccountId; token_id: string };
+  escrow_failed: { grant_id: number; step: EscrowStepValue; epoch: number; payer: AccountId; payee: AccountId; delta: U128String; reverted: boolean };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
 };
 
@@ -97,7 +100,7 @@ export type UnknownX207Event = { event: string; data: Record<string, unknown> };
 
 // --- skema field ---
 type Kind =
-  | "str" | "int" | "strnull" | "strarr" | "params" | "bundleid"
+  | "str" | "int" | "bool" | "strnull" | "strarr" | "params" | "bundleid"
   | { enum: readonly (string | null)[] }
   | { list: Schema };
 type Schema = Record<string, Kind>;
@@ -168,6 +171,10 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   residual_claimed: { epoch: "int", account_id: "str", amount: "str", destination: DESTINATION, status: { enum: ["claimed"] } },
   residual_claim_failed: { epoch: "int", account_id: "str", amount: "str", destination: DESTINATION, status: { enum: ["claimable"] } },
   params_updated: { old: "params", new: "params", changed: "strarr", effective_epoch: "int" },
+  escrow_held: { grant_id: "int", nft_contract: "str", token_id: "str" },
+  escrow_failed: {
+    grant_id: "int", step: { enum: ["complete", "cancel"] }, epoch: "int", payer: "str", payee: "str", delta: "str", reverted: "bool",
+  },
   bundle_committed: {
     bundle_id: "bundleid", terms_hash: "str", epoch: "int",
     legs: { list: { payer: "str", payee: "str", max_amount: "str" } }, solver: "str",
@@ -191,6 +198,7 @@ function readField(value: unknown, kind: Kind, path: string): unknown {
   switch (kind) {
     case "str": return typeof value === "string" ? value : fail("string");
     case "int": return Number.isSafeInteger(value) ? value : fail("integer");
+    case "bool": return typeof value === "boolean" ? value : fail("boolean");
     case "strnull": return value === null || typeof value === "string" ? value : fail("string atau null");
     case "strarr": return Array.isArray(value) && value.every((v) => typeof v === "string") ? value : fail("array string");
     case "params": return isRecord(value) ? value : fail("objek Params");

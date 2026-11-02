@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.7","event":"escrow_held","data":[{"grant_id":1,"nft_contract":"nft.test.near","token_id":"t1"}]}

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   AccessGrantError, GRANT_UNITS, grantResource, isKnownX207Event, meterGrant, parseEventLog, parseGrantResource, priceOfGrant,
-  type AccessAssetAdapter, type AccessGrant, type AssetClassEntry, type ContractAbi, type GrantStatus, type MeterCharge, type ProofResult, type RegisteredAssetClass, type RevokeReason,
+  type AccessAssetAdapter, type AccessGrant, type EscrowState, type EscrowStep, type EscrowView, type AssetClassEntry, type ContractAbi, type GrantStatus, type MeterCharge, type ProofResult, type RegisteredAssetClass, type RevokeReason,
 } from "@x207/core";
 
 const A = "scraper.x207-circle.near";
@@ -88,8 +88,8 @@ describe("SD-050 tipe dan antarmuka F8", () => {
 
 describe("SD-050 event F8", () => {
   const dir = fileURLToPath(new URL("../../../spec/test-vectors/events/sandbox/", import.meta.url));
-  it("TC-SD-050-05 log nyata dari near-sandbox: keempat event F8 dikenal parser", () => {
-    for (const name of ["asset_class_set", "grant_offered", "grant_activated", "grant_revoked"]) {
+  it("TC-SD-050-05 log nyata dari near-sandbox: keenam event F8 dikenal parser", () => {
+    for (const name of ["asset_class_set", "grant_offered", "grant_activated", "grant_revoked", "escrow_held", "escrow_failed"]) {
       const events = parseEventLog(readFileSync(`${dir}${name}.log`, "utf8").trim());
       expect(events, name).not.toBeNull();
       expect(isKnownX207Event(events![0]!), name).toBe(true);
@@ -105,5 +105,36 @@ describe("SD-050 event F8", () => {
       expect(parseEventLog(log(reason))![0], reason).toMatchObject({ event: "grant_revoked", grant_id: 1, reason });
     }
     expect(() => parseEventLog(log("bored"))).toThrow(/reason/);
+  });
+
+  it("TC-SD-050-07 escrow_held dan escrow_failed (0.0.7): ter-parse, field salah ditolak", () => {
+    const log = (event: string, data: unknown) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.7", event, data: [data] })}`;
+    const held = parseEventLog(log("escrow_held", { grant_id: 1, nft_contract: "nft.near", token_id: "t1" }))![0]!;
+    expect(isKnownX207Event(held)).toBe(true);
+    expect(held).toMatchObject({ event: "escrow_held", grant_id: 1, nft_contract: "nft.near", token_id: "t1" });
+    const failed = { grant_id: 1, step: "complete", epoch: 42, payer: B, payee: A, delta: "10000000", reverted: true };
+    expect(parseEventLog(log("escrow_failed", failed))![0]).toMatchObject({ event: "escrow_failed", step: "complete", reverted: true, delta: "10000000" });
+    expect(parseEventLog(log("escrow_failed", { ...failed, step: "cancel", reverted: false }))![0]).toMatchObject({ step: "cancel", reverted: false });
+    expect(() => parseEventLog(log("escrow_failed", { ...failed, step: "refund" }))).toThrow(/step/);
+    expect(() => parseEventLog(log("escrow_failed", { ...failed, reverted: "true" }))).toThrow(/reverted/);
+    expect(() => parseEventLog(log("escrow_held", { grant_id: 1, nft_contract: "nft.near" }))).toThrow(/token_id/);
+  });
+
+  it("TC-SD-050-08 tipe escrow cocok dengan ABI 0.0.7", () => {
+    const states: EscrowState[] = ["held", "completing", "cancelling", "delivered", "cancelled", "stuck"];
+    const steps: EscrowStep[] = ["complete", "cancel"];
+    const view: EscrowView = { grant_id: 1, nft_contract: "nft.near", token_id: "t1", state: "held" };
+    const abi = JSON.parse(readFileSync(fileURLToPath(new URL("../abi/x207-circle.abi.json", import.meta.url)), "utf8")) as {
+      body: { functions: { name: string }[]; root_schema: { definitions: Record<string, { enum?: string[]; oneOf?: { enum: string[] }[] }> } };
+    };
+    const enumOf = (name: string) => {
+      const def = abi.body.root_schema.definitions[name]!;
+      return (def.enum ?? def.oneOf!.flatMap((o) => o.enum)).sort();
+    };
+    expect(enumOf("EscrowState")).toEqual([...states].sort());
+    expect(enumOf("EscrowStep")).toEqual([...steps].sort());
+    expect(view.state).toBe("held");
+    const methods = abi.body.functions.map((f) => f.name);
+    for (const name of ["nft_on_transfer", "complete_escrow", "cancel_escrow", "on_escrow_resolved", "get_escrow"]) expect(methods, name).toContain(name);
   });
 });

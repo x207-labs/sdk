@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.7","event":"escrow_failed","data":[{"grant_id":1,"step":"complete","epoch":1,"payer":"bob.test.near","payee":"alice.test.near","delta":"10000000","reverted":true}]}
