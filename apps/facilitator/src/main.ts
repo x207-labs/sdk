@@ -24,12 +24,11 @@ const exactSigner = config.relayer
 // Penjadwal registrasi (SD-028) jalan bila akun relayer dikonfigurasi; tanpa itu voucher hanya tersimpan di D3.
 const schedulers = config.relayer
   ? config.circles.map((circle) =>
-      new RegistrationScheduler({
-        circleContract: circle.circleContract,
-        store: pending,
-        chain: new NearRegistrationChain({ rpc, circleContract: circle.circleContract, relayer: config.relayer! }),
-        mode: config.registerMode,
-      }),
+      (() => {
+        // SD-031: dengan gas key, registrasi berjalan paralel di jalur nonce berbeda
+        const chain = new NearRegistrationChain({ rpc, circleContract: circle.circleContract, relayer: config.relayer!, ...(config.gasKey ? { gasKey: config.gasKey } : {}) });
+        return new RegistrationScheduler({ circleContract: circle.circleContract, store: pending, chain, mode: config.registerMode, concurrency: chain.concurrency });
+      })(),
     )
   : [];
 if (schedulers.length === 0) console.warn("X207_RELAYER_ACCOUNT_ID kosong: voucher tidak diregistrasi on-chain");

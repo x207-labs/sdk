@@ -4,6 +4,7 @@ import { KeyPair, PublicKey, type KeyPairString } from "@near-js/crypto";
 import { KeyPairSigner } from "@near-js/signers";
 import { actionCreators, createTransaction, encodeTransaction } from "@near-js/transactions";
 import { base58Decode, type AccountId, type ContractAbi, type Ed25519Signature, type UnsignedVoucher } from "@x207/core";
+import { GasKeyLanes, signGasKeyTransaction } from "./gas-key.js";
 import type { NearRpc } from "./rpc.js";
 import type { RegisterMode, RegistrationChain } from "./scheduler.js";
 
@@ -33,38 +34,78 @@ export type NearRelayOptions = {
   onLogs?: (logs: string[]) => void;
   /** Dipanggil dengan hash tiap transaksi registrasi yang dikirim. */
   onHash?: (hash: string) => void;
+  /**
+   * Gas key (NEP-611, SD-031): `privateKey` adalah gas key yang terpasang di `relayer.accountId` dan `lanes` jumlah jalur nonce yang dipakai
+   * (1..1024). Dengan ini `register` boleh dipanggil paralel, satu jalur per transaksi, tanpa bentrok nonce. Tanpa ini relayer memakai
+   * kunci akses biasa dan transaksi harus berurutan.
+   */
+  gasKey?: { privateKey: string; lanes: number };
 };
 
 export class NearRegistrationChain implements RegistrationChain {
   readonly #signer: KeyPairSigner;
   readonly #publicKey: PublicKey;
+  readonly #lanes: GasKeyLanes | undefined;
+  readonly #gasPublicKey: string | undefined;
 
   constructor(private readonly options: NearRelayOptions) {
     const key = KeyPair.fromString(options.relayer.privateKey as KeyPairString);
     this.#signer = new KeyPairSigner(key);
     this.#publicKey = key.getPublicKey();
+    if (options.gasKey) {
+      this.#lanes = new GasKeyLanes(options.gasKey.lanes);
+      this.#gasPublicKey = KeyPair.fromString(options.gasKey.privateKey as KeyPairString).getPublicKey().toString();
+    }
+  }
+
+  /** Jumlah registrasi yang boleh berjalan bersamaan (jalur gas key), 1 untuk kunci akses biasa. */
+  get concurrency(): number {
+    return this.#lanes?.count ?? 1;
   }
 
   /** Kirim satu transaksi dan tunggu final; melempar `Error` dengan pesan panic kontrak bila gagal. */
   async register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode, bundleId?: number): Promise<void> {
     const { rpc, circleContract, relayer } = this.options;
+    const method = bundleId !== undefined ? "register_in_bundle" : mode === "cumulative" ? "register_cumulative" : "register_voucher";
+    const args = bundleId !== undefined ? { bundle_id: bundleId, voucher, signature } : { voucher, signature };
+    if (this.#lanes) {
+      await this.#lanes.run(
+        async (lane) => {
+          const nonces = await rpc.call<{ nonces: Array<number | string> }>("query", {
+            request_type: "view_gas_key_nonces", finality: "optimistic", account_id: relayer.accountId, public_key: this.#gasPublicKey,
+          });
+          const value = nonces.nonces[lane];
+          if (value === undefined) throw new Error(`gas key ${this.#gasPublicKey} tidak punya jalur nonce ${lane}`);
+          return BigInt(value);
+        },
+        async (lane, nonce) => {
+          const block = await rpc.call<{ header: { hash: string } }>("block", { finality: "final" });
+          const signed = signGasKeyTransaction(
+            { signerId: relayer.accountId, receiverId: circleContract, nonce, nonceIndex: lane, blockHash: base58Decode(block.header.hash), methodName: method, args, gas: REGISTER_GAS, deposit: 0n },
+            this.options.gasKey!.privateKey,
+          );
+          await this.#send(signed.bytes);
+        },
+      );
+      return;
+    }
     const key = await rpc.call<{ nonce: number }>("query", {
       request_type: "view_access_key", finality: "optimistic", account_id: relayer.accountId,
       public_key: this.#publicKey.toString(),
     });
     const block = await rpc.call<{ header: { hash: string } }>("block", { finality: "final" });
-    const method = bundleId !== undefined ? "register_in_bundle" : mode === "cumulative" ? "register_cumulative" : "register_voucher";
-    const args = bundleId !== undefined ? { bundle_id: bundleId, voucher, signature } : { voucher, signature };
     const transaction = createTransaction(
       relayer.accountId, this.#publicKey, circleContract, BigInt(key.nonce) + 1n,
       [actionCreators.functionCall(method, args, REGISTER_GAS, 0n)],
       base58Decode(block.header.hash),
     );
     const [, signed] = await this.#signer.signTransaction(transaction);
-    const result = await rpc.call<TxResult>("send_tx", {
-      signed_tx_base64: Buffer.from(encodeTransaction(signed)).toString("base64"),
-      wait_until: "FINAL",
-    });
+    await this.#send(Buffer.from(encodeTransaction(signed)));
+  }
+
+  /** Kirim byte transaksi bertanda tangan, tunggu final; melempar `Error` dengan pesan panic kontrak bila gagal. */
+  async #send(bytes: Uint8Array): Promise<void> {
+    const result = await this.options.rpc.call<TxResult>("send_tx", { signed_tx_base64: Buffer.from(bytes).toString("base64"), wait_until: "FINAL" });
     this.options.onHash?.(String((result as { transaction?: { hash?: string } }).transaction?.hash ?? ""));
     this.options.onLogs?.([result.transaction_outcome?.outcome, ...(result.receipts_outcome ?? []).map((r) => r.outcome)].flatMap((o) => o?.logs ?? []));
     const failure = transactionFailure(result);

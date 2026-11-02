@@ -19,6 +19,8 @@ export type FacilitatorConfig = {
   pendingDbPath: string;
   /** Mode registrasi: `cumulative` (default, ADR-17) atau `per_request` (mode demo, SD-029). */
   registerMode: "cumulative" | "per_request";
+  /** Gas key relayer untuk registrasi paralel (NEP-611, SD-031); `lanes` jumlah jalur nonce yang dipakai. Tanpa ini registrasi berurutan. */
+  gasKey?: { privateKey: string; lanes: number };
   /** Batas tunggu `/settle` untuk registrasi `per_request` sebelum menjawab `settlement_pending` (ADR-25: 10 detik). */
   settleTimeoutMs: number;
   /** Akun relayer untuk `register_cumulative`; dipakai SD-028. */
@@ -67,6 +69,13 @@ export function loadConfig(env: Env = process.env): FacilitatorConfig {
     throw new ConfigError("X207_RELAYER_ACCOUNT_ID dan X207_RELAYER_PRIVATE_KEY harus diisi bersama");
   }
 
+  const gasKeyPrivate = env.X207_GAS_KEY_PRIVATE_KEY;
+  const gasKeyLanes = env.X207_GAS_KEY_LANES;
+  if (Boolean(gasKeyPrivate) !== Boolean(gasKeyLanes)) throw new ConfigError("X207_GAS_KEY_PRIVATE_KEY dan X207_GAS_KEY_LANES harus diisi bersama");
+  if (gasKeyPrivate && !accountId) throw new ConfigError("gas key butuh X207_RELAYER_ACCOUNT_ID: kunci itu terpasang di akun relayer");
+  const lanes = gasKeyLanes ? parsePositiveInt(env, "X207_GAS_KEY_LANES", 1) : 0;
+  if (lanes > 1024) throw new ConfigError(`X207_GAS_KEY_LANES harus 1..1024, dapat ${lanes}`);
+
   const mode = env.X207_REGISTER_MODE;
   if (mode !== undefined && mode !== "" && mode !== "cumulative" && mode !== "per_request") {
     throw new ConfigError(`X207_REGISTER_MODE harus "cumulative" atau "per_request", dapat "${mode}"`);
@@ -84,6 +93,7 @@ export function loadConfig(env: Env = process.env): FacilitatorConfig {
     pendingDbPath: env.X207_PENDING_DB || "./pending.sqlite",
     registerMode: mode === "per_request" ? "per_request" : "cumulative",
     settleTimeoutMs: parsePositiveInt(env, "X207_SETTLE_TIMEOUT_MS", DEFAULT_RPC_TIMEOUT_MS),
+    ...(gasKeyPrivate && lanes > 0 ? { gasKey: { privateKey: gasKeyPrivate, lanes } } : {}),
     ...(accountId && privateKey ? { relayer: { accountId, privateKey } } : {}),
   };
 }

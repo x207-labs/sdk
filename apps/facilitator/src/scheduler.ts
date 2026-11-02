@@ -58,6 +58,8 @@ export type SchedulerOptions = {
   registerThreshold?: bigint;
   flushLeadSeconds?: number;
   mode?: RegisterMode;
+  /** Baris yang boleh didaftarkan bersamaan (SD-031): jumlah jalur gas key relayer; 1 (bawaan) untuk kunci akses biasa. */
+  concurrency?: number;
 };
 
 export type TickResult = {
@@ -132,9 +134,14 @@ export class RegistrationScheduler {
     this.#running = true;
     try {
       const cutoffs = new Map<number, number | undefined>();
-      for (const row of this.#opts.store.listOpen(this.#opts.circleContract)) {
-        await this.#process(row, cutoffs, result);
-      }
+      const rows = this.#opts.store.listOpen(this.#opts.circleContract);
+      const workers = Math.max(1, Math.min(this.#opts.concurrency ?? 1, rows.length));
+      let next = 0;
+      await Promise.all(
+        Array.from({ length: workers }, async () => {
+          while (next < rows.length) await this.#process(rows[next++]!, cutoffs, result);
+        }),
+      );
     } finally {
       this.#running = false;
     }
