@@ -96,3 +96,12 @@ Contoh yang diuji: [`examples/seller`](examples/seller). Jaminan pembayaran untu
 ## Lisensi
 
 Apache-2.0
+
+## Dokumen
+
+- [Biaya: kapan ada transaksi on-chain](docs/biaya.md)
+- [FAQ pembuat agent](docs/faq-pembuat-agent.md)
+- [`epoch_length` dan waktu tunggu pembayaran](docs/epoch-length.md)
+- [Jaminan pembayaran untuk penjual](docs/seller-guarantees.md)
+- [Keamanan kunci voucher](docs/voucher-key-security.md)
+- Suite conformance untuk implementasi lain: [`conformance/`](conformance/README.md) (`npm run conformance`)
