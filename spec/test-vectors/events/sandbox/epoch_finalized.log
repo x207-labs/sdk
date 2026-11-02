@@ -1,1 +1,1 @@
-EVENT_JSON:{"standard":"x207","version":"0.0.1","event":"epoch_finalized","data":[{"epoch":1,"finalized_at":"1793545933410688000","defaulted_count":1,"total_defaulted":"5000000","pool":"11000000","shortfall":"0"}]}
+EVENT_JSON:{"standard":"x207","version":"0.0.2","event":"epoch_finalized","data":[{"epoch":1,"finalized_at":"1793592766875423000","defaulted_count":1,"total_defaulted":"5000000","pool":"11000000","shortfall":"0"}]}

@@ -33,6 +33,12 @@ const SAMPLES: Record<string, unknown> = {
   member_defaulted: { epoch: 42, account_id: A, due: "35000000", from_stake: "35000000", from_reserve: "0", shortfall: "0", stake: "15000000", status: "suspended", position_status: "defaulted", outstanding_debt: "0" },
   limits_updated: { epoch: 42, changes: [{ account_id: A, old_limit: "40000000", new_limit: "42000000", status: "active" }], chunk: 0, chunks: 1 },
   params_updated: { old: PARAMS, new: { ...PARAMS, limit_decay: 100 }, changed: ["limit_decay"], effective_epoch: 44 },
+  exit_requested: { account_id: A, epoch: 42 },
+  stake_withdrawn: { account_id: A, amount: "50000000" },
+  stake_withdraw_failed: { account_id: A, amount: "50000000" },
+  member_reactivated: { account_id: A, stake: "50000000", limit: "40000000", effective_epoch: 44 },
+  solver_fee_claimed: { account_id: B, amount: "150000" },
+  solver_fee_claim_failed: { account_id: B, amount: "150000" },
   bundle_committed: { bundle_id: "b1", terms_hash: "b".repeat(64), epoch: 42, legs: [{ payer: A, payee: B, max_amount: "1000000" }], solver: B },
   // event P0 lain di abi 0.0.1 dan member_admitted (spec)
   member_admitted: { account_id: A, status: "active" },
@@ -128,10 +134,10 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.1 untuk setiap event yang dikenal", () => {
+  it("skema parser cocok dengan abi.json 0.0.2 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
-    expect(inAbi.length).toBe(abi.events.length - 3); // exit_requested, stake_withdrawn, stake_withdraw_failed: tipe di test exit.test.ts (SD-054)
+    expect(inAbi.length).toBe(abi.events.length);
     for (const spec of inAbi) {
       const sample = SAMPLES[spec.name] as Record<string, unknown>;
       expect(Object.keys(sample).sort(), spec.name).toEqual([...spec.fields].sort());

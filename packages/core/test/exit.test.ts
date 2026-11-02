@@ -67,3 +67,23 @@ describe("SD-054 exit dan outstanding_debt", () => {
     expect(contractErrorCode(new Error("Smart contract panicked: ERR_HAS_DUE: 5"))).toBe("ERR_HAS_DUE");
   });
 });
+
+describe("SD-011 event solver fee dan versi 0.0.2", () => {
+  const log2 = (event: string, data: unknown, version = "0.0.2") =>
+    `EVENT_JSON:${JSON.stringify({ standard: "x207", version, event, data: [data] })}`;
+
+  it("solver_fee_claimed dan solver_fee_claim_failed ter-parse bertipe", () => {
+    expect(parseEventLog(log2("solver_fee_claimed", { account_id: A, amount: "150000" }))![0]).toEqual({ event: "solver_fee_claimed", account_id: A, amount: "150000" });
+    expect(parseEventLog(log2("solver_fee_claim_failed", { account_id: A, amount: "150000" }))![0]).toEqual({ event: "solver_fee_claim_failed", account_id: A, amount: "150000" });
+  });
+
+  it("member_admitted dan member_reactivated dari versi 0.0.2", () => {
+    expect(parseEventLog(log2("member_admitted", { account_id: A, status: "active" }))![0]).toMatchObject({ event: "member_admitted", status: "active" });
+    expect(parseEventLog(log2("member_reactivated", { account_id: A, stake: "1", limit: "1", effective_epoch: 3 }))![0]).toMatchObject({ event: "member_reactivated", effective_epoch: 3 });
+  });
+
+  it("log versi 0.0.1 lama tetap diterima, versi minor 0.1.0 ditolak", () => {
+    expect(parseEventLog(log2("exit_requested", { account_id: A, epoch: 1 }, "0.0.1"))).not.toBeNull();
+    expect(() => parseEventLog(log2("exit_requested", { account_id: A, epoch: 1 }, "0.1.0"))).toThrow();
+  });
+});

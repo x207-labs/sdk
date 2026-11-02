@@ -1,9 +1,9 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.1";
+export const X207_CIRCLE_ABI_VERSION = "0.0.2";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "6ee8a2d450710c9aa565bda4f5f73ad476b6f310e49ce775c2027cc05ed27eef";
+export const X207_CIRCLE_ABI_SHA256 = "4ef306f33a662349da310abbc58c2bae79fe1884bb60852c228481950631e7a9";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type Admission = "open" | "dao";
@@ -50,11 +50,14 @@ export type CircleViews = {
   "obligation": { args: { "epoch": number; "debtor": string; "creditor": string }; result: ObligationView | null };
   "outstanding_debt": { args: { "account_id": string }; result: string };
   "simulate_clearing": { args: { "epoch": number; "edges": ClearingEdge[] }; result: SimulationResult };
+  "solver_fee_balance": { args: { "account_id": string }; result: string };
 };
 
 /** Call: transaksi. `payable`, `init`, `private` dari modifier ABI. */
 export type CircleCalls = {
+  "admit_member": { args: { "account_id": string }; result: void };
   "claim": { args: { "epoch": number; "destination": ClaimDestination }; result: Promise; payable: true };
+  "claim_solver_fee": { args: Record<string, never>; result: Promise; payable: true };
   "close_epoch": { args: { "epoch": number }; result: void };
   "commit_epoch": { args: { "epoch": number }; result: void };
   "finalize_epoch": { args: { "epoch": number }; result: void };
@@ -62,6 +65,7 @@ export type CircleCalls = {
   "join": { args: { "circle_id": string; "pubkey_voucher": string; "terms_hash": string }; result: MemberView; payable: true };
   "new": { args: { "owner_id": string; "circle_id": string; "usdt_token_id": string; "intents_id": string; "params"?: Params | null }; result: void; init: true };
   "on_claim_resolved": { args: { "epoch": number; "account_id": string; "amount": string; "destination": ClaimDestination }; result: string; private: true };
+  "on_solver_fee_resolved": { args: { "account_id": string; "amount": string }; result: string; private: true };
   "on_withdraw_resolved": { args: { "account_id": string; "amount": string }; result: boolean; private: true };
   "register_cumulative": { args: { "voucher": Voucher; "signature": string }; result: string };
   "register_voucher": { args: { "voucher": Voucher; "signature": string }; result: string };
@@ -71,8 +75,8 @@ export type CircleCalls = {
   "withdraw_stake": { args: Record<string, never>; result: PromiseOrValueBoolean; payable: true };
 };
 
-export const CIRCLE_VIEW_METHODS = ["get_circle","get_clearing_proposal","get_epoch","get_owner","get_params","get_pending_params","get_pool","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing"] as const;
-export const CIRCLE_CALL_METHODS = ["claim","close_epoch","commit_epoch","finalize_epoch","ft_on_transfer","join","new","on_claim_resolved","on_withdraw_resolved","register_cumulative","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
+export const CIRCLE_VIEW_METHODS = ["get_circle","get_clearing_proposal","get_epoch","get_owner","get_params","get_pending_params","get_pool","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
+export const CIRCLE_CALL_METHODS = ["admit_member","claim","claim_solver_fee","close_epoch","commit_epoch","finalize_epoch","ft_on_transfer","join","new","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","register_cumulative","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
 
 /** Nama event NEP-297 dan urutan field `data`-nya. */
 export const CIRCLE_EVENTS = {
@@ -93,6 +97,10 @@ export const CIRCLE_EVENTS = {
   "exit_requested": ["account_id","epoch"],
   "stake_withdrawn": ["account_id","amount"],
   "stake_withdraw_failed": ["account_id","amount"],
+  "member_admitted": ["account_id","status"],
+  "member_reactivated": ["account_id","stake","limit","effective_epoch"],
+  "solver_fee_claimed": ["account_id","amount"],
+  "solver_fee_claim_failed": ["account_id","amount"],
 } as const;
 
 export type CircleEventName = keyof typeof CIRCLE_EVENTS;
