@@ -40,7 +40,7 @@ describe("SD-056 helper marketplace", () => {
   });
 
   it("acceptOffer jalur bayar dengan pencari: lawan bayar 93 (90 ke Andi, 3 ke pencari)", () => {
-    const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "pay", value: "93000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
+    const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "pay", value: "100000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
     const result = acceptOffer({ listing, offer, epoch: 42, searcher: PENCARI, searcherShareBps: 300, account: ANDI }, seed("kA"));
     if (result.kind !== "bundle") throw new Error("seharusnya bundle");
     expect(result.terms.legs).toEqual([
@@ -52,7 +52,7 @@ describe("SD-056 helper marketplace", () => {
   });
 
   it("acceptOffer jalur bayar tanpa pencari: satu pembayaran voucher biasa, bukan bundle", () => {
-    const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "pay", value: "90000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
+    const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "pay", value: "100000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
     expect(acceptOffer({ listing, offer, epoch: 42, account: ANDI }, seed("kA"))).toEqual({ kind: "payment", payer: LAWAN, payee: ANDI, amount: "90000000" });
   });
 
@@ -100,8 +100,27 @@ describe("SD-056 helper marketplace", () => {
     const first = counterOffer({ listing, proposer: LAWAN, mode: "barter", value: "100000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
     const second = counterOffer({ listing, proposer: ANDI, mode: "barter", value: "95000000", quantity: 5000, deliver_by: 1793300000, previous: first.offer, now: NOW }, seed("kA"));
     expect(() => planOffer({ listing, offer: second.offer, epoch: 42 })).toThrow(/lawan tidak boleh sama dengan pemasang/);
-    const viaFirst = planOffer({ listing, offer: first.offer, epoch: 42 });
     const viaSecond = planOffer({ listing, offer: second.offer, epoch: 42, counterparty: LAWAN });
-    expect(viaSecond.kind === "bundle" && viaFirst.kind === "bundle" && viaSecond.terms_hash === viaFirst.terms_hash).toBe(true);
+    if (viaSecond.kind !== "bundle") throw new Error("harus bundle");
+    // pemasang menawar balik 95: lawan membayar 95 ke Andi, Andi membayar 100 + cashback 9,5 ke lawan
+    const byKey = (legs: Array<{ payer: string; payee: string }>) => [...legs].sort((a, b) => (a.payer + a.payee < b.payer + b.payee ? -1 : 1));
+    expect(byKey(viaSecond.terms.legs)).toEqual(byKey([
+      { payer: ANDI, payee: LAWAN, max_amount: "109500000" },
+      { payer: LAWAN, payee: ANDI, max_amount: "95000000" },
+    ]));
+  });
+
+  it("planOffer memakai nilai kesepakatan Offer.value, bukan nilai awal listing", () => {
+    const first = counterOffer({ listing, proposer: LAWAN, mode: "barter", value: "90000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
+    const barter = planOffer({ listing, offer: first.offer, epoch: 42, searcher: PENCARI, searcherShareBps: 300 });
+    if (barter.kind !== "bundle") throw new Error("harus bundle");
+    const amount = (payer: string, payee: string) => barter.terms.legs.find((l) => l.payer === payer && l.payee === payee)?.max_amount;
+    // diskon 10% dari 90 = 9, jatah 3% dari 90 = 2,7, cashback 6,3; lawan membayar 90 ke Andi
+    expect(amount(LAWAN, ANDI)).toBe("90000000");
+    expect(amount(ANDI, LAWAN)).toBe("106300000");
+    expect(amount(ANDI, PENCARI)).toBe("2700000");
+    expect(barter.discount).toBe("9000000");
+    const pay = planOffer({ listing, offer: { ...first.offer, mode: "pay" }, epoch: 42 });
+    expect(pay).toMatchObject({ kind: "payment", amount: "81000000", discount: "9000000" });
   });
 });

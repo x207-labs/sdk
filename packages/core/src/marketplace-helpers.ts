@@ -86,7 +86,9 @@ function leg(payer: AccountId, payee: AccountId, amount: bigint): BundleLeg[] {
 /**
  * Hitung hasil penerimaan penawaran tanpa kunci: leg bundle sesuai note F9, atau satu pembayaran bila tidak perlu bundle.
  * Jalur bayar: lawan membayar penjual `value − diskon` dan pencari jatahnya (tanpa pencari cukup satu pembayaran voucher).
- * Jalur barter: penjual membayar `want.value + cashback` ke lawan, lawan membayar `offer.value` ke penjual, penjual membayar
+ * `value` yang dihitung adalah `Offer.value` penawaran yang diterima, yaitu nilai kesepakatan untuk sisi `offer` listing (bukan nilai
+ * awal di listing), jadi harga hasil tawar-menawar menentukan jumlah leg. Diskon dan jatah pencari dihitung dari nilai itu.
+ * Jalur barter: penjual membayar `want.value + cashback` ke lawan, lawan membayar `Offer.value` ke penjual, penjual membayar
  * pencari jatahnya; setelah kliring penjual menanggung cashback + jatah pencari. Backend memakai fungsi ini untuk menghitung
  * ulang `terms_hash` yang diajukan klien.
  */
@@ -98,7 +100,7 @@ export function planOffer(input: PlanInput): OfferPlan {
   const counterparty = input.counterparty ?? offer.proposer;
   if (counterparty === seller) throw new BarterFormatError("lawan tidak boleh sama dengan pemasang listing");
   const searcherShareBps = input.searcher ? (input.searcherShareBps ?? 0) : 0;
-  const params = { value: listing.offer.value, discountBps: listing.discount_bps, searcherShareBps };
+  const params = { value: offer.value, discountBps: listing.discount_bps, searcherShareBps };
   let legs: BundleLeg[];
   let discount: U128String;
   let searcher: U128String;
@@ -115,7 +117,7 @@ export function planOffer(input: PlanInput): OfferPlan {
     searcher = input.searcher ? barter.searcher : "0";
     legs = [
       ...leg(seller, counterparty, BigInt(listing.want.value) + BigInt(barter.cashback)),
-      ...leg(counterparty, seller, BigInt(listing.offer.value)),
+      ...leg(counterparty, seller, BigInt(offer.value)),
       ...(input.searcher ? leg(seller, input.searcher, BigInt(barter.searcher)) : []),
     ];
   }

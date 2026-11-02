@@ -34,7 +34,7 @@ Aturan:
 - Nilai berlaku hanya setelah **kedua pihak** menandatangani syarat akhir: penerimaan penawaran menghasilkan usulan bundle (`terms_hash`) yang ditandatangani semua peserta.
 
 ## 3. Barter cepat
-Diskon `discount_bps` dan jatah pencari `searcher_share_bps` (bps dari `offer.value`) adalah **parameter**; tidak ada angka tetap di protokol. Jatah pencari tidak boleh melebihi diskon. Hitungan memakai integer, pembulatan ke bawah: `diskon = offer.value × discount_bps ÷ 10000`, `jatah = offer.value × searcher_share_bps ÷ 10000`.
+Diskon `discount_bps` dan jatah pencari `searcher_share_bps` (bps dari `offer.value`) adalah **parameter**; tidak ada angka tetap di protokol. Jatah pencari tidak boleh melebihi diskon. Hitungan memakai integer, pembulatan ke bawah: `diskon = offer.value × discount_bps ÷ 10000`, `jatah = offer.value × searcher_share_bps ÷ 10000`. Di sini `offer.value` adalah **nilai kesepakatan**: `Offer.value` dari penawaran yang diterima (sama dengan nilai di listing bila diterima tanpa tawar-menawar). Harga hasil tawar-menawar karenanya menentukan jumlah leg; `want.value` tetap nilai di listing.
 
 | Jalur | Hitungan |
 | --- | --- |
