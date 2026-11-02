@@ -137,7 +137,7 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.4 untuk setiap event yang dikenal", () => {
+  it("skema parser cocok dengan abi.json 0.0.5 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);

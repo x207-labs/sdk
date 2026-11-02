@@ -1,12 +1,12 @@
 // Parser event NEP-297 kontrak `x207-circle` (SD-011, Spec Antarmuka Kontrak bagian 6).
-// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.4","event":"<nama>","data":[{…}]}`.
+// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.5","event":"<nama>","data":[{…}]}`.
 import type { Params } from "./contract/types.generated.js";
 import type { AccountId, U128String } from "./types.js";
 
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.4";
+export const KNOWN_EVENT_VERSION = "0.0.5";
 
 export class EventParseError extends Error {
   constructor(message: string) {

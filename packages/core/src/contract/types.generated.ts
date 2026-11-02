@@ -1,13 +1,13 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.4";
+export const X207_CIRCLE_ABI_VERSION = "0.0.5";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "24985852b9bb35e2baf405f27ded83347c7204695552aef8f1cdf7ae6c3439ff";
+export const X207_CIRCLE_ABI_SHA256 = "211326c19fb3c94f8fa5292ed51d92bce32b54dc96ee32aed8215ea774f90d3a";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type Admission = "open" | "dao";
-export type BundleInput = { "epoch": number; "legs": BundleLeg[] };
+export type BundleInput = { "epoch": number; "legs": BundleLeg[]; "search_leg"?: SearchLeg | null };
 export type BundleLeg = { "max_amount": string; "payee": string; "payer": string };
 export type BundleLegView = { "max_amount": string; "payee": string; "payer": string; "registered": string };
 export type BundleSignature = { "account_id": string; "signature": string };
@@ -24,7 +24,7 @@ export type IntentView = { "account_id": string; "intent_hash": string; "posted_
 export type MemberStatus = "pending" | "active" | "suspended" | "exited";
 export type MemberView = { "account_id": string; "admitted": boolean; "exit_requested_epoch"?: number | null; "joined_at": string; "last_active_epoch": number; "limit": string; "pubkey_voucher": string; "settled_history": string; "stake": string; "status": MemberStatus; "terms_hash": string };
 export type ObligationView = { "cleared": string; "creditor": string; "cumulative": string; "debtor": string; "epoch": number; "last_seq": number; "obligation": string };
-export type Params = { "admission": Admission; "base_limit_ratio": number; "epoch_length": number; "fees": Fees; "limit_cap": string; "limit_decay": number; "limit_growth": number; "payment_window": number; "proposal_window": number };
+export type Params = { "admission": Admission; "base_limit_ratio": number; "epoch_length": number; "fees": Fees; "limit_cap": string; "limit_decay": number; "limit_growth": number; "max_search_share_bps"?: number; "payment_window": number; "proposal_window": number };
 export type PendingParams = { "effective_epoch": number; "params": Params };
 export type PoolView = { "accounted": string; "epoch_pools": string; "in_flight": string; "reserve": string; "solver_fees": string; "total_stake": string };
 export type PositionRole = "debtor" | "creditor";
@@ -33,6 +33,7 @@ export type PositionView = { "account_id": string; "amount": string; "epoch": nu
 export type Promise = unknown;
 export type PromiseOrValueBoolean = boolean;
 export type PromiseOrValueString = string;
+export type SearchLeg = { "payee": string; "payer": string };
 export type SimulationResult = { "better_than_current": boolean; "cleared_total": string; "edge_count": number; "reason"?: string | null; "valid": boolean };
 export type UpgradeView = { "code_hash": string; "eta": string };
 export type Voucher = { "circle": string; "cumulativeAmount": string; "epoch": number; "payee": string; "payer": string; "resource": string; "seq": number; "unit": string };
