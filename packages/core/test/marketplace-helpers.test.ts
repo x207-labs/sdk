@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  BarterFormatError, acceptOffer, bundleFullySigned, counterOffer, listingHash, planOffer, postListing, signBundle, verifySignedListing, verifySignedOffer,
+  BarterFormatError, acceptOffer, bundleFullySigned, counterOffer, listingHash, planOffer, postListing, serializeBundleTerms, signBundle, termsHash, verifySignedListing, verifySignedOffer,
   voucherPublicKey, type Listing,
 } from "@x207/core";
 
@@ -122,5 +122,36 @@ describe("SD-056 helper marketplace", () => {
     expect(barter.discount).toBe("9000000");
     const pay = planOffer({ listing, offer: { ...first.offer, mode: "pay" }, epoch: 42 });
     expect(pay).toMatchObject({ kind: "payment", amount: "81000000", discount: "9000000" });
+  });
+
+  it("pencari dengan jatah: syarat memuat search_leg ke pencari dan terms_hash dihitung dengannya; tanpa pencari hash lama (interface 0.0.5)", () => {
+    const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "barter", value: "100000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
+    const withSeeker = planOffer({ listing, offer, epoch: 42, searcher: PENCARI, searcherShareBps: 300 });
+    if (withSeeker.kind !== "bundle") throw new Error("harus bundle");
+    expect(withSeeker.terms.search_leg).toEqual({ payer: ANDI, payee: PENCARI });
+    expect(withSeeker.terms_hash).toBe(termsHash(withSeeker.terms));
+    expect(Object.keys(JSON.parse(serializeBundleTerms(withSeeker.terms)))).toEqual(["circle", "epoch", "legs", "search_leg"]);
+    // acceptOffer menandatangani syarat yang sama, dengan search_leg
+    const accepted = acceptOffer({ listing, offer, epoch: 42, searcher: PENCARI, searcherShareBps: 300, account: ANDI }, seed("kA"));
+    if (accepted.kind !== "bundle") throw new Error("harus bundle");
+    expect(accepted.terms_hash).toBe(withSeeker.terms_hash);
+    expect(accepted.terms.search_leg).toEqual({ payer: ANDI, payee: PENCARI });
+
+    // tanpa pencari, atau jatah 0 (tidak ada leg): tidak ada search_leg dan hash sama dengan hash legs saja
+    const noSeeker = planOffer({ listing, offer, epoch: 42 });
+    const zeroShare = planOffer({ listing, offer, epoch: 42, searcher: PENCARI, searcherShareBps: 0 });
+    for (const plan of [noSeeker, zeroShare]) {
+      if (plan.kind !== "bundle") throw new Error("harus bundle");
+      expect("search_leg" in plan.terms).toBe(false);
+      expect(plan.terms_hash).toBe(termsHash({ circle: plan.terms.circle, epoch: plan.terms.epoch, legs: plan.terms.legs }));
+    }
+  });
+
+  it("jalur bayar dengan pencari: search_leg adalah leg lawan ke pencari", () => {
+    const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "pay", value: "100000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
+    const plan = planOffer({ listing, offer, epoch: 42, searcher: PENCARI, searcherShareBps: 300 });
+    if (plan.kind !== "bundle") throw new Error("harus bundle");
+    expect(plan.terms.search_leg).toEqual({ payer: LAWAN, payee: PENCARI });
+    expect(plan.terms.legs).toContainEqual({ payer: LAWAN, payee: PENCARI, max_amount: "3000000" });
   });
 });

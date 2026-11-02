@@ -1,6 +1,6 @@
 // Helper marketplace untuk developer agent (SD-056, F9): `postListing`, `counterOffer`, `acceptOffer`.
 // Hanya membangun dan menandatangani payload; pengiriman ke buku listing (backend) dilakukan pemanggil dengan transportnya sendiri.
-import { BarterFormatError, bundleParticipants, signBundle, termsHash, type BundleSignature, type BundleTerms } from "./barter.js";
+import { BarterFormatError, bundleParticipants, signBundle, termsHash, type BundleSignature, type BundleTerms, type SearchLeg } from "./barter.js";
 import type { BundleLeg } from "./events.js";
 import {
   listingHash, offerHash, quickBarter, quickPay, serializeListing, signListing, signOffer, verifyListingSignature, verifyOfferSignature,
@@ -89,8 +89,8 @@ function leg(payer: AccountId, payee: AccountId, amount: bigint): BundleLeg[] {
  * `value` yang dihitung adalah `Offer.value` penawaran yang diterima, yaitu nilai kesepakatan untuk sisi `offer` listing (bukan nilai
  * awal di listing), jadi harga hasil tawar-menawar menentukan jumlah leg. Diskon dan jatah pencari dihitung dari nilai itu.
  * Jalur barter: penjual membayar `want.value + cashback` ke lawan, lawan membayar `Offer.value` ke penjual, penjual membayar
- * pencari jatahnya; setelah kliring penjual menanggung cashback + jatah pencari. Backend memakai fungsi ini untuk menghitung
- * ulang `terms_hash` yang diajukan klien.
+ * pencari jatahnya; setelah kliring penjual menanggung cashback + jatah pencari. Bila ada leg untuk pencari, syaratnya memuat `search_leg` (interface 0.0.5), jadi agent, backend dan solver menghitung `terms_hash` yang sama.
+ * Backend memakai fungsi ini untuk menghitung ulang `terms_hash` yang diajukan klien.
  */
 export function planOffer(input: PlanInput): OfferPlan {
   const { listing, offer } = input;
@@ -104,24 +104,32 @@ export function planOffer(input: PlanInput): OfferPlan {
   let legs: BundleLeg[];
   let discount: U128String;
   let searcher: U128String;
+  /** Leg yang membayar pencari; hanya ada bila jatahnya > 0 sehingga ada legnya. */
+  let searchLeg: SearchLeg | undefined;
   if (offer.mode === "pay") {
     if (!listing.accept_payment) throw new BarterFormatError("listing tidak menerima pembayaran");
     const pay = quickPay(params);
     discount = pay.discount;
     searcher = input.searcher ? pay.searcher : "0";
-    legs = [...leg(counterparty, seller, BigInt(pay.sellerReceives)), ...(input.searcher ? leg(counterparty, input.searcher, BigInt(pay.searcher)) : [])];
+    const searchLegs = input.searcher ? leg(counterparty, input.searcher, BigInt(pay.searcher)) : [];
+    if (searchLegs.length > 0) searchLeg = { payer: counterparty, payee: input.searcher! };
+    legs = [...leg(counterparty, seller, BigInt(pay.sellerReceives)), ...searchLegs];
     if (legs.length === 1) return { kind: "payment", payer: counterparty, payee: seller, amount: legs[0]!.max_amount, discount, searcher };
   } else {
     const barter = quickBarter(params);
     discount = barter.sellerBears;
     searcher = input.searcher ? barter.searcher : "0";
+    const searchLegs = input.searcher ? leg(seller, input.searcher, BigInt(barter.searcher)) : [];
+    if (searchLegs.length > 0) searchLeg = { payer: seller, payee: input.searcher! };
     legs = [
       ...leg(seller, counterparty, BigInt(listing.want.value) + BigInt(barter.cashback)),
       ...leg(counterparty, seller, BigInt(offer.value)),
-      ...(input.searcher ? leg(seller, input.searcher, BigInt(barter.searcher)) : []),
+      ...searchLegs,
     ];
   }
-  const terms: BundleTerms = { circle: listing.circle, epoch: input.epoch, legs };
+  // Interface 0.0.5: leg pencari disebut di syarat yang ditandatangani (`search_leg`) supaya kontrak membatasinya dengan `max_search_share_bps`.
+  // Tanpa pencari bytes dan `terms_hash` sama dengan format lama.
+  const terms: BundleTerms = { circle: listing.circle, epoch: input.epoch, legs, ...(searchLeg ? { search_leg: searchLeg } : {}) };
   return { kind: "bundle", terms, terms_hash: termsHash(terms), discount, searcher };
 }
 
