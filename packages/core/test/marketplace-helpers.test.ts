@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  BarterFormatError, acceptOffer, bundleFullySigned, counterOffer, listingHash, postListing, signBundle, verifySignedListing, verifySignedOffer,
+  BarterFormatError, acceptOffer, bundleFullySigned, counterOffer, listingHash, planOffer, postListing, signBundle, verifySignedListing, verifySignedOffer,
   voucherPublicKey, type Listing,
 } from "@x207/core";
 
@@ -81,5 +81,18 @@ describe("SD-056 helper marketplace", () => {
     const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "barter", value: "1", quantity: 1, deliver_by: 1793300000, now: NOW }, seed("kB"));
     expect(() => acceptOffer({ listing: { ...listing, nonce: "l2" }, offer, epoch: 1, account: ANDI }, seed("kA"))).toThrow(/listing lain/);
     expect(() => acceptOffer({ listing, offer, epoch: 1, account: PENCARI }, seed("kC"))).toThrow(/pihak listing/);
+  });
+
+  it("planOffer menghitung syarat tanpa kunci dan cocok dengan yang ditandatangani acceptOffer", () => {
+    const { offer } = counterOffer({ listing, proposer: LAWAN, mode: "barter", value: "100000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
+    const input = { listing, offer, epoch: 42, searcher: PENCARI, searcherShareBps: 300 };
+    const plan = planOffer(input);
+    expect(plan.kind).toBe("bundle");
+    const signed = acceptOffer({ ...input, account: ANDI }, seed("kA"));
+    expect(signed.kind === "bundle" && plan.kind === "bundle" && signed.terms_hash === plan.terms_hash).toBe(true);
+    expect(plan.discount).toBe("10000000");
+    expect(plan.searcher).toBe("3000000");
+    const pay = planOffer({ listing, offer: { ...offer, mode: "pay" }, epoch: 42 });
+    expect(pay).toMatchObject({ kind: "payment", payer: LAWAN, payee: ANDI, amount: "90000000", discount: "10000000", searcher: "0" });
   });
 });

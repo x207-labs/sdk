@@ -50,7 +50,7 @@ export function counterOffer(input: CounterOfferInput, secretKey: VoucherSecretK
   return { offer, offer_hash: offerHash(offer), signature: signOffer(offer, secretKey) };
 }
 
-export type AcceptInput = {
+export type PlanInput = {
   listing: Listing;
   offer: Offer;
   /** Epoch tempat bundle berjalan. */
@@ -58,9 +58,17 @@ export type AcceptInput = {
   /** Pencari otonom yang membawa tawaran ini, bila ada; jatahnya `searcherShareBps` dari nilai `offer` listing. */
   searcher?: AccountId;
   searcherShareBps?: number;
+};
+
+export type AcceptInput = PlanInput & {
   /** Akun penerima dan kunci voucher yang menandatangani. */
   account: AccountId;
 };
+
+/** Hasil penerimaan tanpa tanda tangan: `discount` dan `searcher` dalam credit (satuan terkecil) dipakai statistik marketplace. */
+export type OfferPlan =
+  | { kind: "payment"; payer: AccountId; payee: AccountId; amount: U128String; discount: U128String; searcher: U128String }
+  | { kind: "bundle"; terms: BundleTerms; terms_hash: string; discount: U128String; searcher: U128String };
 
 export type AcceptResult =
   | { kind: "payment"; payer: AccountId; payee: AccountId; amount: U128String }
@@ -71,28 +79,34 @@ function leg(payer: AccountId, payee: AccountId, amount: bigint): BundleLeg[] {
 }
 
 /**
- * Terima penawaran: bangun leg sesuai note F9 dan tandatangani `terms_hash` untuk `account`.
+ * Hitung hasil penerimaan penawaran tanpa kunci: leg bundle sesuai note F9, atau satu pembayaran bila tidak perlu bundle.
  * Jalur bayar: lawan membayar penjual `value − diskon` dan pencari jatahnya (tanpa pencari cukup satu pembayaran voucher).
  * Jalur barter: penjual membayar `want.value + cashback` ke lawan, lawan membayar `offer.value` ke penjual, penjual membayar
- * pencari jatahnya; setelah kliring penjual menanggung cashback + jatah pencari.
+ * pencari jatahnya; setelah kliring penjual menanggung cashback + jatah pencari. Backend memakai fungsi ini untuk menghitung
+ * ulang `terms_hash` yang diajukan klien.
  */
-export function acceptOffer(input: AcceptInput, secretKey: VoucherSecretKey): AcceptResult {
+export function planOffer(input: PlanInput): OfferPlan {
   const { listing, offer } = input;
   if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("penawaran untuk listing lain");
   if (offer.circle !== listing.circle) throw new BarterFormatError("lingkaran penawaran berbeda");
-  if (input.account !== listing.account && input.account !== offer.proposer) throw new BarterFormatError("hanya pihak listing yang boleh menerima");
   const seller = listing.account;
   const counterparty = offer.proposer;
   const searcherShareBps = input.searcher ? (input.searcherShareBps ?? 0) : 0;
   const params = { value: listing.offer.value, discountBps: listing.discount_bps, searcherShareBps };
   let legs: BundleLeg[];
+  let discount: U128String;
+  let searcher: U128String;
   if (offer.mode === "pay") {
     if (!listing.accept_payment) throw new BarterFormatError("listing tidak menerima pembayaran");
     const pay = quickPay(params);
+    discount = pay.discount;
+    searcher = input.searcher ? pay.searcher : "0";
     legs = [...leg(counterparty, seller, BigInt(pay.sellerReceives)), ...(input.searcher ? leg(counterparty, input.searcher, BigInt(pay.searcher)) : [])];
-    if (legs.length === 1) return { kind: "payment", payer: counterparty, payee: seller, amount: legs[0]!.max_amount };
+    if (legs.length === 1) return { kind: "payment", payer: counterparty, payee: seller, amount: legs[0]!.max_amount, discount, searcher };
   } else {
     const barter = quickBarter(params);
+    discount = barter.sellerBears;
+    searcher = input.searcher ? barter.searcher : "0";
     legs = [
       ...leg(seller, counterparty, BigInt(listing.want.value) + BigInt(barter.cashback)),
       ...leg(counterparty, seller, BigInt(listing.offer.value)),
@@ -100,8 +114,19 @@ export function acceptOffer(input: AcceptInput, secretKey: VoucherSecretKey): Ac
     ];
   }
   const terms: BundleTerms = { circle: listing.circle, epoch: input.epoch, legs };
-  if (!bundleParticipants(terms).includes(input.account)) throw new BarterFormatError("akun penerima bukan peserta bundle");
-  return { kind: "bundle", terms, terms_hash: termsHash(terms), signature: signBundle(terms, input.account, secretKey) };
+  return { kind: "bundle", terms, terms_hash: termsHash(terms), discount, searcher };
+}
+
+/** Terima penawaran: hitung rencana dengan `planOffer` dan tandatangani `terms_hash` untuk `account`. */
+export function acceptOffer(input: AcceptInput, secretKey: VoucherSecretKey): AcceptResult {
+  const { listing, offer } = input;
+  if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("penawaran untuk listing lain");
+  if (offer.circle !== listing.circle) throw new BarterFormatError("lingkaran penawaran berbeda");
+  if (input.account !== listing.account && input.account !== offer.proposer) throw new BarterFormatError("hanya pihak listing yang boleh menerima");
+  const plan = planOffer(input);
+  if (plan.kind === "payment") return { kind: "payment", payer: plan.payer, payee: plan.payee, amount: plan.amount };
+  if (!bundleParticipants(plan.terms).includes(input.account)) throw new BarterFormatError("akun penerima bukan peserta bundle");
+  return { kind: "bundle", terms: plan.terms, terms_hash: plan.terms_hash, signature: signBundle(plan.terms, input.account, secretKey) };
 }
 
 /** Periksa tanda tangan listing dan penawaran yang diterima dari akun lain; `false` untuk apa pun yang tidak sah. */
