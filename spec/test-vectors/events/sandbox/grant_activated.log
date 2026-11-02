@@ -1,0 +1,1 @@
+EVENT_JSON:{"standard":"x207","version":"0.0.6","event":"grant_activated","data":[{"grant_id":1,"grantee":"translator.test.near","delivery_pubkey":null}]}

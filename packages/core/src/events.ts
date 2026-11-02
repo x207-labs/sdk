@@ -17,6 +17,7 @@ export class EventParseError extends Error {
 
 type Ns = string; // timestamp nanodetik sebagai string
 type MemberStatusValue = "pending" | "active" | "suspended" | "exited";
+type AssetClassValue = "A" | "B" | "C" | "D" | "X";
 type PositionStatusValue = "due" | "paid" | "defaulted" | "claimable" | "claimed";
 
 export type ClearingAppliedEdge = { debtor: AccountId; creditor: AccountId; cleared: U128String };
@@ -81,6 +82,10 @@ export type X207EventMap = {
   intent_posted: { intent_hash: string; account_id: AccountId; posted_at: string };
   upgrade_proposed: { code_hash: string; eta: string };
   upgrade_applied: { code_hash: string; applied_at: string };
+  asset_class_set: { asset_type: string; class: AssetClassValue };
+  grant_offered: { grant_id: number; asset_type: string; grantor: AccountId; class: AssetClassValue; unit: string; unit_price: U128String; expires_at: string };
+  grant_activated: { grant_id: number; grantee: AccountId; delivery_pubkey: string | null };
+  grant_revoked: { grant_id: number; reason: "grantor" | "grantee" | "operator" | "expired" | "defaulted" };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
 };
 
@@ -112,6 +117,12 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   solver_fee_claimed: { account_id: "str", amount: "str" },
   solver_fee_claim_failed: { account_id: "str", amount: "str" },
   intent_posted: { intent_hash: "str", account_id: "str", posted_at: "str" },
+  asset_class_set: { asset_type: "str", class: { enum: ["A", "B", "C", "D", "X"] } },
+  grant_offered: {
+    grant_id: "int", asset_type: "str", grantor: "str", class: { enum: ["A", "B", "C", "D", "X"] }, unit: "str", unit_price: "str", expires_at: "str",
+  },
+  grant_activated: { grant_id: "int", grantee: "str", delivery_pubkey: "strnull" },
+  grant_revoked: { grant_id: "int", reason: { enum: ["grantor", "grantee", "operator", "expired", "defaulted"] } },
   upgrade_proposed: { code_hash: "str", eta: "str" },
   upgrade_applied: { code_hash: "str", applied_at: "str" },
   voucher_registered: {

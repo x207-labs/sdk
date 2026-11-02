@@ -13,3 +13,4 @@ export * from "./contract/view.js";
 export * from "./barter.js";
 export * from "./marketplace.js";
 export * from "./marketplace-helpers.js";
+export * from "./access.js";
