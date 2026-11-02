@@ -103,7 +103,7 @@ describe("SD-056 helper marketplace", () => {
     const viaSecond = planOffer({ listing, offer: second.offer, epoch: 42, counterparty: LAWAN });
     if (viaSecond.kind !== "bundle") throw new Error("harus bundle");
     // pemasang menawar balik 95: lawan membayar 95 ke Andi, Andi membayar 100 + cashback 9,5 ke lawan
-    const byKey = (legs: Array<{ payer: string; payee: string }>) => [...legs].sort((a, b) => (a.payer + a.payee < b.payer + b.payee ? -1 : 1));
+    const byKey = <T extends { payer: string; payee: string }>(legs: T[]) => [...legs].sort((a, b) => (a.payer + a.payee < b.payer + b.payee ? -1 : 1));
     expect(byKey(viaSecond.terms.legs)).toEqual(byKey([
       { payer: ANDI, payee: LAWAN, max_amount: "109500000" },
       { payer: LAWAN, payee: ANDI, max_amount: "95000000" },
