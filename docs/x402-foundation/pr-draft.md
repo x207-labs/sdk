@@ -12,7 +12,7 @@ Adds a chain-specific spec for the `batch-settlement` scheme on the network fami
 | --- | --- |
 | Binding identity | Scheme `batch-settlement`, network `x207:<circleId>` (CAIP-2 pattern), `asset` `USD` with 6 decimals, flow `authorization` |
 | `PAYMENT-REQUIRED` | `accepts` entry with `extra.circleContract`, `extra.epoch`, `extra.unit`, `extra.decimals`; the `exact` NEAR entry next to it |
-| `PAYMENT-SIGNATURE` payload | Voucher fields (`circle`, `payer`, `payee`, `epoch`, `seq`, `cumulativeAmount`, `unit`, `resource`), ed25519 signature over an NEP-413 payload; optional `bundleId` for a leg of an agreed barter bundle |
+| `PAYMENT-SIGNATURE` payload | Voucher fields (`circle`, `payer`, `payee`, `epoch`, `seq`, `cumulativeAmount`, `unit`, `resource`), ed25519 signature over an NEP-413 payload; optional `bundleId` for a leg of an agreed barter bundle; for an endpoint grant (access asset, feature F8) `extra.grantId` in the entry, `payTo` = the grantor and `resource` = `x207:grant:<grantId>` |
 | Verification | Ordered checks, each with a reason code; headroom counts vouchers received but not yet registered |
 | Settlement | Latest voucher per pair stored by the facilitator, registered on chain per pair and epoch, retries until cutoff; `extensions.x207` carries the registration state |
 | Security | What a leaked voucher key can and cannot do; limits and stake cover |
@@ -20,7 +20,7 @@ Adds a chain-specific spec for the `batch-settlement` scheme on the network fami
 
 ## Testing
 
-- Reference implementation and unit tests in the NEAR sandbox; vectors shared with the contract tests; `npm run conformance` passes 42 cases for the reference adapter.
+- Reference implementation and unit tests in the NEAR sandbox; vectors shared with the contract tests; `npm run conformance` passes 54 cases for the reference adapter (TypeScript), and `npm run conformance:python` passes the same 54 for an independent Python implementation (run 2026-11-02).
 - No public-network run is claimed.
 
 ## Disclosure
