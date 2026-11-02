@@ -18,7 +18,8 @@
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "clean": "tsc -b --clean",
-    "test:sandbox": "X207_SANDBOX=1 vitest run --passWithNoTests sandbox register.sandbox"
+    "test:sandbox": "X207_SANDBOX=1 vitest run --passWithNoTests sandbox register.sandbox",
+    "conformance": "node conformance/run.mjs"
   },
   "devDependencies": {
     "@types/node": "26.6.6",
