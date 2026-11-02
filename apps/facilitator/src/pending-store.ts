@@ -24,6 +24,8 @@ export type PendingRow = PendingKey & {
   nextAttemptAt: number | null;
   lastError: string | null;
   updatedAt: number;
+  /** Voucher leg bundle F5 (SD-048): didaftarkan lewat `register_in_bundle`; `null` untuk voucher biasa. */
+  bundleId: number | null;
 };
 
 const SCHEMA = `
@@ -44,6 +46,7 @@ CREATE TABLE IF NOT EXISTS pending_vouchers (
   next_attempt_at   INTEGER,
   last_error        TEXT,
   updated_at        INTEGER NOT NULL,
+  bundle_id         INTEGER,
   PRIMARY KEY (circle_contract, payer, payee, epoch)
 );
 CREATE INDEX IF NOT EXISTS idx_pending_payer ON pending_vouchers (circle_contract, payer, epoch);
@@ -68,6 +71,7 @@ function toRow(raw: Raw): PendingRow {
     nextAttemptAt: raw.next_attempt_at as number | null,
     lastError: raw.last_error as string | null,
     updatedAt: raw.updated_at as number,
+    bundleId: (raw.bundle_id as number | null | undefined) ?? null,
   };
 }
 
@@ -88,15 +92,19 @@ export class PendingStore {
     this.#now = now;
     this.#db.exec("PRAGMA journal_mode = WAL");
     this.#db.exec(SCHEMA);
+    // Basis data lama (sebelum SD-048) belum punya kolom bundle_id.
+    const columns = this.#db.prepare("PRAGMA table_info(pending_vouchers)").all() as Array<{ name: string }>;
+    if (!columns.some((c) => c.name === "bundle_id")) this.#db.exec("ALTER TABLE pending_vouchers ADD COLUMN bundle_id INTEGER");
     this.#upsert = this.#db.prepare(`
       INSERT INTO pending_vouchers
-        (circle_contract, payer, payee, epoch, seq, cumulative_amount, voucher_json, signature, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (circle_contract, payer, payee, epoch, seq, cumulative_amount, voucher_json, signature, updated_at, bundle_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (circle_contract, payer, payee, epoch) DO UPDATE SET
         seq = excluded.seq,
         cumulative_amount = excluded.cumulative_amount,
         voucher_json = excluded.voucher_json,
         signature = excluded.signature,
+        bundle_id = excluded.bundle_id,
         state = CASE WHEN pending_vouchers.attempts >= 1 THEN 'retrying' ELSE 'pending' END,
         updated_at = excluded.updated_at
       WHERE excluded.seq > pending_vouchers.seq`);
@@ -125,10 +133,10 @@ export class PendingStore {
   }
 
   /** Simpan voucher bila `seq` lebih besar dari yang tersimpan. `true` bila baris berubah. */
-  upsert(circleContract: AccountId, voucher: UnsignedVoucher, signature: Ed25519Signature): boolean {
+  upsert(circleContract: AccountId, voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean {
     const result = this.#upsert.run(
       circleContract, voucher.payer, voucher.payee, voucher.epoch, voucher.seq,
-      voucher.cumulativeAmount, JSON.stringify(voucher), signature, this.#now(),
+      voucher.cumulativeAmount, JSON.stringify(voucher), signature, this.#now(), bundleId ?? null,
     );
     return Number(result.changes) > 0;
   }

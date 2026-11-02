@@ -7,6 +7,8 @@ export type PendingVoucherRef = {
   cumulativeAmount: U128String;
   /** Percobaan registrasi gagal (ADR-23); tidak ada berarti 0. */
   attempts?: number;
+  /** Voucher leg bundle (SD-048): memakai cadangan leg, jadi tidak mengurangi headroom bebas. */
+  bundleId?: number | null;
 };
 
 /** Pembacaan on-chain dan pending store D3 yang dibutuhkan facilitator. */
@@ -54,6 +56,7 @@ export async function computeHeadroom(
   const [onchain, rows] = await Promise.all([sources.headroom(payer), sources.pendingByPayer(payer, epoch)]);
   const unregistered = await Promise.all(
     rows.map(async (row) => {
+      if (row.bundleId !== undefined && row.bundleId !== null) return 0n;
       const registered = await sources.obligation(epoch, payer, row.payee);
       const increase = BigInt(row.cumulativeAmount) - BigInt(registered?.cumulative ?? "0");
       return increase > 0n ? increase : 0n;

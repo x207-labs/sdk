@@ -21,11 +21,12 @@ export type PendingVoucherRecord = {
   registeredSeq: number;
   /** Percobaan registrasi yang gagal. */
   attempts: number;
+  bundleId?: number | null;
 };
 
 export interface PendingWriter {
   /** Simpan hanya bila `seq` lebih besar dari yang tersimpan; `false` bila tidak ada perubahan. */
-  save(voucher: UnsignedVoucher, signature: Ed25519Signature): boolean | Promise<boolean>;
+  save(voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean | Promise<boolean>;
   get(payer: AccountId, payee: AccountId, epoch: number): PendingVoucherRecord | null | Promise<PendingVoucherRecord | null>;
 }
 
@@ -77,13 +78,14 @@ export async function settlePayment(
   const parsed = validateX207Payload(payload.payload);
   if (parsed.ok) {
     // Idempoten per commitment id: payload yang persis sama dengan baris tersimpan menjawab hasil yang sama.
-    const { voucher, signature } = parsed.value;
+    const { voucher, signature, bundleId } = parsed.value;
     const stored = await options.store.get(voucher.payer, voucher.payee, voucher.epoch);
     if (
       stored &&
       stored.seq === voucher.seq &&
       stored.cumulativeAmount === voucher.cumulativeAmount &&
-      stored.signature === signature
+      stored.signature === signature &&
+      (stored.bundleId ?? undefined) === bundleId
     ) {
       return succeeded(circle, voucher, stored);
     }
@@ -102,8 +104,8 @@ export async function settlePayment(
   }
 
   if (!parsed.ok) throw new Error("payload lolos verify tetapi gagal skema X207Payload");
-  const { voucher, signature } = parsed.value;
-  if (!(await options.store.save(voucher, signature))) {
+  const { voucher, signature, bundleId } = parsed.value;
+  if (!(await (bundleId === undefined ? options.store.save(voucher, signature) : options.store.save(voucher, signature, bundleId)))) {
     // Settle paralel untuk pasangan yang sama sudah menyimpan seq yang sama atau lebih tinggi.
     const base = await computeBase(voucher.payer, voucher.payee, voucher.epoch, options.chain);
     return failed("seq_not_increasing", voucher.payer, {

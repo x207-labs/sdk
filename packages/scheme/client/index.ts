@@ -41,6 +41,12 @@ export type X207ClientOptions = {
    * antrian tidak macet bila koneksi putus. Default 60 detik = `maxTimeoutSeconds` (ADR-25).
    */
   confirmTimeoutMs?: number;
+  /**
+   * Leg bundle F5 (SD-048): `bundle_id` untuk pembayaran ke `payee` di `epoch`, atau `undefined` bila bukan leg. Voucher leg sama
+   * byte-nya dengan voucher biasa; `bundleId` di payload membuat facilitator memeriksa batas leg dan mendaftarkan lewat
+   * `register_in_bundle` (headroom cadangan).
+   */
+  bundleFor?: (payee: AccountId, epoch: number) => number | undefined;
 };
 
 type InFlight = {
@@ -73,6 +79,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
   private readonly payer: AccountId;
   private readonly secretKey: VoucherSecretKey;
   private readonly confirmTimeoutMs: number;
+  private readonly bundleFor: ((payee: AccountId, epoch: number) => number | undefined) | undefined;
   /** `createPaymentPayload` x402 tidak menerima `resource`; hook sebelum pembuatan menitipkannya. */
   private readonly resources = new WeakMap<PaymentRequirements, string>();
   private readonly inFlight = new WeakMap<X207Payload, InFlight>();
@@ -86,6 +93,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
     this.secretKey = options.secretKey;
     this.store = options.store ?? new MemoryVoucherStateStore();
     this.confirmTimeoutMs = options.confirmTimeoutMs ?? 60_000;
+    this.bundleFor = options.bundleFor;
   }
 
   readonly schemeHooks: SchemeClientHooks = {
@@ -136,7 +144,8 @@ export class X207SchemeClient implements SchemeNetworkClient {
         resource,
       };
       const { signature, ...voucher } = signVoucher(unsigned, this.secretKey);
-      const payload: X207Payload = { voucher, signature };
+      const bundleId = this.bundleFor?.(payTo, extra.epoch);
+      const payload: X207Payload = { voucher, signature, ...(bundleId === undefined ? {} : { bundleId }) };
 
       const timer = setTimeout(() => this.settleFlight(payload), this.confirmTimeoutMs);
       timer.unref?.();

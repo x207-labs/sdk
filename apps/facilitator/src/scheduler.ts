@@ -15,7 +15,8 @@ export type RegisterMode = "cumulative";
 
 /** Sisi kontrak yang dibutuhkan penjadwal; `register` melempar bila transaksi gagal. */
 export interface RegistrationChain {
-  register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode): Promise<void>;
+  /** `bundleId` mengirim lewat `register_in_bundle` (leg bundle F5, SD-048) alih-alih `register_cumulative`. */
+  register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode, bundleId?: number): Promise<void>;
   lastSeq(payer: AccountId, payee: AccountId, epoch: number): Promise<number>;
   /** View `get_epoch(epoch)`; `null` bila epoch tidak dikenal. */
   getEpoch(epoch: number): Promise<ContractAbi.EpochView | null>;
@@ -70,6 +71,9 @@ const ERROR_MAP: Record<string, { code: string; action: "drop" | "retry" }> = {
   ERR_BAD_SIGNATURE: { code: "invalid_signature", action: "drop" },
   ERR_INSUFFICIENT_CREDIT: { code: "insufficient_credit", action: "retry" },
   ERR_SEQ_NOT_INCREASING: { code: "seq_not_increasing", action: "retry" },
+  ERR_BUNDLE_LEG_EXCEEDED: { code: "bundle_leg_exceeded", action: "drop" },
+  ERR_BUNDLE_LEG: { code: "not_a_bundle_leg", action: "drop" },
+  ERR_UNKNOWN_BUNDLE: { code: "bundle_unknown", action: "drop" },
 };
 
 /** Jeda sebelum percobaan berikutnya setelah `attempts` kegagalan (1 = 5 detik). */
@@ -157,7 +161,9 @@ export class RegistrationScheduler {
     if (!due) return;
 
     try {
-      await this.#opts.chain.register(row.voucher, row.signature, this.#opts.mode ?? "cumulative");
+      const mode = this.#opts.mode ?? "cumulative";
+      if (row.bundleId === null) await this.#opts.chain.register(row.voucher, row.signature, mode);
+      else await this.#opts.chain.register(row.voucher, row.signature, mode, row.bundleId);
     } catch (error) {
       await this.#failed(row, key, error, result);
       return;

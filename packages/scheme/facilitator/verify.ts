@@ -18,6 +18,8 @@ export interface VerifyChain extends HeadroomSources {
   member(account: AccountId): Promise<ContractAbi.MemberView | null>;
   /** View `get_epoch` tanpa argumen: epoch berjalan. */
   getEpoch(): Promise<ContractAbi.EpochView | null>;
+  /** View `get_bundle(bundle_id)` (interface 0.0.4); dibutuhkan hanya untuk voucher leg bundle (SD-048). */
+  bundle?(bundleId: number): Promise<ContractAbi.BundleView | null>;
 }
 
 export type VerifyOptions = {
@@ -82,7 +84,7 @@ export async function verifyPayment(
   // 4
   const checkedPayload = validateX207Payload(payload.payload);
   if (!checkedPayload.ok) return reject("invalid_payload");
-  const { voucher, signature } = checkedPayload.value as X207Payload;
+  const { voucher, signature, bundleId } = checkedPayload.value as X207Payload;
   const payer = voucher.payer;
   // 5
   if (voucher.circle !== extra.circleContract || extra.circleContract !== circle.circleContract) {
@@ -121,6 +123,18 @@ export async function verifyPayment(
   if (pending.some((row) => (row.attempts ?? 0) >= REGISTRATION_RETRY_BLOCK_ATTEMPTS)) {
     return reject("registration_retry_pending", payer);
   }
+  // SD-048: voucher leg bundle diperiksa terhadap batas leg D8, bukan headroom bebas
+  let legMax: bigint | undefined;
+  if (bundleId !== undefined) {
+    if (!chain.bundle) throw new Error("VerifyChain.bundle wajib untuk voucher leg bundle");
+    const bundle = await chain.bundle(bundleId);
+    if (!bundle) return reject("bundle_unknown", payer);
+    if (bundle.status !== "active" || bundle.epoch !== voucher.epoch) return reject("bundle_epoch_mismatch", payer);
+    const leg = bundle.legs.find((l) => l.payer === payer && l.payee === voucher.payee);
+    if (!leg) return reject("not_a_bundle_leg", payer);
+    legMax = BigInt(leg.max_amount);
+    if (BigInt(voucher.cumulativeAmount) > legMax) return reject("bundle_leg_exceeded", payer);
+  }
   // 16, 17
   const base = await computeBase(payer, voucher.payee, voucher.epoch, chain);
   if (voucher.seq <= base.seq) return reject("seq_not_increasing", payer);
@@ -128,8 +142,8 @@ export async function verifyPayment(
   if (increment < 0n) return reject("cumulative_decreased", payer);
   // 18
   if (increment !== BigInt(requirements.amount)) return reject("amount_mismatch", payer);
-  // 19
-  if (increment > BigInt(await computeHeadroom(payer, voucher.epoch, chain))) {
+  // 19 (voucher leg bundle memakai cadangan leg, sudah dicek di atas)
+  if (legMax === undefined && increment > BigInt(await computeHeadroom(payer, voucher.epoch, chain))) {
     return reject("insufficient_credit", payer);
   }
   return { isValid: true, payer };

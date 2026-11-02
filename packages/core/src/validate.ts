@@ -144,7 +144,10 @@ const checkPayload: Check = (value) => {
   if (!isRecord(value)) return issue("", "harus objek");
   return (
     nested("voucher", checkUnsignedVoucher(value.voucher)) ??
-    firstIssue([["signature", isSignatureString(value.signature), "harus ed25519:<base58>"]])
+    firstIssue([
+      ["signature", isSignatureString(value.signature), "harus ed25519:<base58>"],
+      ["bundleId", value.bundleId === undefined || isSafeUint(value.bundleId, 0), "harus integer >= 0 bila ada"],
+    ])
   );
 };
 

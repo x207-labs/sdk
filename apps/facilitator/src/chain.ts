@@ -31,6 +31,10 @@ export class NearChain implements VerifyChain {
     return this.view<ContractAbi.EpochView | null>("get_epoch");
   }
 
+  bundle(bundleId: number) {
+    return this.view<ContractAbi.BundleView | null>("get_bundle", { bundle_id: bundleId });
+  }
+
   headroom(account: AccountId) {
     return this.view<string>("headroom", { account_id: account });
   }
@@ -42,7 +46,7 @@ export class NearChain implements VerifyChain {
   async pendingByPayer(payer: AccountId, epoch: number) {
     return this.pending
       .listByPayer(this.circle.circleContract, payer, epoch)
-      .map((row) => ({ payee: row.payee, seq: row.seq, cumulativeAmount: row.cumulativeAmount, attempts: row.attempts }));
+      .map((row) => ({ payee: row.payee, seq: row.seq, cumulativeAmount: row.cumulativeAmount, attempts: row.attempts, bundleId: row.bundleId }));
   }
 }
 
@@ -50,14 +54,14 @@ export class NearChain implements VerifyChain {
 export class PendingStoreWriter implements PendingWriter {
   constructor(private readonly circle: CircleConfig, private readonly pending: PendingStore) {}
 
-  save(voucher: UnsignedVoucher, signature: Ed25519Signature): boolean {
-    return this.pending.upsert(this.circle.circleContract, voucher, signature);
+  save(voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean {
+    return this.pending.upsert(this.circle.circleContract, voucher, signature, bundleId);
   }
 
   get(payer: AccountId, payee: AccountId, epoch: number) {
     const row = this.pending.get({ circleContract: this.circle.circleContract, payer, payee, epoch });
     return row
-      ? { seq: row.seq, cumulativeAmount: row.cumulativeAmount, signature: row.signature, registeredSeq: row.registeredSeq, attempts: row.attempts }
+      ? { seq: row.seq, cumulativeAmount: row.cumulativeAmount, signature: row.signature, registeredSeq: row.registeredSeq, attempts: row.attempts, bundleId: row.bundleId }
       : null;
   }
 }

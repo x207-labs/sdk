@@ -46,17 +46,18 @@ export class NearRegistrationChain implements RegistrationChain {
   }
 
   /** Kirim satu transaksi dan tunggu final; melempar `Error` dengan pesan panic kontrak bila gagal. */
-  async register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode): Promise<void> {
+  async register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode, bundleId?: number): Promise<void> {
     const { rpc, circleContract, relayer } = this.options;
     const key = await rpc.call<{ nonce: number }>("query", {
       request_type: "view_access_key", finality: "optimistic", account_id: relayer.accountId,
       public_key: this.#publicKey.toString(),
     });
     const block = await rpc.call<{ header: { hash: string } }>("block", { finality: "final" });
-    const method = mode === "cumulative" ? "register_cumulative" : "register_voucher";
+    const method = bundleId !== undefined ? "register_in_bundle" : mode === "cumulative" ? "register_cumulative" : "register_voucher";
+    const args = bundleId !== undefined ? { bundle_id: bundleId, voucher, signature } : { voucher, signature };
     const transaction = createTransaction(
       relayer.accountId, this.#publicKey, circleContract, BigInt(key.nonce) + 1n,
-      [actionCreators.functionCall(method, { voucher, signature }, REGISTER_GAS, 0n)],
+      [actionCreators.functionCall(method, args, REGISTER_GAS, 0n)],
       base58Decode(block.header.hash),
     );
     const [, signed] = await this.#signer.signTransaction(transaction);

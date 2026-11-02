@@ -143,3 +143,35 @@ describe("SD-022 PendingStore", () => {
     expect(store.get(key(A, B, 42))).toMatchObject({ state: "failed", lastError: "sampai cutoff" });
   });
 });
+
+describe("SD-048 kolom bundle_id", () => {
+  it("TC-SD-048-10 bundle_id tersimpan, naik bersama seq, dan null untuk voucher biasa", () => {
+    const store = memory();
+    store.upsert(CIRCLE, v(A, B, 42, 1), SIG, 7);
+    store.upsert(CIRCLE, v(A, C, 42, 1), SIG);
+    expect(store.get(key(A, B, 42))?.bundleId).toBe(7);
+    expect(store.get(key(A, C, 42))?.bundleId).toBeNull();
+    store.upsert(CIRCLE, v(A, B, 42, 2), SIG, 7);
+    // urut menurut payee: scraper (C) sebelum summarizer (B)
+    expect(store.listByPayer(CIRCLE, A, 42).map((r) => r.bundleId)).toEqual([null, 7]);
+  });
+
+  it("TC-SD-048-11 basis data lama tanpa kolom bundle_id dimigrasi saat dibuka", () => {
+    const dir = mkdtempSync(join(tmpdir(), "x207-pending-"));
+    dirs.push(dir);
+    const path = join(dir, "pending.sqlite");
+    const first = new PendingStore(path, () => 1000);
+    first.upsert(CIRCLE, v(A, B, 42, 1), SIG);
+    first.close();
+    // simulasikan skema lama: buang kolom lalu buka lagi
+    const { DatabaseSync } = require("node:sqlite");
+    const raw = new DatabaseSync(path);
+    raw.exec("ALTER TABLE pending_vouchers DROP COLUMN bundle_id");
+    raw.close();
+    const reopened = new PendingStore(path, () => 1000);
+    stores.push(reopened);
+    expect(reopened.get(key(A, B, 42))?.bundleId).toBeNull();
+    reopened.upsert(CIRCLE, v(A, B, 42, 2), SIG, 9);
+    expect(reopened.get(key(A, B, 42))?.bundleId).toBe(9);
+  });
+});

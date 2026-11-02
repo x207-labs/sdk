@@ -97,11 +97,20 @@ export class NoPayableRequirementsError extends Error {
   }
 }
 
-/** Pilih x207 bila headroom cukup (atau tidak diketahui), selain itu entri non-x207 pertama. */
-export function selectX207Requirements(estimator: HeadroomEstimator): SelectPaymentRequirements {
+export type BundleLookup = (payee: AccountId, epoch: number) => number | undefined;
+
+/** Entri x207 yang membayar leg bundle: tidak memakai headroom bebas, jadi tidak ikut diperiksa dan tidak mengurangi perkiraan. */
+const isBundleLeg = (requirements: PaymentRequirements, bundleFor: BundleLookup | undefined): boolean => {
+  const epoch = (requirements.extra as { epoch?: unknown } | undefined)?.epoch;
+  return bundleFor !== undefined && typeof epoch === "number" && bundleFor(requirements.payTo, epoch) !== undefined;
+};
+
+/** Pilih x207 bila headroom cukup (atau tidak diketahui) atau bila pembayaran adalah leg bundle, selain itu entri non-x207 pertama. */
+export function selectX207Requirements(estimator: HeadroomEstimator, bundleFor?: BundleLookup): SelectPaymentRequirements {
   return (_version, accepts) => {
     const payable = accepts.find((requirements) => {
       if (!isX207Requirements(requirements)) return false;
+      if (isBundleLeg(requirements, bundleFor)) return true;
       const circle = circleOf(requirements);
       const headroom = circle === undefined ? undefined : estimator.estimate(circle);
       return headroom === undefined || headroom >= BigInt(requirements.amount);
@@ -121,6 +130,8 @@ export type X207PaymentClientOptions = {
   secretKey: VoucherSecretKey;
   headroom: HeadroomSource;
   store?: VoucherStateStore;
+  /** Leg bundle F5 (SD-048); lihat `X207ClientOptions.bundleFor`. */
+  bundleFor?: BundleLookup;
   headroomCacheMs?: number;
   now?: () => number;
 };
@@ -141,12 +152,13 @@ export class X207PaymentClient extends x402Client {
       ...(options.headroomCacheMs !== undefined ? { cacheMs: options.headroomCacheMs } : {}),
       ...(options.now ? { now: options.now } : {}),
     });
-    super(selectX207Requirements(headroom));
+    super(selectX207Requirements(headroom, options.bundleFor));
     this.headroom = headroom;
     this.x207 = new X207SchemeClient({
       payer: options.payer,
       secretKey: options.secretKey,
       ...(options.store ? { store: options.store } : {}),
+      ...(options.bundleFor ? { bundleFor: options.bundleFor } : {}),
     });
     this.register("x207:*", this.x207);
 
@@ -156,7 +168,7 @@ export class X207PaymentClient extends x402Client {
       const circle = circleOf(requirements);
       if (circle === undefined) return undefined;
       if (context.settleResponse?.success) {
-        this.headroom.consume(circle, requirements.amount);
+        if (!isBundleLeg(requirements, options.bundleFor)) this.headroom.consume(circle, requirements.amount);
         return undefined;
       }
       if (RECOVERABLE_REASONS.has(context.paymentRequired?.error ?? "")) {

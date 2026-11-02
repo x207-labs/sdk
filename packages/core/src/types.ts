@@ -35,7 +35,11 @@ export type UnsignedVoucher = {
 
 export type Voucher = UnsignedVoucher & { signature: Ed25519Signature };
 
-export type X207Payload = { voucher: UnsignedVoucher; signature: Ed25519Signature };
+/**
+ * Payload voucher x207. `bundleId` (SD-048, interface 0.0.4) menandai voucher leg bundle F5: bytes voucher tidak berubah, hanya
+ * jalur registrasinya (`register_in_bundle`) yang memakai headroom cadangan leg, bukan headroom bebas.
+ */
+export type X207Payload = { voucher: UnsignedVoucher; signature: Ed25519Signature; bundleId?: number };
 
 export type CommitmentId = `${AccountId}:${AccountId}:${number}:${number}`;
 

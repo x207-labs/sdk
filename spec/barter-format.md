@@ -23,3 +23,15 @@ Contoh A→B→C→A (10, 8, 6 credit): [`test-vectors/barter/bundle_abca.json`]
 - **`terms_hash` unik.** `commit_bundle` menolak `terms_hash` yang sudah tercatat dengan `ERR_BUNDLE_EXISTS`. Syarat bundle yang identik (hash sama) tidak bisa dipakai dua kali; bundle berikutnya dengan leg yang sama harus berbeda di salah satu field kanonik, yaitu `epoch` atau nilai `max_amount`. Hash sama berarti `circle`, `epoch`, dan seluruh leg sama.
 - **Epoch berjalan.** `bundle.epoch` harus epoch berjalan dengan fase `open`. Bundle untuk epoch lain atau yang sudah ditutup ditolak.
 - **Error muncul apa adanya.** SDK tidak menerjemahkan atau membungkus kode kontrak: pesan panic `ERR_*` (mis. `ERR_BUNDLE_EXISTS`, `ERR_BUNDLE_SIGNATURES`, `ERR_BUNDLE_HEADROOM`) sampai ke pemanggil, dan `contractErrorCode(error)` mengembalikan kodenya. Penyebab umum `ERR_BUNDLE_EXISTS`: pemanggil mengirim ulang usulan yang sama dalam satu epoch.
+
+## Voucher leg bundle (SD-048, interface 0.0.4)
+Bytes voucher tidak berubah. Pembayaran F2 ke penyedia yang merupakan leg bundle membawa `bundleId` (integer >= 0) di `payload` x402 di samping `voucher` dan `signature`:
+
+| Peran | Perilaku |
+| --- | --- |
+| Klien (`X207SchemeClient`, `X207PaymentClient`) | Opsi `bundleFor(payee, epoch)` mengembalikan `bundle_id` untuk pasangan yang merupakan leg. Payload memuat `bundleId`; entri x207 dipilih walau headroom bebas habis dan estimasi headroom tidak dikurangi |
+| Facilitator `verify` | Untuk `bundleId`: `get_bundle` harus ada, `status` `active`, `epoch` sama dengan voucher, pasangan (payer, payee) adalah leg, dan `cumulativeAmount` <= `max_amount` leg. Cek headroom bebas dilewati. Penolakan: `bundle_unknown`, `bundle_epoch_mismatch`, `not_a_bundle_leg`, `bundle_leg_exceeded` |
+| Facilitator `settle` dan D3 | `pending_vouchers.bundle_id` menyimpan `bundleId`; baris leg bundle tidak mengurangi headroom bebas di `computeHeadroom` |
+| Scheduler | Baris dengan `bundle_id` didaftarkan lewat `register_in_bundle(bundle_id, voucher, signature)`; `ERR_BUNDLE_LEG_EXCEEDED`, `ERR_BUNDLE_LEG`, `ERR_UNKNOWN_BUNDLE` menggugurkan baris (`bundle_leg_exceeded`, `not_a_bundle_leg`, `bundle_unknown`) |
+
+`verify` membaca blok final: bundle yang baru di-commit baru terlihat setelah finalitas, sebelum itu voucher leg ditolak `bundle_unknown` dan klien dapat mengulang.

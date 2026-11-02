@@ -34,8 +34,10 @@ class FakeChain implements RegistrationChain {
   constructor() {
     this.epochViews.set(EPOCH, { epoch: EPOCH, cutoff_at: String(BigInt(CUTOFF_MS) * 1_000_000n) } as ContractAbi.EpochView);
   }
-  async register(v: UnsignedVoucher, _sig: string, mode: string) {
+  registerArgs: Array<{ payee: string; bundleId: number | undefined }> = [];
+  async register(v: UnsignedVoucher, _sig: string, mode: string, bundleId?: number) {
     this.calls.push({ payee: v.payee, seq: v.seq, mode });
+    this.registerArgs.push({ payee: v.payee, bundleId });
     if (this.failWith) throw this.failWith;
   }
   async lastSeq() {
@@ -303,5 +305,26 @@ describe("SD-054 pemetaan ERR_EXITING", () => {
     await scheduler.tick();
     expect(store.get(KEY)?.state).toBe("failed");
     expect(logs[0]).toMatchObject({ event: "registration_dropped", code: "member_exiting" });
+  });
+});
+
+describe("SD-048 registrasi voucher leg bundle", () => {
+  it("TC-SD-048-09 baris dengan bundle_id didaftarkan lewat bundleId; ERR_BUNDLE_LEG_EXCEEDED menggugurkan baris", async () => {
+    const { store, chain, scheduler } = setup();
+    chain.registerArgs = [];
+    store.upsert(CIRCLE, voucher(B, 1, "20000000"), SIG, 7);
+    store.upsert(CIRCLE, voucher(C, 1, "20000000"), SIG);
+    const first = await scheduler.tick();
+    expect(first).toMatchObject({ registered: 2, dropped: 0 });
+    expect(chain.registerArgs.sort((a, b) => a.payee.localeCompare(b.payee))).toEqual([
+      { payee: C, bundleId: undefined },
+      { payee: B, bundleId: 7 },
+    ]);
+
+    chain.failWith = new Error("Smart contract panicked: ERR_BUNDLE_LEG_EXCEEDED: leg 100 registered 90 delta 20");
+    store.upsert(CIRCLE, voucher(B, 2, "40000000"), SIG, 7);
+    const second = await scheduler.tick();
+    expect(second).toMatchObject({ dropped: 1 });
+    expect(store.get({ ...KEY, payee: B })?.state).toBe("failed");
   });
 });
