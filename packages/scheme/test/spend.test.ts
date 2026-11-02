@@ -71,8 +71,8 @@ describe("SD-020 spend controls klien", () => {
   });
 
   it("TC-SD-020-05 tanpa batas perilaku lama tetap: tidak ada penolakan", async () => {
-    const { pay } = setup();
+    const { pay, respond } = setup();
     // tanpa spendLimit tidak ada penolakan dari klien x207 (x402Client sendiri punya batas bawaan $1 per pembayaran)
-    for (let i = 0; i < 5; i += 1) await pay(req({ amount: "900000" }));
+    for (let i = 0; i < 5; i += 1) await respond(await pay(req({ amount: "900000" })), true);
   });
 });
