@@ -121,6 +121,16 @@ export const intentHash = (intent: BarterIntent): string => hex(intentHashBytes(
 /** `Base58CryptoHash` untuk argumen `post_intent(intent_hash)`. */
 export const intentHashBase58 = (intent: BarterIntent): string => base58Encode(intentHashBytes(intent));
 
+/**
+ * Argumen `bundle` untuk `commit_bundle` dari syarat yang ditandatangani: `{epoch, legs}` dan `search_leg` bila ada. Kontrak menghitung
+ * `terms_hash` dari argumen ini, jadi `search_leg` yang ikut ditandatangani wajib ikut dikirim (interface 0.0.5).
+ */
+export const bundleInput = (terms: BundleTerms): { epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg } => ({
+  epoch: terms.epoch,
+  legs: terms.legs,
+  ...(terms.search_leg ? { search_leg: terms.search_leg } : {}),
+});
+
 /** `sha256(JSON kanonik syarat bundle)`: 32 byte. */
 export const termsHashBytes = (terms: BundleTerms): Uint8Array => sha256(serializeBundleTerms(terms));
 /** `terms_hash` heks huruf kecil 64 karakter, ditandatangani semua peserta. */

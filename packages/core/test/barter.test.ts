@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  BarterFormatError, base58Encode, contractErrorCode, bundleFullySigned, bundleParticipants, intentHash, intentHashBase58, serializeBundleTerms, serializeIntent,
+  BarterFormatError, base58Encode, bundleInput, contractErrorCode, bundleFullySigned, bundleParticipants, intentHash, intentHashBase58, serializeBundleTerms, serializeIntent,
   signBundle, signIntent, termsHash, verifyBundleSignature, verifyIntentSignature, voucherPublicKey,
   type BarterIntent, type BundleTerms,
 } from "@x207/core";
@@ -95,6 +95,13 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(serializeBundleTerms({ ...old, search_leg: undefined })).toBe(bundleVector.message);
     expect(serializeBundleTerms({ ...old, search_leg: null })).toBe(bundleVector.message);
     expect(termsHash({ ...old, search_leg: null })).toBe(bundleVector.termsHash);
+  });
+
+  it("bundleInput: argumen commit_bundle memuat search_leg hanya bila ada", () => {
+    const searched = vector("bundle_search").terms as BundleTerms;
+    expect(bundleInput(searched)).toEqual({ epoch: 42, legs: searched.legs, search_leg: searched.search_leg });
+    const old = bundleVector.terms as BundleTerms;
+    expect(Object.keys(bundleInput({ ...old, search_leg: null }))).toEqual(["epoch", "legs"]);
   });
 
   it("search_leg harus salah satu leg dan berisi akun sah", () => {
