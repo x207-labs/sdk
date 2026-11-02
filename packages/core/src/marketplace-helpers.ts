@@ -130,7 +130,7 @@ export function acceptOffer(input: AcceptInput, secretKey: VoucherSecretKey): Ac
   const { listing, offer } = input;
   if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("penawaran untuk listing lain");
   if (offer.circle !== listing.circle) throw new BarterFormatError("lingkaran penawaran berbeda");
-  if (input.account !== listing.account && input.account !== offer.proposer) throw new BarterFormatError("hanya pihak listing yang boleh menerima");
+  if (input.account !== listing.account && input.account !== offer.proposer && input.account !== input.counterparty) throw new BarterFormatError("hanya pihak listing yang boleh menerima");
   const plan = planOffer(input);
   if (plan.kind === "payment") return { kind: "payment", payer: plan.payer, payee: plan.payee, amount: plan.amount };
   if (!bundleParticipants(plan.terms).includes(input.account)) throw new BarterFormatError("akun penerima bukan peserta bundle");
