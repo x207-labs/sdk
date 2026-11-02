@@ -72,6 +72,39 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(bundleFullySigned(changed, bundleVector.signatures, pubkeys)).toBe(false);
   });
 
+  it("search_leg (interface 0.0.5): kunci terakhir di JSON kanonik, hash cocok dengan vector, bundle tanpa search_leg tidak berubah", () => {
+    const searchVector = vector("bundle_search");
+    const terms = searchVector.terms as BundleTerms;
+    expect(serializeBundleTerms(terms)).toBe(searchVector.message);
+    expect(Object.keys(JSON.parse(searchVector.message))).toEqual(["circle", "epoch", "legs", "search_leg"]);
+    expect(Object.keys(JSON.parse(searchVector.message).search_leg)).toEqual(["payer", "payee"]);
+    expect(termsHash(terms)).toBe(searchVector.termsHash);
+    expect(termsHash(terms)).toBe(sha256(searchVector.message).toString("hex"));
+    expect(termsHash(terms)).not.toBe(termsHash({ ...terms, search_leg: undefined }));
+    expect(searchVector.signingHash).toBe(nep413(searchVector.message, sha256(searchVector.message), terms.circle).toString("hex"));
+    for (const [account, k] of [[A, "kA"], [B, "kB"], [C, "kC"]] as const) {
+      expect(signBundle(terms, account, seed(k))).toEqual(searchVector.signatures.find((s: { account: string }) => s.account === account));
+    }
+    const pubkeys = searchVector.participants as Record<string, string>;
+    expect(bundleFullySigned(terms, searchVector.signatures, pubkeys)).toBe(true);
+    // search_leg diubah atau dibuang: tanda tangan lama tidak berlaku
+    expect(bundleFullySigned({ ...terms, search_leg: { payer: A, payee: B } }, searchVector.signatures, pubkeys)).toBe(false);
+    expect(bundleFullySigned({ ...terms, search_leg: undefined }, searchVector.signatures, pubkeys)).toBe(false);
+    // tanpa search_leg (kosong, undefined atau null) bytes sama dengan vector lama
+    const old = bundleVector.terms as BundleTerms;
+    expect(serializeBundleTerms({ ...old, search_leg: undefined })).toBe(bundleVector.message);
+    expect(serializeBundleTerms({ ...old, search_leg: null })).toBe(bundleVector.message);
+    expect(termsHash({ ...old, search_leg: null })).toBe(bundleVector.termsHash);
+  });
+
+  it("search_leg harus salah satu leg dan berisi akun sah", () => {
+    const terms = bundleVector.terms as BundleTerms;
+    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: A, payee: C } })).toThrow(BarterFormatError); // A -> C bukan leg
+    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: "BUKAN AKUN", payee: A } })).toThrow(/search_leg/);
+    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: C } as never })).toThrow(/search_leg/);
+    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: C, payee: A } })).not.toThrow();
+  });
+
   it("menolak bentuk tidak sah", () => {
     const terms = bundleVector.terms as BundleTerms;
     const intent = intentVector.intent as BarterIntent;

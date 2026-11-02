@@ -19,6 +19,13 @@ Akun menawarkan `offer` dan membutuhkan `need`. Nilai dalam credit satuan terkec
 
 Contoh A→B→C→A (10, 8, 6 credit): [`test-vectors/barter/bundle_abca.json`](./test-vectors/barter/bundle_abca.json).
 
+### Leg pencari `search_leg` (interface 0.0.5)
+6. **`search_leg`** opsional: `{"payer":…,"payee":…}`, menandai leg bundle yang membayar pencari (F9). Bila ada, kuncinya **terakhir** di `message`, sesudah `legs`: `{"circle":…,"epoch":…,"legs":[…],"search_leg":{"payer":…,"payee":…}}`, tanpa spasi, urutan kunci `payer` lalu `payee`. Bila tidak ada (atau `null` di SDK), `message` dan `terms_hash` sama persis dengan format sebelum 0.0.5; `bundle_abca.json` tetap sah dan tidak berubah.
+7. Aturan: pasangan `(payer, payee)` harus salah satu leg bundle (SDK melempar `BarterFormatError`; kontrak `ERR_BAD_BUNDLE`). Kontrak membatasi `max_amount` leg itu sampai `max_search_share_bps` (bawaan 500 = 5%) dari jumlah `max_amount` semua leg; lebih dari itu `ERR_SEARCH_SHARE_EXCEEDED`. `search_leg` ikut di bytes yang ditandatangani, jadi peserta yang menandatangani syarat tanpa `search_leg` tidak sah untuk bundle dengan `search_leg` (`ERR_BUNDLE_SIGNATURES`).
+8. Argumen `commit_bundle`: `bundle: { epoch, legs, search_leg? }`.
+
+Contoh dengan leg pencari (55, 40, 5 credit; leg 5 dari 100 = 500 bps): [`test-vectors/barter/bundle_search.json`](./test-vectors/barter/bundle_search.json). Byte JSON dan `terms_hash`-nya dicocokkan dengan kontrak 0.0.5 di near-sandbox (`packages/core/test/sandbox/search-leg.sandbox.test.ts`: `get_bundle.terms_hash` kontrak sama dengan `termsHash` SDK) dan dengan fungsi `terms_message` di `contracts/x207-circle/src/bundle.rs`. Sisi kontrak menyalin vector ke `contracts/tests/vectors/barter/` bila ingin test unit.
+
 ## Aturan kontrak yang berlaku untuk bundle
 - **`terms_hash` unik.** `commit_bundle` menolak `terms_hash` yang sudah tercatat dengan `ERR_BUNDLE_EXISTS`. Syarat bundle yang identik (hash sama) tidak bisa dipakai dua kali; bundle berikutnya dengan leg yang sama harus berbeda di salah satu field kanonik, yaitu `epoch` atau nilai `max_amount`. Hash sama berarti `circle`, `epoch`, dan seluruh leg sama.
 - **Epoch berjalan.** `bundle.epoch` harus epoch berjalan dengan fase `open`. Bundle untuk epoch lain atau yang sudah ditutup ditolak.

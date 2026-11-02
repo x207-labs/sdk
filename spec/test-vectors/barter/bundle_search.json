@@ -1,0 +1,50 @@
+{
+  "circle": "x207-circle.near",
+  "terms": {
+    "circle": "x207-circle.near",
+    "epoch": 42,
+    "legs": [
+      {
+        "payer": "scraper.x207-circle.near",
+        "payee": "translator.x207-circle.near",
+        "max_amount": "5000000"
+      },
+      {
+        "payer": "summarizer.x207-circle.near",
+        "payee": "scraper.x207-circle.near",
+        "max_amount": "40000000"
+      },
+      {
+        "payer": "translator.x207-circle.near",
+        "payee": "summarizer.x207-circle.near",
+        "max_amount": "55000000"
+      }
+    ],
+    "search_leg": {
+      "payer": "scraper.x207-circle.near",
+      "payee": "translator.x207-circle.near"
+    }
+  },
+  "message": "{\"circle\":\"x207-circle.near\",\"epoch\":42,\"legs\":[{\"payer\":\"scraper.x207-circle.near\",\"payee\":\"translator.x207-circle.near\",\"max_amount\":\"5000000\"},{\"payer\":\"summarizer.x207-circle.near\",\"payee\":\"scraper.x207-circle.near\",\"max_amount\":\"40000000\"},{\"payer\":\"translator.x207-circle.near\",\"payee\":\"summarizer.x207-circle.near\",\"max_amount\":\"55000000\"}],\"search_leg\":{\"payer\":\"scraper.x207-circle.near\",\"payee\":\"translator.x207-circle.near\"}}",
+  "termsHash": "19398c6b085493e1daa2316dcccfd6c6418cc34bfb2ed54d39a1f610a8edf1dc",
+  "signingHash": "5f3db6467eb3f8d4ad67fb4dca2860d9e32fdd7c50e43b12fda610e84ffe2b3c",
+  "participants": {
+    "translator.x207-circle.near": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+    "summarizer.x207-circle.near": "ed25519:9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
+    "scraper.x207-circle.near": "ed25519:GyGKxMyg1p9SsHfm15MkNUu1u9TN2JtTspcdmrtGUdse"
+  },
+  "signatures": [
+    {
+      "account": "translator.x207-circle.near",
+      "signature": "ed25519:2QzoWWHKKbGrPWcaR3BMxwuk7KVGf6pMpGMU6yD8ZBfbxtxhzaRHNgYLZkv6ihzujSVYKj7US1DaGGpRjcboHPaM"
+    },
+    {
+      "account": "summarizer.x207-circle.near",
+      "signature": "ed25519:2NM4AbrQ2wLT432Zg5jEADXN7JFagCQqozmLcsQ8EFcq2yprE1p72VFGS1UwZSL5z1aJWUpW3URnhKPn6FJERWDB"
+    },
+    {
+      "account": "scraper.x207-circle.near",
+      "signature": "ed25519:3zvRVoYhjUERNKRjPVqinNgXVXe8wB8zexnLQCgzTBhYhhePtm8EQbFiQHLZ6HVhUiE3yihET5bQkGc1q7NymiUm"
+    }
+  ]
+}

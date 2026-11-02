@@ -45,6 +45,22 @@ writeFileSync(`${out}bundle_abca.json`, JSON.stringify({
   participants: Object.fromEntries(Object.entries(participants).map(([account, k]) => [account, voucherPublicKey(seed(k))])),
   signatures: Object.entries(participants).map(([account, k]) => signBundle(terms, account, seed(k))),
 }, null, 2) + "\n");
+// Bundle dengan leg pencari (SD-047, interface 0.0.5): cincin 55 + 40 + 5 credit, leg C -> A (5 dari 100 = 500 bps) ditandai `search_leg`.
+// Kunci `search_leg` terakhir di JSON kanonik; bundle tanpa `search_leg` (bundle_abca) tidak berubah.
+const searchTerms = {
+  circle: CIRCLE, epoch: 42,
+  legs: [
+    { payer: C, payee: A, max_amount: "5000000" },
+    { payer: B, payee: C, max_amount: "40000000" },
+    { payer: A, payee: B, max_amount: "55000000" },
+  ],
+  search_leg: { payer: C, payee: A },
+};
+writeFileSync(`${out}bundle_search.json`, JSON.stringify({
+  circle: CIRCLE, terms: searchTerms, message: serializeBundleTerms(searchTerms), termsHash: termsHash(searchTerms), signingHash: hex(bundleSigningHash(searchTerms)),
+  participants: Object.fromEntries(Object.entries(participants).map(([account, k]) => [account, voucherPublicKey(seed(k))])),
+  signatures: Object.entries(participants).map(([account, k]) => signBundle(searchTerms, account, seed(k))),
+}, null, 2) + "\n");
 // Listing dan penawaran (SD-055). Andi (translator) menawarkan jasa 100 credit, diskon 10%, mencari jasa 100 credit.
 const listing = {
   circle: CIRCLE, account: A,

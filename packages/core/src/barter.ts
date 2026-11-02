@@ -39,8 +39,14 @@ export type BarterIntent = {
   nonce: string;
 };
 
-/** Syarat bundle yang disetujui semua pihak: `terms_hash` dihitung dari bentuk kanoniknya. */
-export type BundleTerms = { circle: AccountId; epoch: number; legs: BundleLeg[] };
+/** Leg pencari F9 (interface 0.0.5): pasangan (payer, payee) yang merupakan salah satu leg bundle; kontrak membatasinya dengan `max_search_share_bps`. */
+export type SearchLeg = { payer: AccountId; payee: AccountId };
+
+/**
+ * Syarat bundle yang disetujui semua pihak: `terms_hash` dihitung dari bentuk kanoniknya. `search_leg` opsional (SD-047, interface 0.0.5):
+ * bila ada, kuncinya terakhir di JSON kanonik; bila tidak ada (atau `null`), bytes dan `terms_hash` sama dengan format sebelum 0.0.5.
+ */
+export type BundleTerms = { circle: AccountId; epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg | null };
 
 function checkSide(side: BarterSide, name: string): void {
   if (typeof side !== "object" || side === null) throw new BarterFormatError(`${name} harus objek`);
@@ -75,6 +81,11 @@ export function validateBundleTerms(terms: BundleTerms): void {
     if (seen.has(key)) throw new BarterFormatError(`pasangan ${key} muncul dua kali`);
     seen.add(key);
   }
+  const search = terms.search_leg;
+  if (search !== undefined && search !== null) {
+    if (typeof search !== "object" || !isAccount(search.payer) || !isAccount(search.payee)) throw new BarterFormatError("search_leg harus {payer, payee} akun NEAR");
+    if (!seen.has(`${search.payer}>${search.payee}`)) throw new BarterFormatError("search_leg bukan salah satu leg bundle");
+  }
 }
 
 /** JSON kanonik intent: key `circle, account, offer{service,calls,value}, need{...}, expiresAt, nonce`, tanpa spasi. */
@@ -87,13 +98,17 @@ export function serializeIntent(intent: BarterIntent): string {
   });
 }
 
-/** JSON kanonik syarat bundle: `circle, epoch, legs[{payer,payee,max_amount}]`; leg diurutkan menurut (payer, payee). */
+/** JSON kanonik syarat bundle: `circle, epoch, legs[{payer,payee,max_amount}]` lalu `search_leg{payer,payee}` bila diisi; leg diurutkan menurut (payer, payee). */
 export function serializeBundleTerms(terms: BundleTerms): string {
   validateBundleTerms(terms);
   const legs = [...terms.legs]
     .sort((a, b) => byBytes(a.payer, b.payer) || byBytes(a.payee, b.payee))
     .map((l) => ({ payer: l.payer, payee: l.payee, max_amount: l.max_amount }));
-  return JSON.stringify({ circle: terms.circle, epoch: terms.epoch, legs });
+  const search = terms.search_leg;
+  return JSON.stringify({
+    circle: terms.circle, epoch: terms.epoch, legs,
+    ...(search !== undefined && search !== null ? { search_leg: { payer: search.payer, payee: search.payee } } : {}),
+  });
 }
 
 const sha256 = (text: string): Uint8Array => createHash("sha256").update(text, "utf8").digest();

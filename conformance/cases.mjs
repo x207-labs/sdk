@@ -41,6 +41,17 @@ export function loadCases() {
   const swapped = bundle.terms.legs.map((leg, i) => (i === 0 ? { ...leg, max_amount: String(BigInt(leg.max_amount) + 1n) } : leg));
   add("bundle/verify-tampered", "bundle.verify", { terms: { ...bundle.terms, legs: swapped }, signature: bundle.signatures[0].signature, publicKey: bundle.participants[bundle.signatures[0].account] }, { valid: false });
 
+  // Bundle dengan search_leg (SD-047, interface 0.0.5): kunci terakhir; hash sama dengan yang dihitung kontrak
+  const searched = json("barter/bundle_search.json");
+  add("bundle-search/message", "bundle.message", { terms: searched.terms }, searched.message);
+  add("bundle-search/termsHash", "bundle.termsHash", { terms: searched.terms }, searched.termsHash);
+  add("bundle-search/signingHash", "bundle.signingHash", { terms: searched.terms }, searched.signingHash);
+  for (const s of searched.signatures) {
+    add(`bundle-search/verify/${s.account}`, "bundle.verify", { terms: searched.terms, signature: s.signature, publicKey: searched.participants[s.account] }, { valid: true });
+  }
+  const { search_leg: dropped, ...withoutSearch } = searched.terms;
+  add("bundle-search/verify-without-search_leg", "bundle.verify", { terms: withoutSearch, signature: searched.signatures[0].signature, publicKey: searched.participants[searched.signatures[0].account] }, { valid: false });
+
   // Listing dan penawaran F9
   const listing = json("barter/listing.json");
   add("listing/message", "listing.message", { listing: listing.listing }, listing.message);
