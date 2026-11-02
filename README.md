@@ -104,4 +104,5 @@ Apache-2.0
 - [`epoch_length` dan waktu tunggu pembayaran](docs/epoch-length.md)
 - [Jaminan pembayaran untuk penjual](docs/seller-guarantees.md)
 - [Keamanan kunci voucher](docs/voucher-key-security.md)
+- [Proposal ke x402 Foundation (draf lokal, belum dikirim)](docs/x402-foundation/README.md)
 - Suite conformance untuk implementasi lain: [`conformance/`](conformance/README.md) (`npm run conformance`)
