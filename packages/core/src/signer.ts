@@ -10,6 +10,8 @@ export type NearSenderOptions = {
   accountId: string;
   /** Kunci akses akun (`ed25519:...`), bukan kunci voucher. */
   secretKey: `ed25519:${string}`;
+  /** Dipanggil dengan hash tiap transaksi yang selesai (untuk log demo). */
+  onTx?: (info: { methodName: string; hash: string }) => void;
 };
 
 /** Kesalahan transaksi dengan kode `ERR_*` kontrak bila ada. */
@@ -42,6 +44,7 @@ export function createNearSender(options: NearSenderOptions): (call: ContractCal
         gas: call.gas ?? DEFAULT_GAS,
         waitUntil: "FINAL",
       });
+      options.onTx?.({ methodName: call.methodName, hash: (result as unknown as { transaction: { hash: string } }).transaction.hash });
       const final = (result as unknown as { status?: { SuccessValue?: string } }).status;
       return final?.SuccessValue ? JSON.parse(Buffer.from(final.SuccessValue, "base64").toString("utf8")) : undefined;
     } catch (error) {

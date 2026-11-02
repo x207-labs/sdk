@@ -31,6 +31,8 @@ export type NearRelayOptions = {
   relayer: { accountId: AccountId; privateKey: string };
   /** Dipanggil dengan log semua receipt tiap transaksi yang selesai (mis. untuk event `voucher_registered`). */
   onLogs?: (logs: string[]) => void;
+  /** Dipanggil dengan hash tiap transaksi registrasi yang dikirim. */
+  onHash?: (hash: string) => void;
 };
 
 export class NearRegistrationChain implements RegistrationChain {
@@ -62,6 +64,7 @@ export class NearRegistrationChain implements RegistrationChain {
       signed_tx_base64: Buffer.from(encodeTransaction(signed)).toString("base64"),
       wait_until: "FINAL",
     });
+    this.options.onHash?.(String((result as { transaction?: { hash?: string } }).transaction?.hash ?? ""));
     this.options.onLogs?.([result.transaction_outcome?.outcome, ...(result.receipts_outcome ?? []).map((r) => r.outcome)].flatMap((o) => o?.logs ?? []));
     const failure = transactionFailure(result);
     if (failure) throw new Error(failure);
