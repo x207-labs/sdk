@@ -1,12 +1,18 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.3";
+export const X207_CIRCLE_ABI_VERSION = "0.0.4";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "3acbe96760c103ea1f083bb6760f3fe17e1768ec067ed408d9452fbba727edd2";
+export const X207_CIRCLE_ABI_SHA256 = "24985852b9bb35e2baf405f27ded83347c7204695552aef8f1cdf7ae6c3439ff";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type Admission = "open" | "dao";
+export type BundleInput = { "epoch": number; "legs": BundleLeg[] };
+export type BundleLeg = { "max_amount": string; "payee": string; "payer": string };
+export type BundleLegView = { "max_amount": string; "payee": string; "payer": string; "registered": string };
+export type BundleSignature = { "account_id": string; "signature": string };
+export type BundleStatus = "active";
+export type BundleView = { "bundle_id": number; "epoch": number; "legs": BundleLegView[]; "status": BundleStatus; "terms_hash": string };
 export type CircleConfig = { "circle_id": string; "contract_id": string; "decimals": number; "intents_id": string; "member_count": number; "network": string; "owner_id": string; "unit": string; "usdt_token_id": string };
 export type ClaimDestination = "near" | "intents";
 export type ClearingEdge = { "cleared": string; "creditor": string; "debtor": string };
@@ -14,6 +20,7 @@ export type ClearingProposal = { "cleared_total": string; "committed": boolean; 
 export type EpochPhaseView = "open" | "cutoff" | "clearing" | "commit" | "payment_window" | "finalized";
 export type EpochView = { "closed_at"?: string | null; "committed_at"?: string | null; "cutoff_at": string; "edge_count": number; "epoch": number; "finalized_at"?: string | null; "opened_at": string; "params": Params; "participant_count": number; "payment_deadline"?: string | null; "phase": EpochPhaseView; "pool": string; "proposal_deadline"?: string | null; "shortfall": string; "total_cleared": string; "total_obligation": string };
 export type Fees = { "clearing_fee_bps": number; "solver_fee_bps": number };
+export type IntentView = { "account_id": string; "intent_hash": string; "posted_at": string };
 export type MemberStatus = "pending" | "active" | "suspended" | "exited";
 export type MemberView = { "account_id": string; "admitted": boolean; "exit_requested_epoch"?: number | null; "joined_at": string; "last_active_epoch": number; "limit": string; "pubkey_voucher": string; "settled_history": string; "stake": string; "status": MemberStatus; "terms_hash": string };
 export type ObligationView = { "cleared": string; "creditor": string; "cumulative": string; "debtor": string; "epoch": number; "last_seq": number; "obligation": string };
@@ -32,9 +39,11 @@ export type Voucher = { "circle": string; "cumulativeAmount": string; "epoch": n
 
 /** View: `args` = argumen JSON, `result` = nilai kembalian. */
 export type CircleViews = {
+  "get_bundle": { args: { "bundle_id": number }; result: BundleView | null };
   "get_circle": { args: Record<string, never>; result: CircleConfig };
   "get_clearing_proposal": { args: { "epoch": number }; result: ClearingProposal | null };
   "get_epoch": { args: { "epoch"?: number | null }; result: EpochView | null };
+  "get_intent": { args: { "intent_hash": string }; result: IntentView | null };
   "get_owner": { args: Record<string, never>; result: string };
   "get_params": { args: Record<string, never>; result: Params };
   "get_pending_params": { args: Record<string, never>; result: PendingParams | null };
@@ -62,6 +71,7 @@ export type CircleCalls = {
   "claim": { args: { "epoch": number; "destination": ClaimDestination }; result: Promise; payable: true };
   "claim_solver_fee": { args: Record<string, never>; result: Promise; payable: true };
   "close_epoch": { args: { "epoch": number }; result: void };
+  "commit_bundle": { args: { "bundle": BundleInput; "signatures": BundleSignature[] }; result: number };
   "commit_epoch": { args: { "epoch": number }; result: void };
   "finalize_epoch": { args: { "epoch": number }; result: void };
   "ft_on_transfer": { args: { "sender_id": string; "amount": string; "msg": string }; result: PromiseOrValueString };
@@ -71,8 +81,10 @@ export type CircleCalls = {
   "on_claim_resolved": { args: { "epoch": number; "account_id": string; "amount": string; "destination": ClaimDestination }; result: string; private: true };
   "on_solver_fee_resolved": { args: { "account_id": string; "amount": string }; result: string; private: true };
   "on_withdraw_resolved": { args: { "account_id": string; "amount": string }; result: boolean; private: true };
+  "post_intent": { args: { "intent_hash": string }; result: void };
   "propose_upgrade": { args: { "code_hash": string }; result: void };
   "register_cumulative": { args: { "voucher": Voucher; "signature": string }; result: string };
+  "register_in_bundle": { args: { "bundle_id": number; "voucher": Voucher; "signature": string }; result: string };
   "register_voucher": { args: { "voucher": Voucher; "signature": string }; result: string };
   "request_exit": { args: Record<string, never>; result: void; payable: true };
   "set_params": { args: { "params": Params }; result: void };
@@ -80,8 +92,8 @@ export type CircleCalls = {
   "withdraw_stake": { args: Record<string, never>; result: PromiseOrValueBoolean; payable: true };
 };
 
-export const CIRCLE_VIEW_METHODS = ["get_circle","get_clearing_proposal","get_epoch","get_owner","get_params","get_pending_params","get_pool","get_upgrade","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
-export const CIRCLE_CALL_METHODS = ["admit_member","apply_upgrade","claim","claim_solver_fee","close_epoch","commit_epoch","finalize_epoch","ft_on_transfer","join","migrate","new","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","propose_upgrade","register_cumulative","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
+export const CIRCLE_VIEW_METHODS = ["get_bundle","get_circle","get_clearing_proposal","get_epoch","get_intent","get_owner","get_params","get_pending_params","get_pool","get_upgrade","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
+export const CIRCLE_CALL_METHODS = ["admit_member","apply_upgrade","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","finalize_epoch","ft_on_transfer","join","migrate","new","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","register_cumulative","register_in_bundle","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
 
 /** Nama event NEP-297 dan urutan field `data`-nya. */
 export const CIRCLE_EVENTS = {
@@ -108,6 +120,8 @@ export const CIRCLE_EVENTS = {
   "solver_fee_claim_failed": ["account_id","amount"],
   "upgrade_proposed": ["code_hash","eta"],
   "upgrade_applied": ["code_hash","applied_at"],
+  "intent_posted": ["intent_hash","account_id","posted_at"],
+  "bundle_committed": ["bundle_id","terms_hash","epoch","legs","solver"],
 } as const;
 
 export type CircleEventName = keyof typeof CIRCLE_EVENTS;

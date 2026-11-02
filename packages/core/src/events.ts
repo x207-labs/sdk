@@ -1,12 +1,12 @@
 // Parser event NEP-297 kontrak `x207-circle` (SD-011, Spec Antarmuka Kontrak bagian 6).
-// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.3","event":"<nama>","data":[{…}]}`.
+// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.4","event":"<nama>","data":[{…}]}`.
 import type { Params } from "./contract/types.generated.js";
 import type { AccountId, U128String } from "./types.js";
 
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.3";
+export const KNOWN_EVENT_VERSION = "0.0.4";
 
 export class EventParseError extends Error {
   constructor(message: string) {
@@ -78,6 +78,7 @@ export type X207EventMap = {
   member_reactivated: { account_id: AccountId; stake: U128String; limit: U128String; effective_epoch: number };
   solver_fee_claimed: { account_id: AccountId; amount: U128String };
   solver_fee_claim_failed: { account_id: AccountId; amount: U128String };
+  intent_posted: { intent_hash: string; account_id: AccountId; posted_at: string };
   upgrade_proposed: { code_hash: string; eta: string };
   upgrade_applied: { code_hash: string; applied_at: string };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
@@ -110,6 +111,7 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   member_reactivated: { account_id: "str", stake: "str", limit: "str", effective_epoch: "int" },
   solver_fee_claimed: { account_id: "str", amount: "str" },
   solver_fee_claim_failed: { account_id: "str", amount: "str" },
+  intent_posted: { intent_hash: "str", account_id: "str", posted_at: "str" },
   upgrade_proposed: { code_hash: "str", eta: "str" },
   upgrade_applied: { code_hash: "str", applied_at: "str" },
   voucher_registered: {

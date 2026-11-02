@@ -35,7 +35,7 @@ const contractsAbi = existsSync(CONTRACTS_REPO) ? committedContractsAbi() : null
 describe("SD-010 tipe client kontrak dari abi.json", () => {
   it("versi ABI yang dipin tertulis di sdk", () => {
     expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe(pinned.interface_version);
-    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.3");
+    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.4");
     expect(ContractAbi.X207_CIRCLE_ABI_SHA256).toBe(createHash("sha256").update(pinnedText).digest("hex"));
   });
 
