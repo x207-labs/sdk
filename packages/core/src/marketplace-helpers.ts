@@ -58,6 +58,11 @@ export type PlanInput = {
   /** Pencari otonom yang membawa tawaran ini, bila ada; jatahnya `searcherShareBps` dari nilai `offer` listing. */
   searcher?: AccountId;
   searcherShareBps?: number;
+  /**
+   * Lawan pemasang listing di utas ini. Default `offer.proposer`, benar bila yang diterima penawaran lawan; isi bila yang diterima
+   * penawaran balik pemasang (proposer = pemasang) supaya leg tetap antara pemasang dan lawan.
+   */
+  counterparty?: AccountId;
 };
 
 export type AcceptInput = PlanInput & {
@@ -90,7 +95,8 @@ export function planOffer(input: PlanInput): OfferPlan {
   if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("penawaran untuk listing lain");
   if (offer.circle !== listing.circle) throw new BarterFormatError("lingkaran penawaran berbeda");
   const seller = listing.account;
-  const counterparty = offer.proposer;
+  const counterparty = input.counterparty ?? offer.proposer;
+  if (counterparty === seller) throw new BarterFormatError("lawan tidak boleh sama dengan pemasang listing");
   const searcherShareBps = input.searcher ? (input.searcherShareBps ?? 0) : 0;
   const params = { value: listing.offer.value, discountBps: listing.discount_bps, searcherShareBps };
   let legs: BundleLeg[];

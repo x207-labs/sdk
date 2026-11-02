@@ -95,4 +95,13 @@ describe("SD-056 helper marketplace", () => {
     const pay = planOffer({ listing, offer: { ...offer, mode: "pay" }, epoch: 42 });
     expect(pay).toMatchObject({ kind: "payment", payer: LAWAN, payee: ANDI, amount: "90000000", discount: "10000000", searcher: "0" });
   });
+
+  it("planOffer atas penawaran balik pemasang memakai counterparty eksplisit, bukan proposer", () => {
+    const first = counterOffer({ listing, proposer: LAWAN, mode: "barter", value: "100000000", quantity: 5000, deliver_by: 1793300000, now: NOW }, seed("kB"));
+    const second = counterOffer({ listing, proposer: ANDI, mode: "barter", value: "95000000", quantity: 5000, deliver_by: 1793300000, previous: first.offer, now: NOW }, seed("kA"));
+    expect(() => planOffer({ listing, offer: second.offer, epoch: 42 })).toThrow(/lawan tidak boleh sama dengan pemasang/);
+    const viaFirst = planOffer({ listing, offer: first.offer, epoch: 42 });
+    const viaSecond = planOffer({ listing, offer: second.offer, epoch: 42, counterparty: LAWAN });
+    expect(viaSecond.kind === "bundle" && viaFirst.kind === "bundle" && viaSecond.terms_hash === viaFirst.terms_hash).toBe(true);
+  });
 });
