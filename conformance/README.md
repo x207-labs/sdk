@@ -35,4 +35,4 @@ Format rules are in `spec/voucher-format.md`, `spec/barter-format.md` and `spec/
 
 ## What it does not cover
 
-Network behavior (facilitator HTTP, contract calls, the listing book API) is not in this suite; those are covered by the integration tests in this repository. A language SDK (SD-059) passes this suite first and then the integration flows.
+Network behavior (facilitator HTTP, contract calls, the listing book API) is not in this suite; those are covered by the integration tests in this repository. A language SDK passes this suite first and then the integration flows. The Python SDK of `python/` (SD-059) passes the suite: `npm run conformance:python`.

@@ -19,7 +19,8 @@
     "test": "vitest run --passWithNoTests",
     "clean": "tsc -b --clean",
     "test:sandbox": "X207_SANDBOX=1 vitest run --passWithNoTests sandbox register.sandbox",
-    "conformance": "node conformance/run.mjs"
+    "conformance": "node conformance/run.mjs",
+    "conformance:python": "node conformance/run.mjs --cmd \"PYTHONPATH=python python3 -m x207.conformance_adapter\""
   },
   "devDependencies": {
     "@types/node": "26.6.6",

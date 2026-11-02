@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "x207"
+version = "0.0.1"
+description = "x207 formats in Python: voucher, barter intent, bundle terms with search_leg, listing, offer, referral. Standard library only."
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+readme = "README.md"
+dependencies = []
+
+[tool.setuptools]
+packages = ["x207"]
