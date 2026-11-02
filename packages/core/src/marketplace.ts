@@ -185,3 +185,27 @@ export function quickBarter(params: QuickBarterParams): QuickBarter {
   const { v, discount, searcher } = split(params);
   return { cashback: String(discount - searcher), searcher: String(searcher), sellerBears: String(discount), counterpartyGives: String(v) };
 }
+
+/** Pesan pembatalan listing yang ditandatangani pemasang: `x207:cancel_listing:<listing_hash>`. */
+export const cancelListingMessage = (hash: string): string => `x207:cancel_listing:${hash}`;
+
+function cancelSigningHash(listing: Listing): Uint8Array {
+  const message = cancelListingMessage(listingHash(listing));
+  return nep413SigningHash(message, sha256(message), listing.circle);
+}
+
+export const signCancelListing = (listing: Listing, secretKey: VoucherSecretKey): Ed25519Signature => signHash(cancelSigningHash(listing), secretKey);
+
+/** Hash penandatanganan pembatalan dari hash listing dan akun kontrak lingkaran (dipakai server yang hanya menyimpan hash). */
+export function cancelSigningHashFor(hash: string, circle: AccountId): Uint8Array {
+  const message = cancelListingMessage(hash);
+  return nep413SigningHash(message, sha256(message), circle);
+}
+
+export function verifyCancelSignature(hash: string, circle: AccountId, signature: string, publicKey: string): boolean {
+  try {
+    return verifyHash(cancelSigningHashFor(hash, circle), signature, publicKey);
+  } catch {
+    return false;
+  }
+}

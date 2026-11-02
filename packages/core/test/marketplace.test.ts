@@ -77,3 +77,14 @@ describe("SD-055 listing, penawaran, dan barter cepat", () => {
     }
   });
 });
+
+describe("pembatalan listing", () => {
+  it("tanda tangan pembatalan hanya sah untuk listing dan pemasang itu", async () => {
+    const { signCancelListing, verifyCancelSignature, listingHash: hashOf } = await import("@x207/core");
+    const listing = vector("listing").listing as Listing;
+    const signature = signCancelListing(listing, seed("kA"));
+    expect(verifyCancelSignature(hashOf(listing), listing.circle, signature, vector("listing").pubkey)).toBe(true);
+    expect(verifyCancelSignature(hashOf({ ...listing, nonce: "x" }), listing.circle, signature, vector("listing").pubkey)).toBe(false);
+    expect(verifyCancelSignature(hashOf(listing), listing.circle, signature, vector("listing").offerPubkey)).toBe(false);
+  });
+});
