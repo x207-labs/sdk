@@ -12,3 +12,4 @@ export * from "./contract/onboard.js";
 export * from "./contract/view.js";
 export * from "./barter.js";
 export * from "./marketplace.js";
+export * from "./marketplace-helpers.js";
