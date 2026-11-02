@@ -20,6 +20,11 @@ export type X207Extra = {
   unit: typeof CREDIT_UNIT;
   decimals: typeof CREDIT_DECIMALS;
   epoch: number;
+  /**
+   * Endpoint grant F8 (SD-053): grant yang dibayar. `payTo` tetap pemberi grant, bukan akun broker, dan `resource` voucher menjadi
+   * `x207:grant:<grantId>`.
+   */
+  grantId?: number;
 };
 
 export type UnsignedVoucher = {

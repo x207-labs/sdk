@@ -192,7 +192,7 @@ Facilitator MUST menjalankan 19 cek berikut berurutan dan berhenti di penolakan 
 | 3 | `accepted` sama persis dengan `paymentRequirements` dari server; `amount` string bilangan bulat > 0 | `invalid_payment_requirements` |
 | 4 | Payload lolos skema `X207Payload` | `invalid_payload` |
 | 5 | `voucher.circle = extra.circleContract =` konfigurasi | `circle_mismatch` |
-| 6 | `voucher.payee = accepted.payTo`, `unit = credit`, `resource` ASCII | `payee_mismatch` / `invalid_payload` |
+| 6 | `voucher.payee = accepted.payTo`, `unit = credit`, `resource` ASCII; bila `extra.grantId` ada, `resource` = `x207:grant:<grantId>` | `payee_mismatch` / `grant_resource_mismatch` / `invalid_payload` |
 | 7 | `voucher.payer != voucher.payee` | `self_payment` |
 | 8 | `voucher.epoch = extra.epoch =` epoch berjalan | `epoch_mismatch` |
 | 9 | `now < cutoff_at - flushLead` | `epoch_closing` |
@@ -241,6 +241,7 @@ Semua body `application/json`. Endpoint dipanggil resource server, bukan klien.
 | `invalid_payload` | Skema payload salah atau `unit` bukan `credit` | Perbaiki klien |
 | `circle_mismatch` | `circle` atau `extra.circleContract` tidak cocok dengan konfigurasi | Minta 402 baru |
 | `payee_mismatch` | `voucher.payee` != `payTo` | Perbaiki klien |
+| `grant_resource_mismatch` | `extra.grantId` ada tetapi `voucher.resource` bukan `x207:grant:<grantId>` (endpoint grant F8, SD-053) | Perbaiki klien |
 | `epoch_mismatch` | Epoch voucher bukan epoch berjalan | Minta 402 baru, reset state epoch |
 | `epoch_closing` | Sudah di jendela `flushLead` sebelum cutoff | Pakai `exact` atau tunggu epoch berikutnya |
 | `member_not_found`, `member_not_active`, `payee_not_active` | Anggota atau penjual tidak terdaftar atau tidak `active` | Pakai `exact` |

@@ -2,6 +2,7 @@
 // (Spec Binding x402 bagian 7, x402 v2 §7).
 import type { PaymentPayload, PaymentRequirements, VerifyResponse } from "@x402/core/types";
 import {
+  grantResource,
   validatePaymentRequirements,
   validateX207Payload,
   verifyVoucher,
@@ -92,6 +93,8 @@ export async function verifyPayment(
   }
   // 6 (unit dan resource ASCII sudah dijaga skema di cek 4)
   if (voucher.payee !== payTo) return reject("payee_mismatch", payer);
+  // endpoint grant F8 (SD-053): voucher membayar grant yang disebut requirements, bukan URL broker
+  if (extra.grantId !== undefined && voucher.resource !== grantResource(extra.grantId)) return reject("grant_resource_mismatch", payer);
   // 7
   if (voucher.payer === voucher.payee) return reject("self_payment", payer);
 

@@ -123,6 +123,7 @@ const checkExtra: Check = (value) => {
     ["unit", value.unit === CREDIT_UNIT, 'harus "credit"'],
     ["decimals", value.decimals === CREDIT_DECIMALS, "harus 6"],
     ["epoch", isSafeUint(value.epoch, 1), "harus integer >= 1"],
+    ["grantId", value.grantId === undefined || isSafeUint(value.grantId, 1), "harus integer >= 1 bila ada"],
   ]);
 };
 

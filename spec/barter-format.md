@@ -42,3 +42,11 @@ Bytes voucher tidak berubah. Pembayaran F2 ke penyedia yang merupakan leg bundle
 | Scheduler | Baris dengan `bundle_id` didaftarkan lewat `register_in_bundle(bundle_id, voucher, signature)`; `ERR_BUNDLE_LEG_EXCEEDED`, `ERR_BUNDLE_LEG`, `ERR_UNKNOWN_BUNDLE` menggugurkan baris (`bundle_leg_exceeded`, `not_a_bundle_leg`, `bundle_unknown`) |
 
 `verify` membaca blok final: bundle yang baru di-commit baru terlihat setelah finalitas, sebelum itu voucher leg ditolak `bundle_unknown` dan klien dapat mengulang.
+
+## Endpoint grant F8 (SD-053, interface 0.0.6)
+Endpoint yang melayani grant (broker M10) memakai alur F2 apa adanya dengan tiga aturan:
+- Server menaruh `grantId` (integer >= 1) di `extra` entri `batch-settlement` dan memakai `payTo` = **pemberi grant**, bukan akun broker (`x207Middleware`: `routes[...].grant(request)` mengembalikan `{ grantId, payTo }`, atau `undefined` untuk 404 `grant_not_found`). Entri `exact` tidak memuat `grantId`.
+- Klien menyusun voucher dengan `payee` = `payTo` dan `resource` = `x207:grant:<grantId>` (`grantResource`), bukan URL endpoint. Pasangan voucher tetap `(payer, payee, epoch)`, jadi headroom dan kliring tidak berubah.
+- Facilitator `verify`: `voucher.payee` != `payTo` tetap `payee_mismatch` (voucher ber-payee akun broker ditolak) dan `voucher.resource` != `x207:grant:<grantId>` ditolak `grant_resource_mismatch`.
+
+Vektor: [`test-vectors/grant/voucher_grant.json`](./test-vectors/grant/voucher_grant.json) (voucher sah, payee broker, resource URL, resource grant lain).

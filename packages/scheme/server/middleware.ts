@@ -15,7 +15,19 @@ export const RETRY_AFTER_SECONDS = 5;
 
 const RESYNC_REASONS = new Set(["seq_not_increasing", "cumulative_decreased", "amount_mismatch"]);
 
-export type X207RouteConfig = { price: string | number; description?: string; mimeType?: string };
+/** Grant yang dibayar sebuah request (SD-053): `payTo` = pemberi grant (bukan akun broker), `grantId` masuk `extra` dan `resource` voucher. */
+export type X207GrantContext = { grantId: number; payTo: AccountId };
+
+export type X207RouteConfig = {
+  price: string | number;
+  description?: string;
+  mimeType?: string;
+  /**
+   * Endpoint grant F8: menentukan grant dari request. `undefined` berarti grant tidak ada (404 `grant_not_found`). Tanpa ini `payTo` dari
+   * opsi middleware dipakai dan tidak ada `grantId`.
+   */
+  grant?: (request: Request) => X207GrantContext | undefined | Promise<X207GrantContext | undefined>;
+};
 
 export type X207MiddlewareOptions = {
   /** Kunci `"/path"` atau `"METHOD /path"`. Rute di luar daftar diteruskan ke handler tanpa 402. */
@@ -121,10 +133,19 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       ...(route.mimeType ? { mimeType: route.mimeType } : {}),
     };
 
+    let grant: X207GrantContext | undefined;
+    if (route.grant) {
+      grant = await route.grant(request);
+      if (grant === undefined) {
+        return new Response(JSON.stringify({ error: "grant_not_found" }), { status: 404, headers: { "content-type": "application/json" } });
+      }
+    }
+
     let accepts: PaymentRequirements[];
     try {
       accepts = await buildPaymentRequirements({
-        circleId: options.circleId, payTo: options.payTo, price: route.price, resource: request.url, extra,
+        circleId: options.circleId, payTo: grant?.payTo ?? options.payTo, price: route.price, resource: request.url, extra,
+        ...(grant ? { grantId: grant.grantId } : {}),
       });
     } catch (error) {
       return unavailable((error as Error).message);

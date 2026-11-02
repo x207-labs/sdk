@@ -10,6 +10,7 @@ import type {
 import {
   CREDIT_DECIMALS,
   CREDIT_UNIT,
+  grantResource,
   signVoucher,
   validatePaymentRequirements,
   type AccountId,
@@ -177,7 +178,8 @@ export class X207SchemeClient implements SchemeNetworkClient {
     const checked = validatePaymentRequirements(requirements);
     if (!checked.ok) throw new Error(`requirements x207 tidak sah: ${checked.field} ${checked.message}`);
     const { payTo, amount, extra } = checked.value;
-    const resource = this.resources.get(requirements);
+    // Endpoint grant (SD-053): resource voucher = `x207:grant:<grantId>`, payee = payTo pemberi (bukan akun broker yang melayani URL-nya)
+    const resource = extra.grantId === undefined ? this.resources.get(requirements) : grantResource(extra.grantId);
     if (resource === undefined) {
       throw new Error("resource.url tidak diketahui: buat payload lewat x402Client agar hook terpasang");
     }

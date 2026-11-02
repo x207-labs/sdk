@@ -79,6 +79,8 @@ export type BuildPaymentRequirementsOptions = {
   /** URL resource; dipakai middleware untuk `PaymentRequired.resource`, bukan bagian requirements. */
   resource?: string;
   extra: X207ExtraSource;
+  /** Endpoint grant F8 (SD-053): `extra.grantId` di entri x207; `payTo` harus pemberi grant, bukan akun broker. */
+  grantId?: number;
 };
 
 /** Entri `batch-settlement` `x207:<circleId>` lalu entri `exact` `near:mainnet` USDT (Spec Binding 5.3). */
@@ -97,7 +99,10 @@ export async function buildPaymentRequirements(
       asset: "USD",
       payTo: options.payTo,
       maxTimeoutSeconds: MAX_TIMEOUT_SECONDS,
-      extra: { circleContract: extra.circleContract, unit: extra.unit, decimals: extra.decimals, epoch: extra.epoch },
+      extra: {
+        circleContract: extra.circleContract, unit: extra.unit, decimals: extra.decimals, epoch: extra.epoch,
+        ...(options.grantId === undefined ? {} : { grantId: options.grantId }),
+      },
     },
     {
       scheme: "exact",
