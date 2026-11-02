@@ -22,6 +22,7 @@ function tsType(schema, where) {
     return match[1];
   }
   if (schema.anyOf !== undefined) return schema.anyOf.map((s, i) => tsType(s, `${where}.anyOf[${i}]`)).join(" | ");
+  if (schema.oneOf !== undefined) return schema.oneOf.map((s, i) => tsType(s, `${where}.oneOf[${i}]`)).join(" | ");
   if (schema.enum !== undefined) {
     if (schema.type !== "string") throw new Error(`${where}: enum non-string`);
     return schema.enum.map((v) => JSON.stringify(v)).join(" | ");
