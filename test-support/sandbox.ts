@@ -5,12 +5,13 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, parseNearAmount } from "near-api-js";
 import type { ContractCall } from "@x207/core";
 
-const contractsDir = resolve(fileURLToPath(new URL("../../contracts", import.meta.url)));
+// Tanpa `new URL(..., import.meta.url)`: Vite menulis ulang pola itu menjadi URL http saat test frontend (jsdom) memuat harness ini.
+const contractsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../contracts");
 export const CIRCLE_WASM = join(contractsDir, "target/near/x207_circle.wasm");
 export const MOCK_FT_WASM = join(contractsDir, "target/near/mock_ft/mock_ft.wasm");
 
