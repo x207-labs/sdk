@@ -277,7 +277,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(chain.calls[0]?.mode).toBe("cumulative");
     const config = loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}` });
     expect(config.registerMode).toBe("cumulative");
-    expect(() => loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}`, X207_REGISTER_MODE: "per_request" })).toThrow(/SD-029/);
+    expect(() => loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}`, X207_REGISTER_MODE: "per_request" })).toThrow(/butuh X207_RELAYER_ACCOUNT_ID/);
     expect(() => loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}`, X207_REGISTER_MODE: "nope" })).toThrow(/X207_REGISTER_MODE/);
   });
 

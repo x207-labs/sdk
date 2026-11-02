@@ -11,7 +11,18 @@ export const DEFAULT_REGISTER_THRESHOLD = 1_000_000n;
 export const BACKOFF_BASE_SECONDS = 5;
 export const BACKOFF_MAX_SECONDS = 60;
 
-export type RegisterMode = "cumulative";
+/**
+ * `cumulative` (default, ADR-17): satu `register_cumulative` per pasangan saat ambang terlewati. `per_request` (mode demo, SD-029):
+ * setiap `/settle` langsung mendaftarkan vouchernya dengan `register_voucher`.
+ */
+export type RegisterMode = "cumulative" | "per_request";
+
+/** Hasil `registerNow` (SD-029, SD-030): `retrying` berarti gagal sementara dan akan diulang; `failed` berarti baris dibuang. */
+export type RegisterOutcome =
+  | { status: "registered" }
+  | { status: "retrying"; code?: string; error: string }
+  | { status: "failed"; code: string; error: string }
+  | { status: "none" };
 
 /** Sisi kontrak yang dibutuhkan penjadwal; `register` melempar bila transaksi gagal. */
 export interface RegistrationChain {
@@ -88,6 +99,8 @@ export class RegistrationScheduler {
   readonly #flushLeadMs: number;
   #timer: ReturnType<typeof setInterval> | undefined;
   #running = false;
+  /** Registrasi yang sedang berjalan per pasangan, supaya `tick` dan `registerNow` tidak mengirim dua kali. */
+  readonly #inflight = new Map<string, Promise<RegisterOutcome | undefined>>();
 
   constructor(options: SchedulerOptions) {
     this.#opts = options;
@@ -141,9 +154,30 @@ export class RegistrationScheduler {
     return cutoff;
   }
 
-  async #process(row: PendingRow, cutoffs: Map<number, number | undefined>, result: TickResult): Promise<void> {
+  /**
+   * Mode demo `per_request` (SD-029): daftarkan baris pasangan ini sekarang, tanpa menunggu ambang. Dipanggil `/settle` dan
+   * menunggu sampai transaksi final; pemanggil yang menerapkan timeout (SD-030) tidak menghentikan registrasi ini.
+   */
+  async registerNow(key: { payer: AccountId; payee: AccountId; epoch: number }): Promise<RegisterOutcome> {
+    const row = this.#opts.store.get({ circleContract: this.#opts.circleContract, ...key });
+    if (!row || row.registeredSeq >= row.seq) return { status: row ? "registered" : "none" };
+    const result: TickResult = { registered: 0, retrying: 0, dropped: 0, failedAtCutoff: 0 };
+    const outcome = await this.#process(row, new Map(), result, true);
+    return outcome ?? { status: "retrying", error: "belum waktunya" };
+  }
+
+  #process(row: PendingRow, cutoffs: Map<number, number | undefined>, result: TickResult, force = false): Promise<RegisterOutcome | undefined> {
+    const id = `${row.payer}\u0000${row.payee}\u0000${row.epoch}`;
+    const running = this.#inflight.get(id);
+    if (running) return force ? running : Promise.resolve(undefined);
+    const attempt = this.#processRow(row, cutoffs, result, force).finally(() => this.#inflight.delete(id));
+    this.#inflight.set(id, attempt);
+    return attempt;
+  }
+
+  async #processRow(row: PendingRow, cutoffs: Map<number, number | undefined>, result: TickResult, force: boolean): Promise<RegisterOutcome | undefined> {
     const now = this.#now();
-    if (row.nextAttemptAt !== null && now < row.nextAttemptAt) return;
+    if (!force && row.nextAttemptAt !== null && now < row.nextAttemptAt) return undefined;
 
     const unregistered = BigInt(row.cumulativeAmount) - BigInt(row.registeredCumulative);
     const cutoff = await this.#cutoffMs(row.epoch, cutoffs, row);
@@ -153,24 +187,31 @@ export class RegistrationScheduler {
       this.#opts.store.markFailed(key, row.lastError ?? "cutoff");
       this.#log("registration_failed_until_cutoff", row, { risk: unregistered.toString(), error: row.lastError ?? undefined });
       result.failedAtCutoff += 1;
-      return;
+      return { status: "failed", code: "epoch_closing", error: row.lastError ?? "cutoff" };
     }
 
+    const mode = this.#opts.mode ?? "cumulative";
     const due =
-      row.attempts >= 1 || unregistered >= this.#threshold || (cutoff !== undefined && now >= cutoff - this.#flushLeadMs);
-    if (!due) return;
+      force || mode === "per_request" || row.attempts >= 1 || unregistered >= this.#threshold || (cutoff !== undefined && now >= cutoff - this.#flushLeadMs);
+    if (!due) return undefined;
 
     try {
-      const mode = this.#opts.mode ?? "cumulative";
-      if (row.bundleId === null) await this.#opts.chain.register(row.voucher, row.signature, mode);
-      else await this.#opts.chain.register(row.voucher, row.signature, mode, row.bundleId);
+      try {
+        if (row.bundleId === null) await this.#opts.chain.register(row.voucher, row.signature, mode);
+        else await this.#opts.chain.register(row.voucher, row.signature, mode, row.bundleId);
+      } catch (error) {
+        // `register_voucher` wajib `seq = last_seq + 1`; bila ada seq yang dilewati (voucher sebelumnya masih antre), pakai kumulatif.
+        if (mode !== "per_request" || row.bundleId !== null || contractErrorCode(error) !== "ERR_SEQ_GAP") throw error;
+        this.#log("per_request_fallback", row, { code: "seq_gap" });
+        await this.#opts.chain.register(row.voucher, row.signature, "cumulative");
+      }
     } catch (error) {
-      await this.#failed(row, key, error, result);
-      return;
+      return this.#failed(row, key, error, result);
     }
     this.#opts.store.recordRegistered(key, row.seq, row.cumulativeAmount);
     this.#log("registered", row, {});
     result.registered += 1;
+    return { status: "registered" };
   }
 
   async #failed(
@@ -178,7 +219,7 @@ export class RegistrationScheduler {
     key: Parameters<PendingStore["recordFailure"]>[0],
     error: unknown,
     result: TickResult,
-  ): Promise<void> {
+  ): Promise<RegisterOutcome> {
     const text = errorText(error);
     const mapped = ERROR_MAP[contractErrorCode(error) ?? ""];
 
@@ -194,7 +235,7 @@ export class RegistrationScheduler {
         this.#opts.store.recordRegistered(key, row.seq, row.cumulativeAmount);
         this.#log("registered", row, { code: "seq_not_increasing" });
         result.registered += 1;
-        return;
+        return { status: "registered" };
       }
     }
 
@@ -202,7 +243,7 @@ export class RegistrationScheduler {
       this.#opts.store.markFailed(key, `${mapped.code}: ${text}`);
       this.#log("registration_dropped", row, { code: mapped.code, error: text });
       result.dropped += 1;
-      return;
+      return { status: "failed", code: mapped.code, error: text };
     }
 
     const attempts = row.attempts + 1;
@@ -210,6 +251,7 @@ export class RegistrationScheduler {
     this.#opts.store.recordFailure(key, text, nextAttemptAt);
     this.#log("registration_retry", row, { code: mapped?.code, error: text, attempts, nextAttemptAt });
     result.retrying += 1;
+    return { status: "retrying", ...(mapped ? { code: mapped.code } : {}), error: text };
   }
 
   #log(event: string, row: PendingRow, extra: Partial<SchedulerLogEntry>): void {

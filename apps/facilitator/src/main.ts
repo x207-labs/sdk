@@ -21,14 +21,6 @@ const exactSigner = config.relayer
       rpcUrls: { [EXACT_NEAR_NETWORK]: config.rpcUrls[0]! },
     })
   : undefined;
-const service = createFacilitatorService({
-  circles: config.circles,
-  rpc,
-  pending,
-  ...(config.relayer ? { signers: [config.relayer.accountId] } : {}),
-  ...(exactSigner ? { exactSigner } : {}),
-});
-
 // Penjadwal registrasi (SD-028) jalan bila akun relayer dikonfigurasi; tanpa itu voucher hanya tersimpan di D3.
 const schedulers = config.relayer
   ? config.circles.map((circle) =>
@@ -42,6 +34,24 @@ const schedulers = config.relayer
   : [];
 if (schedulers.length === 0) console.warn("X207_RELAYER_ACCOUNT_ID kosong: voucher tidak diregistrasi on-chain");
 schedulers.forEach((scheduler) => scheduler.start());
+const byContract = new Map(schedulers.map((scheduler, i) => [config.circles[i]!.circleContract, scheduler]));
+const service = createFacilitatorService({
+  circles: config.circles,
+  rpc,
+  pending,
+  ...(config.relayer ? { signers: [config.relayer.accountId] } : {}),
+  ...(exactSigner ? { exactSigner } : {}),
+  // Mode demo SD-029: `/settle` menunggu registrasi on-chain, atau menjawab `settlement_pending` setelah timeout (SD-030).
+  ...(config.registerMode === "per_request"
+    ? {
+        perRequest: {
+          registerNow: async (circleContract: string, key: { payer: string; payee: string; epoch: number }) =>
+            (await byContract.get(circleContract)?.registerNow(key)) ?? { status: "none" as const },
+          timeoutMs: config.settleTimeoutMs,
+        },
+      }
+    : {}),
+});
 
 const server = serve({ fetch: createApp(service).fetch, port: config.port }, ({ port }) => {
   console.log(`x207 facilitator listening on :${port} (${config.circles.map((c) => c.network).join(", ")})`);

@@ -17,8 +17,10 @@ export type FacilitatorConfig = {
   /** Timeout panggilan RPC (ADR-25: 10 detik). */
   rpcTimeoutMs: number;
   pendingDbPath: string;
-  /** Mode registrasi: `cumulative` (default, ADR-17). `per_request` (SD-029) belum didukung. */
-  registerMode: "cumulative";
+  /** Mode registrasi: `cumulative` (default, ADR-17) atau `per_request` (mode demo, SD-029). */
+  registerMode: "cumulative" | "per_request";
+  /** Batas tunggu `/settle` untuk registrasi `per_request` sebelum menjawab `settlement_pending` (ADR-25: 10 detik). */
+  settleTimeoutMs: number;
   /** Akun relayer untuk `register_cumulative`; dipakai SD-028. */
   relayer?: { accountId: string; privateKey: string };
 };
@@ -66,9 +68,12 @@ export function loadConfig(env: Env = process.env): FacilitatorConfig {
   }
 
   const mode = env.X207_REGISTER_MODE;
-  if (mode === "per_request") throw new ConfigError("X207_REGISTER_MODE=per_request belum didukung (SD-029)");
-  if (mode !== undefined && mode !== "" && mode !== "cumulative") {
+  if (mode !== undefined && mode !== "" && mode !== "cumulative" && mode !== "per_request") {
     throw new ConfigError(`X207_REGISTER_MODE harus "cumulative" atau "per_request", dapat "${mode}"`);
+  }
+
+  if (mode === "per_request" && !accountId) {
+    throw new ConfigError("X207_REGISTER_MODE=per_request butuh X207_RELAYER_ACCOUNT_ID dan X207_RELAYER_PRIVATE_KEY");
   }
 
   return {
@@ -77,7 +82,8 @@ export function loadConfig(env: Env = process.env): FacilitatorConfig {
     rpcUrls,
     rpcTimeoutMs: parsePositiveInt(env, "RPC_TIMEOUT_MS", DEFAULT_RPC_TIMEOUT_MS),
     pendingDbPath: env.X207_PENDING_DB || "./pending.sqlite",
-    registerMode: "cumulative",
+    registerMode: mode === "per_request" ? "per_request" : "cumulative",
+    settleTimeoutMs: parsePositiveInt(env, "X207_SETTLE_TIMEOUT_MS", DEFAULT_RPC_TIMEOUT_MS),
     ...(accountId && privateKey ? { relayer: { accountId, privateKey } } : {}),
   };
 }
