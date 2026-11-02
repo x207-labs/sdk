@@ -1,0 +1,31 @@
+{
+  "params": {
+    "value": "100000000",
+    "discountBps": 1000,
+    "searcherShareBps": 300
+  },
+  "pay": {
+    "counterpartyPays": "93000000",
+    "sellerReceives": "90000000",
+    "searcher": "3000000",
+    "discount": "10000000"
+  },
+  "barter": {
+    "cashback": "7000000",
+    "searcher": "3000000",
+    "sellerBears": "10000000",
+    "counterpartyGives": "100000000"
+  },
+  "expected": {
+    "pay": {
+      "counterpartyPays": "93000000",
+      "sellerReceives": "90000000",
+      "searcher": "3000000"
+    },
+    "barter": {
+      "cashback": "7000000",
+      "searcher": "3000000",
+      "sellerBears": "10000000"
+    }
+  }
+}

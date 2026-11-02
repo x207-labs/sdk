@@ -3,7 +3,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  bundleSigningHash, intentHash, intentHashBase58, intentSigningHash, serializeBundleTerms, serializeIntent, signBundle,
+  bundleSigningHash, listingHash, listingHashBase58, listingSigningHash, offerHash, offerSigningHash, quickBarter, quickPay, serializeListing,
+  serializeOffer, signListing, signOffer, intentHash, intentHashBase58, intentSigningHash, serializeBundleTerms, serializeIntent, signBundle,
   signIntent, termsHash, voucherPublicKey,
 } from "../../packages/core/dist/index.js";
 
@@ -43,5 +44,27 @@ writeFileSync(`${out}bundle_abca.json`, JSON.stringify({
   circle: CIRCLE, terms, message: serializeBundleTerms(terms), termsHash: termsHash(terms), signingHash: hex(bundleSigningHash(terms)),
   participants: Object.fromEntries(Object.entries(participants).map(([account, k]) => [account, voucherPublicKey(seed(k))])),
   signatures: Object.entries(participants).map(([account, k]) => signBundle(terms, account, seed(k))),
+}, null, 2) + "\n");
+// Listing dan penawaran (SD-055). Andi (translator) menawarkan jasa 100 credit, diskon 10%, mencari jasa 100 credit.
+const listing = {
+  circle: CIRCLE, account: A,
+  offer: { asset_type: "translate-calls", asset_class: "D", quantity: 5000, value: "100000000" },
+  want: { asset_type: "summarize-calls", asset_class: "D", quantity: 5000, value: "100000000" },
+  terms: "delivery within 7 days", detail: "5000 translation calls, any language pair",
+  expires_at: 1793600000, discount_bps: 1000, accept_payment: true, discoverable: true, nonce: "l1",
+};
+const offer = { circle: CIRCLE, listing_hash: listingHash(listing), proposer: B, round: 1, mode: "barter", value: "100000000", quantity: 5000, deliver_by: 1793000000 };
+writeFileSync(`${out}listing.json`, JSON.stringify({
+  circle: CIRCLE, listing, message: serializeListing(listing), listingHash: listingHash(listing), listingHashBase58: listingHashBase58(listing),
+  signingHash: hex(listingSigningHash(listing)), pubkey: voucherPublicKey(seed("kA")), signature: signListing(listing, seed("kA")),
+  offer, offerMessage: serializeOffer(offer), offerHash: offerHash(offer), offerSigningHash: hex(offerSigningHash(offer)),
+  offerPubkey: voucherPublicKey(seed("kB")), offerSignature: signOffer(offer, seed("kB")),
+}, null, 2) + "\n");
+
+// Barter cepat dari note F9: A bernilai 100, diskon 10, jatah pencari 3 (angka ilustrasi; semuanya parameter).
+const params = { value: "100000000", discountBps: 1000, searcherShareBps: 300 };
+writeFileSync(`${out}quick_barter.json`, JSON.stringify({
+  params, pay: quickPay(params), barter: quickBarter(params),
+  expected: { pay: { counterpartyPays: "93000000", sellerReceives: "90000000", searcher: "3000000" }, barter: { cashback: "7000000", searcher: "3000000", sellerBears: "10000000" } },
 }, null, 2) + "\n");
 console.log("barter vectors ditulis");

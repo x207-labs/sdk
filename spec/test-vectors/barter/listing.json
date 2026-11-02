@@ -1,0 +1,47 @@
+{
+  "circle": "x207-circle.near",
+  "listing": {
+    "circle": "x207-circle.near",
+    "account": "translator.x207-circle.near",
+    "offer": {
+      "asset_type": "translate-calls",
+      "asset_class": "D",
+      "quantity": 5000,
+      "value": "100000000"
+    },
+    "want": {
+      "asset_type": "summarize-calls",
+      "asset_class": "D",
+      "quantity": 5000,
+      "value": "100000000"
+    },
+    "terms": "delivery within 7 days",
+    "detail": "5000 translation calls, any language pair",
+    "expires_at": 1793600000,
+    "discount_bps": 1000,
+    "accept_payment": true,
+    "discoverable": true,
+    "nonce": "l1"
+  },
+  "message": "{\"circle\":\"x207-circle.near\",\"account\":\"translator.x207-circle.near\",\"offer\":{\"asset_type\":\"translate-calls\",\"asset_class\":\"D\",\"quantity\":5000,\"value\":\"100000000\"},\"want\":{\"asset_type\":\"summarize-calls\",\"asset_class\":\"D\",\"quantity\":5000,\"value\":\"100000000\"},\"terms\":\"delivery within 7 days\",\"detail\":\"5000 translation calls, any language pair\",\"expires_at\":1793600000,\"discount_bps\":1000,\"accept_payment\":true,\"discoverable\":true,\"nonce\":\"l1\"}",
+  "listingHash": "2f4f3bc3a4c63f350a33dc0e8bdbd90cdfe5a6b03767cad4fb214f006e6f6c5e",
+  "listingHashBase58": "4BgEhnnU1XE9xQmAGdhehDGn98cEbyJvoXs1AVW1YaFP",
+  "signingHash": "95dbf7283685c13bf4361d12997422da121fcfde971cf1db1055567cf08f8abc",
+  "pubkey": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
+  "signature": "ed25519:4pdjmQqGZ3pPHjadnnSzGBQUueeLRG2m7igTYqdyZTnSMFa8MUTxq6DQF4tyBNH7NYsqVWBtBMm6p3tkBr5FGwwu",
+  "offer": {
+    "circle": "x207-circle.near",
+    "listing_hash": "2f4f3bc3a4c63f350a33dc0e8bdbd90cdfe5a6b03767cad4fb214f006e6f6c5e",
+    "proposer": "summarizer.x207-circle.near",
+    "round": 1,
+    "mode": "barter",
+    "value": "100000000",
+    "quantity": 5000,
+    "deliver_by": 1793000000
+  },
+  "offerMessage": "{\"circle\":\"x207-circle.near\",\"listing_hash\":\"2f4f3bc3a4c63f350a33dc0e8bdbd90cdfe5a6b03767cad4fb214f006e6f6c5e\",\"proposer\":\"summarizer.x207-circle.near\",\"round\":1,\"mode\":\"barter\",\"value\":\"100000000\",\"quantity\":5000,\"deliver_by\":1793000000}",
+  "offerHash": "a77013b91ae1ab54c31440deefcb19a174b623e80fa45adc2bcabbe5f60e4938",
+  "offerSigningHash": "238806e03975466fbf2f902d2aec5cf0b033b4e793fb3fea47094a8522634ff6",
+  "offerPubkey": "ed25519:9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu",
+  "offerSignature": "ed25519:2NjyCCTMztrpbzWtQwzjmiUgfdAKjnYdJwHtXXY2duYQrZHCqxkqB1xaDxv3U5AyNdSkhG3N9B6JcASV6PFAaSPF"
+}
