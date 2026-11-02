@@ -1,12 +1,15 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.5";
+export const X207_CIRCLE_ABI_VERSION = "0.0.6";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "211326c19fb3c94f8fa5292ed51d92bce32b54dc96ee32aed8215ea774f90d3a";
+export const X207_CIRCLE_ABI_SHA256 = "9530ebaaf01e2a177a851cc16adbf65ca693ab85a0376835efa6af61fcdda872";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
+export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };
 export type Admission = "open" | "dao";
+export type AssetClass = "A" | "B" | "C" | "D" | "X";
+export type AssetClassEntry = { "accepted_proofs": string[]; "asset_type": string; "class": AssetClass; "delivery_methods": string[]; "terms_hash": string };
 export type BundleInput = { "epoch": number; "legs": BundleLeg[]; "search_leg"?: SearchLeg | null };
 export type BundleLeg = { "max_amount": string; "payee": string; "payer": string };
 export type BundleLegView = { "max_amount": string; "payee": string; "payer": string; "registered": string };
@@ -20,6 +23,10 @@ export type ClearingProposal = { "cleared_total": string; "committed": boolean; 
 export type EpochPhaseView = "open" | "cutoff" | "clearing" | "commit" | "payment_window" | "finalized";
 export type EpochView = { "closed_at"?: string | null; "committed_at"?: string | null; "cutoff_at": string; "edge_count": number; "epoch": number; "finalized_at"?: string | null; "opened_at": string; "params": Params; "participant_count": number; "payment_deadline"?: string | null; "phase": EpochPhaseView; "pool": string; "proposal_deadline"?: string | null; "shortfall": string; "total_cleared": string; "total_obligation": string };
 export type Fees = { "clearing_fee_bps": number; "solver_fee_bps": number };
+export type GrantInput = { "asset_type": string; "delivery_method": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "unit": string; "unit_price": string };
+export type GrantLimits = { "expires_at": string; "quota"?: string | null; "scope": string };
+export type GrantRole = "grantor" | "grantee";
+export type GrantStatus = "offered" | "active" | "revoked" | "expired";
 export type IntentView = { "account_id": string; "intent_hash": string; "posted_at": string };
 export type MemberStatus = "pending" | "active" | "suspended" | "exited";
 export type MemberView = { "account_id": string; "admitted": boolean; "exit_requested_epoch"?: number | null; "joined_at": string; "last_active_epoch": number; "limit": string; "pubkey_voucher": string; "settled_history": string; "stake": string; "status": MemberStatus; "terms_hash": string };
@@ -40,20 +47,24 @@ export type Voucher = { "circle": string; "cumulativeAmount": string; "epoch": n
 
 /** View: `args` = argumen JSON, `result` = nilai kembalian. */
 export type CircleViews = {
+  "get_asset_class": { args: { "asset_type": string }; result: AssetClassEntry | null };
   "get_bundle": { args: { "bundle_id": number }; result: BundleView | null };
   "get_circle": { args: Record<string, never>; result: CircleConfig };
   "get_clearing_proposal": { args: { "epoch": number }; result: ClearingProposal | null };
   "get_epoch": { args: { "epoch"?: number | null }; result: EpochView | null };
+  "get_grant": { args: { "grant_id": number }; result: AccessGrant | null };
   "get_intent": { args: { "intent_hash": string }; result: IntentView | null };
   "get_owner": { args: Record<string, never>; result: string };
   "get_params": { args: Record<string, never>; result: Params };
   "get_pending_params": { args: Record<string, never>; result: PendingParams | null };
   "get_pool": { args: Record<string, never>; result: PoolView };
   "get_upgrade": { args: Record<string, never>; result: UpgradeView | null };
+  "grants_of": { args: { "account_id": string; "role": GrantRole }; result: AccessGrant[] };
   "headroom": { args: { "account_id": string }; result: string };
   "interface_version": { args: Record<string, never>; result: string };
   "last_seq": { args: { "payer": string; "payee": string; "epoch": number }; result: number };
   "limit": { args: { "account_id": string }; result: string };
+  "list_asset_classes": { args: { "from_index": number; "limit": number }; result: AssetClassEntry[] };
   "list_members": { args: { "from_index": number; "limit": number }; result: MemberView[] };
   "list_obligations": { args: { "epoch": number; "from_index": number; "limit": number }; result: ObligationView[] };
   "list_positions": { args: { "epoch": number; "from_index": number; "limit": number }; result: PositionView[] };
@@ -67,6 +78,7 @@ export type CircleViews = {
 
 /** Call: transaksi. `payable`, `init`, `private` dari modifier ABI. */
 export type CircleCalls = {
+  "accept_grant": { args: { "grant_id": number; "delivery_pubkey"?: string | null }; result: void };
   "admit_member": { args: { "account_id": string }; result: void };
   "apply_upgrade": { args: Record<string, never>; result: Promise };
   "claim": { args: { "epoch": number; "destination": ClaimDestination }; result: Promise; payable: true };
@@ -79,6 +91,7 @@ export type CircleCalls = {
   "join": { args: { "circle_id": string; "pubkey_voucher": string; "terms_hash": string }; result: MemberView; payable: true };
   "migrate": { args: Record<string, never>; result: void; init: true; private: true };
   "new": { args: { "owner_id": string; "circle_id": string; "usdt_token_id": string; "intents_id": string; "params"?: Params | null }; result: void; init: true };
+  "offer_grant": { args: { "input": GrantInput }; result: number };
   "on_claim_resolved": { args: { "epoch": number; "account_id": string; "amount": string; "destination": ClaimDestination }; result: string; private: true };
   "on_solver_fee_resolved": { args: { "account_id": string; "amount": string }; result: string; private: true };
   "on_withdraw_resolved": { args: { "account_id": string; "amount": string }; result: boolean; private: true };
@@ -88,13 +101,14 @@ export type CircleCalls = {
   "register_in_bundle": { args: { "bundle_id": number; "voucher": Voucher; "signature": string }; result: string };
   "register_voucher": { args: { "voucher": Voucher; "signature": string }; result: string };
   "request_exit": { args: Record<string, never>; result: void; payable: true };
+  "set_asset_class": { args: { "asset_type": string; "entry": AssetClassEntry }; result: void };
   "set_params": { args: { "params": Params }; result: void };
   "submit_clearing": { args: { "epoch": number; "edges": ClearingEdge[] }; result: string };
   "withdraw_stake": { args: Record<string, never>; result: PromiseOrValueBoolean; payable: true };
 };
 
-export const CIRCLE_VIEW_METHODS = ["get_bundle","get_circle","get_clearing_proposal","get_epoch","get_intent","get_owner","get_params","get_pending_params","get_pool","get_upgrade","headroom","interface_version","last_seq","limit","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
-export const CIRCLE_CALL_METHODS = ["admit_member","apply_upgrade","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","finalize_epoch","ft_on_transfer","join","migrate","new","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","register_cumulative","register_in_bundle","register_voucher","request_exit","set_params","submit_clearing","withdraw_stake"] as const;
+export const CIRCLE_VIEW_METHODS = ["get_asset_class","get_bundle","get_circle","get_clearing_proposal","get_epoch","get_grant","get_intent","get_owner","get_params","get_pending_params","get_pool","get_upgrade","grants_of","headroom","interface_version","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
+export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_upgrade","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","finalize_epoch","ft_on_transfer","join","migrate","new","offer_grant","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","register_cumulative","register_in_bundle","register_voucher","request_exit","set_asset_class","set_params","submit_clearing","withdraw_stake"] as const;
 
 /** Nama event NEP-297 dan urutan field `data`-nya. */
 export const CIRCLE_EVENTS = {
@@ -122,6 +136,9 @@ export const CIRCLE_EVENTS = {
   "upgrade_proposed": ["code_hash","eta"],
   "upgrade_applied": ["code_hash","applied_at"],
   "intent_posted": ["intent_hash","account_id","posted_at"],
+  "asset_class_set": ["asset_type","class"],
+  "grant_offered": ["grant_id","asset_type","grantor","class","unit","unit_price","expires_at"],
+  "grant_activated": ["grant_id","grantee","delivery_pubkey"],
   "bundle_committed": ["bundle_id","terms_hash","epoch","legs","solver"],
 } as const;
 
