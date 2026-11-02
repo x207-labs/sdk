@@ -3,7 +3,7 @@
 
 export const X207_CIRCLE_ABI_VERSION = "0.0.6";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "9530ebaaf01e2a177a851cc16adbf65ca693ab85a0376835efa6af61fcdda872";
+export const X207_CIRCLE_ABI_SHA256 = "060ece06247df9ac22e90662a3c156d4590fbbcc38951de6824dc9677f37ba14";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };
@@ -40,6 +40,7 @@ export type PositionView = { "account_id": string; "amount": string; "epoch": nu
 export type Promise = unknown;
 export type PromiseOrValueBoolean = boolean;
 export type PromiseOrValueString = string;
+export type RevokeReason = "grantor" | "grantee" | "operator" | "expired" | "defaulted";
 export type SearchLeg = { "payee": string; "payer": string };
 export type SimulationResult = { "better_than_current": boolean; "cleared_total": string; "edge_count": number; "reason"?: string | null; "valid": boolean };
 export type UpgradeView = { "code_hash": string; "eta": string };
@@ -101,6 +102,7 @@ export type CircleCalls = {
   "register_in_bundle": { args: { "bundle_id": number; "voucher": Voucher; "signature": string }; result: string };
   "register_voucher": { args: { "voucher": Voucher; "signature": string }; result: string };
   "request_exit": { args: Record<string, never>; result: void; payable: true };
+  "revoke_grant": { args: { "grant_id": number; "reason": RevokeReason }; result: void };
   "set_asset_class": { args: { "asset_type": string; "entry": AssetClassEntry }; result: void };
   "set_params": { args: { "params": Params }; result: void };
   "submit_clearing": { args: { "epoch": number; "edges": ClearingEdge[] }; result: string };
@@ -108,7 +110,7 @@ export type CircleCalls = {
 };
 
 export const CIRCLE_VIEW_METHODS = ["get_asset_class","get_bundle","get_circle","get_clearing_proposal","get_epoch","get_grant","get_intent","get_owner","get_params","get_pending_params","get_pool","get_upgrade","grants_of","headroom","interface_version","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
-export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_upgrade","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","finalize_epoch","ft_on_transfer","join","migrate","new","offer_grant","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","register_cumulative","register_in_bundle","register_voucher","request_exit","set_asset_class","set_params","submit_clearing","withdraw_stake"] as const;
+export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_upgrade","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","finalize_epoch","ft_on_transfer","join","migrate","new","offer_grant","on_claim_resolved","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","register_cumulative","register_in_bundle","register_voucher","request_exit","revoke_grant","set_asset_class","set_params","submit_clearing","withdraw_stake"] as const;
 
 /** Nama event NEP-297 dan urutan field `data`-nya. */
 export const CIRCLE_EVENTS = {
@@ -139,6 +141,7 @@ export const CIRCLE_EVENTS = {
   "asset_class_set": ["asset_type","class"],
   "grant_offered": ["grant_id","asset_type","grantor","class","unit","unit_price","expires_at"],
   "grant_activated": ["grant_id","grantee","delivery_pubkey"],
+  "grant_revoked": ["grant_id","reason"],
   "bundle_committed": ["bundle_id","terms_hash","epoch","legs","solver"],
 } as const;
 
