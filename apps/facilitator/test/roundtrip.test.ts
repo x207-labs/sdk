@@ -278,6 +278,31 @@ describe("SD-033 round-trip x402", () => {
     expect(sig(w, recovered).extensions.x207).toMatchObject({ seq: 2, cumulativeAmount: "40000" });
   });
 
+  it("TC-SD-033-11 setelah registrasi sukses, settle yang sama dijawab registration registered", async () => {
+    const w = makeWorld();
+    const headers: string[] = [];
+    const spy = (async (input: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(input, init);
+      const header = request.headers.get("PAYMENT-SIGNATURE");
+      if (header) headers.push(header);
+      return w.routed()(request);
+    }) as typeof fetch;
+    const chain: RegistrationChain = {
+      register: async () => {},
+      lastSeq: async () => 0,
+      getEpoch: async () => ({ epoch: 42, cutoff_at: String(BigInt(CUTOFF_MS) * 1_000_000n) } as ContractAbi.EpochView),
+    };
+    const scheduler = new RegistrationScheduler({ circleContract: CIRCLE, store: w.pending, chain, now: () => w.clock.now, log: () => {}, registerThreshold: 1n });
+    const response = await wrapFetchWithPayment(spy, w.buyer(A, SEED("kA")).client)(URL_);
+    expect(sig(w, response).extensions.x207.registration).toBe("pending");
+    await scheduler.tick();
+    expect(w.pending.get(key(A))).toMatchObject({ state: "registered", registeredSeq: 1 });
+
+    const payload = w.decode(headers[0]!);
+    const again = await w.service.settle({ x402Version: 2, paymentPayload: payload, paymentRequirements: payload.accepted });
+    expect(again).toMatchObject({ success: true, extensions: { x207: { seq: 1, registration: "registered" } } });
+  });
+
   it("TC-SD-033-12 ganti epoch: tantangan baru memuat extra.epoch 43 dan voucher seq 1", async () => {
     const w = makeWorld();
     const { fetch: paid } = w.buyer(A, SEED("kA"));
