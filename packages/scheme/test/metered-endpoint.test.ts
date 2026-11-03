@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_MAX_QUANTITY, METERED_KINDS, METERED_PRESETS, METERED_UNITS, MeterRejection, createMeteredEndpoint, type MeteredKind } from "@x207/scheme";
+import { DEFAULT_MAX_QUANTITY, METERED_KINDS, METERED_PRESETS, METERED_UNITS, estimateMeteredAmount, resourceListingDetail, type MeteredKind } from "@x207/core";
+import { MeterRejection, createMeteredEndpoint, meterAmount } from "@x207/scheme";
 import { B, EXTRA, REQ, facilitator, payloadOf, required, sign } from "./helpers/middleware-fixtures.js";
 
 const mount = (endpoint: ReturnType<typeof createMeteredEndpoint>) => {
@@ -85,5 +86,17 @@ describe("SD-064 createMeteredEndpoint", () => {
     for (const bad of ["http://gpu.example.com", "https://u:p@gpu.example.com", "https://gpu.example.com/run?api_key=1", "https://gpu.example.com/#x", "nope"]) {
       expect(reject(() => e.listingDetail(bad)), bad).toMatch(/endpoint/);
     }
+  });
+
+  it("TC-SD-064-07 the presets and the cost estimate live in core (the frontend does not load the server): the estimate equals the amount the server asks, and the detail is the same", () => {
+    for (const [price, quantity] of [["20000", "2.5"], ["3", "0.5"], ["1", "0.000001"], ["1500000", "1"], ["7", "1000"]] as const) {
+      expect(estimateMeteredAmount(price, quantity), `${price} x ${quantity}`).toBe(meterAmount(price, BigInt(Math.round(Number(quantity) * 1_000_000))));
+    }
+    expect(estimateMeteredAmount("20000", "abc")).toBeNull();
+    expect(estimateMeteredAmount("20000", "0")).toBeNull();
+    expect(estimateMeteredAmount("0", "1")).toBeNull();
+    const e = createMeteredEndpoint({ kind: "storage", unitPrice: 0.02, handler: () => new Response() });
+    expect(resourceListingDetail({ kind: "storage", unit: "GB", unitPriceAtomic: "20000", endpoint: "https://s.example.com/x" })).toBe(e.listingDetail("https://s.example.com/x"));
+    expect(() => resourceListingDetail({ kind: "storage", unit: "GB", unitPriceAtomic: "20000", endpoint: "http://s.example.com" })).toThrow(/https/);
   });
 });
