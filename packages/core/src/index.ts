@@ -14,4 +14,5 @@ export * from "./barter.js";
 export * from "./marketplace.js";
 export * from "./marketplace-helpers.js";
 export * from "./access.js";
+export * from "./asset-templates.js";
 export * from "./access-key.js";

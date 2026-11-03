@@ -42,6 +42,21 @@ export type EscrowView = Abi.EscrowView;
 export const escrowGrantScope = (nftContract: AccountId, tokenId: string): string => JSON.stringify({ nft_contract: nftContract, token_id: tokenId });
 
 /**
+ * Titipan NFT pemberi grant kelas A: `nft_transfer_call` NEP-171 di kontrak NFT ke kontrak lingkaran dengan `msg` `{"grant_id":N}` (tanpa `action`, beda dengan token),
+ * deposit 1 yoctoNEAR. Hanya NFT dan kontrak yang tertulis di scope (`escrowGrantScope`) yang diterima (`ERR_ESCROW_NFT_MISMATCH`).
+ */
+export function buildNftEscrowDepositCall(input: { circleContract: AccountId; nftContract: AccountId; tokenId: string; grantId: GrantId }): ContractCall {
+  if (!Number.isSafeInteger(input.grantId) || input.grantId < 1) throw new AccessGrantError(`grantId harus bilangan bulat >= 1, dapat ${input.grantId}`);
+  if (input.tokenId.length < 1 || input.tokenId.length > 128) throw new AccessGrantError("tokenId harus 1 sampai 128 byte");
+  return {
+    receiverId: input.nftContract,
+    methodName: "nft_transfer_call",
+    args: { receiver_id: input.circleContract, token_id: input.tokenId, msg: JSON.stringify({ grant_id: input.grantId }) },
+    deposit: 1n,
+  };
+}
+
+/**
  * Escrow kelas A untuk token fungible NEP-141 (interface 0.0.10, CT-090): jumlah persis yang dipegang kontrak lingkaran. Hasil view `get_ft_escrow`; `null`
  * bila grant tidak punya escrow token. Token dengan biaya transfer tidak didukung: kontrak memegang jumlah yang benar-benar tiba, dan jumlah itu harus
  * sama dengan `amount` di `limits.scope`, jadi titipan dari token berbiaya ditolak.
