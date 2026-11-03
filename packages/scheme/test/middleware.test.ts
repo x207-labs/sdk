@@ -114,5 +114,49 @@ describe("SD-017 middleware server", () => {
     const { run } = setup({ supportedFails: true });
     expect((await run()).status).toBe(503);
   });
-});
 
+  it("TC-SD-017-30 one voucher pays one request at a time: parallel requests with one voucher serve the resource once (R1)", async () => {
+    const { fetchMock } = facilitator();
+    const middleware = x207Middleware({
+      routes: { "/api/summarize": { price: "$0.02" } }, facilitatorUrl: "http://facilitator.test", circleId: "agents-main", payTo: B,
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    const slow = vi.fn(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+      return new Response("served", { status: 200 });
+    });
+    const headers = sign(payloadOf());
+    const responses = await Promise.all(Array.from({ length: 5 }, () => middleware(new Request(URL_, { headers }), slow)));
+    expect(responses.filter((r) => r.status === 200)).toHaveLength(1);
+    expect(slow).toHaveBeenCalledTimes(1);
+    const refused = responses.filter((r) => r.status === 409);
+    expect(refused).toHaveLength(4);
+    expect(await refused[0]!.json()).toMatchObject({ error: "voucher_in_flight" });
+  });
+
+  it("TC-SD-017-31 the voucher is given back after the request, also when the handler fails or the facilitator is down; another voucher is never blocked", async () => {
+    const { fetchMock } = facilitator();
+    const middleware = x207Middleware({
+      routes: { "/api/summarize": { price: "$0.02" } }, facilitatorUrl: "http://facilitator.test", circleId: "agents-main", payTo: B,
+      fetch: fetchMock as unknown as typeof fetch,
+    });
+    const failing = vi.fn(async () => new Response("boom", { status: 500 }));
+    const ok = vi.fn(async () => new Response("served", { status: 200 }));
+    const headers = sign(payloadOf());
+    expect((await middleware(new Request(URL_, { headers }), failing)).status).toBe(500);
+    expect((await middleware(new Request(URL_, { headers }), ok)).status).toBe(200); // the failed handler made no obligation, so the same voucher may be tried again
+    expect((await middleware(new Request(URL_, { headers: sign(payloadOf(REQ, 2)) }), ok)).status).toBe(200);
+    const down = setup({ supportedFails: true });
+    expect((await down.run(sign(payloadOf()))).status).toBe(503);
+    expect((await down.run(sign(payloadOf()))).status).toBe(503); // 503 again, not 409: the failed request gave the voucher back
+  });
+
+  it("TC-SD-017-32 an injected guard decides: a shared store can say that the voucher is held elsewhere", async () => {
+    const taken: string[] = [];
+    const guard = { acquire: (id: string) => (taken.push(id), false), release: () => undefined };
+    const { run, handler } = setup({}, { inFlight: guard });
+    expect((await run(sign(payloadOf()))).status).toBe(409);
+    expect(taken).toEqual([`${A}:${B}:42:1`]);
+    expect(handler).not.toHaveBeenCalled();
+  });
+});

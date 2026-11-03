@@ -29,6 +29,30 @@ export type X207RouteConfig = {
   grant?: (request: Request) => X207GrantContext | undefined | Promise<X207GrantContext | undefined>;
 };
 
+/**
+ * One voucher pays one request at a time (security review 2, finding R1). `/verify` reserves nothing and `/settle` answers success again to a
+ * payload it already holds, so n parallel requests with one voucher would all pass `/verify`, run the handler n times and settle. The middleware
+ * therefore takes the commitment id (`payer:payee:epoch:seq`) before `/verify` and gives it back after `/settle`; a second request with the same
+ * id gets 409 `voucher_in_flight` and the handler does not run. After `/settle` the facilitator refuses the voucher itself (`seq_not_increasing`).
+ *
+ * The default guard lives in the memory of one process. With several seller processes the guard must be shared (a store with an atomic
+ * set-if-absent), or requests with one payer must go to one process; otherwise a replay across processes is still possible inside the time
+ * between `/verify` and `/settle`.
+ */
+export interface InFlightGuard {
+  /** `false` when the id is already held. */
+  acquire(id: string): boolean | Promise<boolean>;
+  release(id: string): void | Promise<void>;
+}
+
+export function memoryInFlightGuard(): InFlightGuard {
+  const held = new Set<string>();
+  return {
+    acquire: (id) => (held.has(id) ? false : (held.add(id), true)),
+    release: (id) => void held.delete(id),
+  };
+}
+
 export type X207MiddlewareOptions = {
   /** Kunci `"/path"` atau `"METHOD /path"`. Rute di luar daftar diteruskan ke handler tanpa 402. */
   routes: Record<string, X207RouteConfig>;
@@ -39,6 +63,8 @@ export type X207MiddlewareOptions = {
   timeoutMs?: number;
   /** Menggantikan sumber `extra` bawaan (cache `/supported`, 60 detik). */
   extra?: X207ExtraSource;
+  /** Guard of vouchers in flight; bawaan: in memory, one process (see `InFlightGuard`). */
+  inFlight?: InFlightGuard;
 };
 
 export type NextHandler = (request: Request) => Response | Promise<Response>;
@@ -82,6 +108,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
   const timeoutMs = options.timeoutMs ?? FACILITATOR_TIMEOUT_MS;
   const base = options.facilitatorUrl.replace(/\/+$/, "");
   const extra = options.extra ?? new X207ExtraSource({ facilitatorUrl: base, fetch: fetchFn });
+  const inFlight = options.inFlight ?? memoryInFlightGuard();
 
   async function call(path: string, init?: RequestInit): Promise<any> {
     let response: Response;
@@ -165,6 +192,18 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
     if (!requirements) return paymentRequiredResponse(resource, accepts, "invalid_payload");
     const body = { x402Version: 2, paymentPayload: payload, paymentRequirements: requirements };
 
+    const voucher = isRecord(payload.payload) && isRecord(payload.payload.voucher) ? payload.payload.voucher : undefined;
+    const commitment =
+      voucher !== undefined && ["payer", "payee"].every((k) => typeof voucher[k] === "string") && ["epoch", "seq"].every((k) => Number.isSafeInteger(voucher[k]))
+        ? `${voucher.payer}:${voucher.payee}:${voucher.epoch}:${voucher.seq}`
+        : undefined;
+    if (commitment !== undefined && !(await inFlight.acquire(commitment))) {
+      return new Response(JSON.stringify({ error: "voucher_in_flight", message: `voucher ${commitment} is already paying a request` }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
     try {
       const verdict = await post("/verify", body);
       if (!verdict?.isValid) {
@@ -187,6 +226,8 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
     } catch (error) {
       if (error instanceof FacilitatorUnavailable) return unavailable(error.message);
       throw error;
+    } finally {
+      if (commitment !== undefined) await inFlight.release(commitment);
     }
   };
 }
