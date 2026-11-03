@@ -203,7 +203,7 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
       scope = mtEscrowGrantScope(mt, token, amt);
       deposit = (circle, grantId) => buildMtEscrowDepositCall({ circleContract: circle, mtContract: mt, tokenId: token, amount: amt, grantId });
       Object.assign(meta, { mt_contract: mt, token_id: token, amount: amt, ...(input.label !== undefined ? { label: ascii(input.label, "label", 80) } : {}) });
-      warnings.push(FEE_WARNING, "Saldo Intents adalah multi-token milik penerbit lintas chain; hanya kontrak mock yang diuji (belum intents.near asli).");
+      warnings.push(FEE_WARNING, "Saldo Intents adalah multi-token milik penerbit lintas chain; hanya kontrak mock yang diuji (belum kontrak Intents yang asli).");
       break;
     }
     case "pool-share": {

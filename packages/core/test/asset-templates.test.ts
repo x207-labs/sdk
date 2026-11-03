@@ -135,7 +135,7 @@ describe("SD-061 templates of batch 1 (catalog 1 to 10)", () => {
     expect(code({ ...intents, amount: "0" })).toBe("bad_amount");
     expect(code({ kind: "pool-share", pool: "P", standard: "erc20" as never, ...mt, ...base })).toBe("pool_standard");
     expect(code({ kind: "pool-share", pool: "P", standard: "nep245", ...mt, tokenId: "", ...base })).toBe("bad_token_id");
-    expect(buildAssetTemplate(intents, NOW).warnings.join(" ")).toContain("intents.near asli");
+    expect(buildAssetTemplate(intents, NOW).warnings.join(" ")).toContain("kontrak Intents yang asli");
   });
 
   it("TC-SD-061-07 no secret in a listing, ASCII only, detail within 2048, and an unknown kind is refused", () => {
