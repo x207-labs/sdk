@@ -140,6 +140,8 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
       if (input.kind === "ticket") {
         const { name, startsAt, endsAt } = input.event;
         meta.event = { name: ascii(name, "event.name", 80), starts_at: seconds(startsAt, "event.startsAt"), ends_at: seconds(endsAt, "event.endsAt") };
+        // one key for every kind that has a time limit (BE-049 reads `valid_until`); for a ticket it is the end of the event
+        meta.valid_until = endsAt;
         if (endsAt <= startsAt) fail("bad_expiry", "event.endsAt harus setelah event.startsAt");
         if (endsAt <= now) fail("ticket_event_over", "acara sudah selesai: tiket tidak bisa dilisting");
         if (input.expiresAt > endsAt) fail("ticket_offer_after_event", "penawaran tidak boleh berlaku sampai setelah acara selesai");

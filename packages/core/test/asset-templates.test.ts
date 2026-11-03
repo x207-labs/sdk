@@ -105,6 +105,10 @@ describe("SD-061 templates of batch 1 (catalog 1 to 10)", () => {
     expect(formatTokenAmount("2500000", 6)).toBe("2.5");
     expect(formatTokenAmount("5", 6)).toBe("0.000005");
     expect(formatTokenAmount("1000", 0)).toBe("1000");
+    // every kind with a time limit has the same key `valid_until`: the end of the event for a ticket, the validity of a coupon
+    const ticketMeta = JSON.parse(buildAssetTemplate(VALID.ticket!, NOW).detail);
+    expect(ticketMeta.valid_until).toBe(ticketMeta.event.ends_at);
+    expect(JSON.parse(buildAssetTemplate(VALID.coupon!, NOW).detail).valid_until).toBe(NOW + 30 * DAY);
     expect(buildAssetTemplate(VALID.ft!, NOW).detail).toContain('"display":"2.5 TKN"');
     const cases: Array<[string, AssetInput, AssetTemplateErrorCode]> = [
       ["amount 0", { kind: "ft", ...ft, amount: "0", ...base }, "bad_amount"],
