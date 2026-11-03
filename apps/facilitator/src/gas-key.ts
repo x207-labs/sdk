@@ -12,6 +12,17 @@ const TRANSACTION_V1_PREFIX = 1;
 const NONCE_GAS_KEY = 1;
 const NONCE_MODE_MONOTONIC = 0;
 export const MAX_GAS_KEY_LANES = 1024;
+/** Longest time one use of a lane may take, for the nonce read and for the work together (security review 3, L1). */
+export const GAS_KEY_LANE_TIMEOUT_MS = 60_000;
+
+const withTimeout = <T>(promise: Promise<T>, ms: number, what: string): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`gas key lane: ${what} took longer than ${ms} ms`)), ms);
+    promise.then(
+      (value) => (clearTimeout(timer), resolve(value)),
+      (error) => (clearTimeout(timer), reject(error)),
+    );
+  });
 
 class Writer {
   readonly chunks: Buffer[] = [];
@@ -109,7 +120,9 @@ export class GasKeyLanes {
   readonly #waiting: Array<() => void> = [];
   #next = 0;
 
-  constructor(readonly count: number) {
+  /** `timeoutMs`: a read of the nonce or a `work` that takes longer fails and gives the lane back (the nonce of the lane is then read again). */
+  constructor(readonly count: number, readonly timeoutMs: number = GAS_KEY_LANE_TIMEOUT_MS) {
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new Error("timeout jalur gas key harus bilangan bulat positif");
     if (!Number.isInteger(count) || count < 1 || count > MAX_GAS_KEY_LANES) throw new Error(`jumlah jalur gas key harus 1..${MAX_GAS_KEY_LANES}`);
     this.#busy = new Array<boolean>(count).fill(false);
     this.#nonce = new Array<bigint | undefined>(count).fill(undefined);
@@ -119,10 +132,10 @@ export class GasKeyLanes {
   async run<T>(readNonce: (lane: number) => Promise<bigint>, work: (lane: number, nonce: bigint) => Promise<T>): Promise<T> {
     const lane = await this.#acquire();
     try {
-      let last = this.#nonce[lane];
-      if (last === undefined) last = await readNonce(lane);
       try {
-        const result = await work(lane, last + 1n);
+        let last = this.#nonce[lane];
+        if (last === undefined) last = await withTimeout(readNonce(lane), this.timeoutMs, "reading the nonce");
+        const result = await withTimeout(work(lane, last + 1n), this.timeoutMs, "the work");
         this.#nonce[lane] = last + 1n;
         return result;
       } catch (error) {
