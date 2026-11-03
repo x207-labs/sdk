@@ -152,3 +152,69 @@ describe("SD-061 templates of batch 1 (catalog 1 to 10)", () => {
     for (const input of Object.values(VALID)) expect(buildAssetTemplate(input, NOW).detail).not.toMatch(/"(code|secret|password|api_?key)":/i);
   });
 });
+
+describe("SD-066 template fixes from the cross review of batch 1 (X1, X3, X5, X6)", () => {
+  const usdt = "usdt.tether-token.near";
+  const build = (input: AssetInput, options?: { circleUsdt?: string }) => buildAssetTemplate(input, NOW, options);
+  const codeWith = (input: AssetInput, options?: { circleUsdt?: string }): string | undefined => {
+    try {
+      build(input, options);
+      return undefined;
+    } catch (error) {
+      return error instanceof AssetTemplateError ? error.code : `other: ${String(error)}`;
+    }
+  };
+
+  it("TC-SD-066-01 [X1] a token id must be printable ASCII for every kind that carries one", () => {
+    expect(code({ kind: "nft", nftContract: "nft.near", tokenId: "tök-1", ...base })).toBe("bad_token_id");
+    expect(code({ kind: "nft", nftContract: "nft.near", tokenId: "tab\there", ...base })).toBe("bad_token_id");
+    expect(code({ kind: "intents-balance", mtContract: "intents.near", tokenId: "nep141:tök.near", amount: "1", ...base })).toBe("bad_token_id");
+    expect(code({ kind: "pool-share", pool: "P", standard: "nep245", mtContract: "amm.near", tokenId: "poöl", amount: "1", ...base })).toBe("bad_token_id");
+    expect(code({ kind: "nft", nftContract: "nft.near", tokenId: "Tok-1_a.b:c", ...base })).toBeUndefined();
+  });
+
+  it("TC-SD-066-02 [X3] decimals and symbol that differ from ft_metadata are refused; the same values pass; no metadata gives a warning", () => {
+    for (const kind of ["ft", "rwa", "lst"] as const) {
+      const input = { ...VALID[kind], metadata: { decimals: 6, symbol: "TKN" } } as AssetInput;
+      expect(codeWith(input), kind).toBeUndefined();
+      expect(codeWith({ ...input, metadata: { decimals: 2, symbol: "TKN" } } as AssetInput), kind).toBe("ft_metadata_mismatch");
+      expect(codeWith({ ...input, metadata: { decimals: 6, symbol: "USDC" } } as AssetInput), kind).toBe("ft_metadata_mismatch");
+      expect(build(input).warnings.join(" ")).not.toMatch(/belum diperiksa terhadap token/);
+      expect(build(VALID[kind]!).warnings.join(" ")).toMatch(/Desimal dan simbol belum diperiksa terhadap token/);
+    }
+    const share = { kind: "pool-share", pool: "P", standard: "nep141", ...ft, ...base } as AssetInput;
+    expect(codeWith({ ...share, metadata: { decimals: 18, symbol: "TKN" } } as AssetInput)).toBe("ft_metadata_mismatch");
+    expect(codeWith({ ...share, metadata: { decimals: 6, symbol: "TKN" } } as AssetInput)).toBeUndefined();
+  });
+
+  it("TC-SD-066-03 [X5] a secret written as text in a free text field is refused, even when the text is longer than the field", () => {
+    const key = `ed25519:${"5".repeat(88)}`;
+    const texts = [`my key ${key}`, "password=hunter2", "api_key: sk_live_4eC39HqLyjWDarjtT1zdp7dc", "token ghp_16C7e42F292c6912E7710c838347Ae178B4a", "redeem code SAVE50-ABCD-1234 at checkout", "SAVE50-ABCD-1234"];
+    for (const text of texts) {
+      expect(code({ ...(VALID.nft as Extract<AssetInput, { kind: "nft" }>), name: text }), text).toBe("secret_in_listing");
+      expect(code({ ...(VALID.coupon as Extract<AssetInput, { kind: "coupon" }>), description: text }), text).toBe("secret_in_listing");
+      expect(code({ ...(VALID["intents-balance"] as Extract<AssetInput, { kind: "intents-balance" }>), label: text }), text).toBe("secret_in_listing");
+    }
+    // harmless text, an ordinary product name with a hash, and a pool name are not secrets
+    expect(code({ ...(VALID.coupon as Extract<AssetInput, { kind: "coupon" }>), description: "20 percent off at the store" })).toBeUndefined();
+    expect(code(VALID.license!)).toBeUndefined();
+    expect(code(VALID["pool-share"]!)).toBeUndefined();
+  });
+
+  it("TC-SD-066-04 [X6] the USDT of the circle is refused as the token of a fungible escrow and as an Intents balance, before the grant", () => {
+    for (const kind of ["ft", "rwa", "lst"] as const) {
+      expect(codeWith({ ...VALID[kind], ftContract: usdt } as AssetInput, { circleUsdt: usdt }), kind).toBe("circle_usdt");
+      expect(codeWith({ ...VALID[kind], ftContract: usdt } as AssetInput), kind).toBeUndefined();
+      expect(codeWith(VALID[kind]!, { circleUsdt: usdt }), kind).toBeUndefined();
+    }
+    expect(codeWith({ kind: "pool-share", pool: "P", standard: "nep141", ...ft, ftContract: usdt, ...base } as AssetInput, { circleUsdt: usdt })).toBe("circle_usdt");
+    expect(codeWith(VALID["intents-balance"]!, { circleUsdt: usdt })).toBe("circle_usdt");
+    expect(codeWith({ ...(VALID["intents-balance"] as Extract<AssetInput, { kind: "intents-balance" }>), tokenId: "nep141:other.near" }, { circleUsdt: usdt })).toBeUndefined();
+  });
+
+  it("TC-SD-066-05 [X4] the warning of an RWA listing says that the circle keeps its own list and points to listings/check", () => {
+    const w = build(VALID.rwa!).warnings.join(" ");
+    expect(w).toMatch(/daftar lingkaran/);
+    expect(w).toMatch(/listings\/check/);
+  });
+});

@@ -14,7 +14,7 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 export type AssetTemplateErrorCode =
   | "bad_kind" | "bad_account" | "bad_token_id" | "bad_amount" | "bad_decimals" | "bad_price" | "bad_expiry" | "bad_text" | "detail_too_long"
   | "ticket_event_over" | "ticket_offer_after_event" | "coupon_expired" | "coupon_offer_after_validity" | "license_terms_hash" | "license_seats"
-  | "rwa_not_whitelisted" | "intents_token_id" | "pool_standard" | "secret_in_listing";
+  | "rwa_not_whitelisted" | "intents_token_id" | "pool_standard" | "secret_in_listing" | "ft_metadata_mismatch" | "circle_usdt";
 
 export class AssetTemplateError extends Error {
   constructor(readonly code: AssetTemplateErrorCode, message: string) {
@@ -45,7 +45,8 @@ type Common = {
   expiresAt: number;
 };
 type NftRef = { nftContract: AccountId; tokenId: string };
-type FtRef = { ftContract: AccountId; amount: U128String; decimals: number; symbol: string };
+/** `metadata`: hasil `ft_metadata`; bila ada, desimal dan simbol harus sama dengan ketikan pemilik (SD-066, X3). */
+type FtRef = { ftContract: AccountId; amount: U128String; decimals: number; symbol: string; metadata?: FtMetadata };
 type MtRef = { mtContract: AccountId; tokenId: string; amount: U128String };
 
 export type AssetInput =
@@ -87,7 +88,10 @@ const fail = (code: AssetTemplateErrorCode, message: string): never => {
 
 const account = (value: string, name: string): AccountId =>
   value.length >= 2 && value.length <= 64 && ACCOUNT.test(value) ? value : fail("bad_account", `${name} bukan akun NEAR: ${JSON.stringify(value)}`);
-const tokenId = (value: string): string => (value.length >= 1 && value.length <= 128 ? value : fail("bad_token_id", "token_id harus 1 sampai 128 byte"));
+// ASCII only (SD-066, X1): the listing format (`validateListing`) accepts only printable ASCII in the detail, so a token id with another character would pass the grant and the
+// deposit and then be refused as a listing, with the asset held in escrow until the grant expires.
+const tokenId = (value: string): string =>
+  value.length >= 1 && value.length <= 128 && /^[\x20-\x7e]+$/.test(value) ? value : fail("bad_token_id", "token_id harus teks ASCII 1 sampai 128 karakter");
 const amount = (value: string): U128String =>
   AMOUNT.test(value) && BigInt(value) <= U128_MAX ? value : fail("bad_amount", `amount harus bilangan bulat desimal > 0 (satuan terkecil token), dapat ${JSON.stringify(value)}`);
 const ascii = (value: string, name: string, max: number): string =>
@@ -103,6 +107,44 @@ export function formatTokenAmount(atomic: U128String, decimals: number): string 
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
+/** Hal yang hanya diketahui pemanggil (lingkaran dan token), disuntik supaya template tetap murni. */
+export type AssetTemplateOptions = {
+  /** USDT milik lingkaran (SD-066, X6): kontrak menolak titipannya (`ERR_ESCROW_USDT`), jadi template menolaknya lebih awal. */
+  circleUsdt?: AccountId;
+};
+
+/** Hasil `ft_metadata` token (SD-066, X3): desimal dan simbol dibandingkan dengan ketikan pemilik. */
+export type FtMetadata = { decimals: number; symbol: string };
+
+const METADATA_WARNING = "Desimal dan simbol belum diperiksa terhadap token (ft_metadata): tampilan jumlah memakai ketikan pemilik, jadi desimal yang salah membuat jumlah tampil salah dari jumlah satuan terkecil yang dititipkan.";
+
+/** Teks bebas yang tidak boleh berisi rahasia (SD-066, X5): kunci privat, kata sandi, kunci API, token layanan, dan kode kupon. Heuristik, bukan jaminan. */
+const SECRET_TEXT: RegExp[] = [
+  /\b(?:ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{20,}/,
+  /\b(?:password|passwd|passphrase|secret|api[_-]?key|private[_-]?key|seed[_ ]phrase)\b\s*[:=]/i,
+  /\bsk[_-](?:live|test)?[_-]?[A-Za-z0-9]{10,}/,
+  /\bgh[pousr]_[A-Za-z0-9]{20,}/,
+  /\b(?:kode|code|voucher|coupon|kupon)\b[^\n]{0,24}?\b[A-Z0-9]{3,}(?:-[A-Z0-9]{2,})+\b/,
+  /\b[A-Z0-9]{3,}(?:-[A-Z0-9]{3,}){2,}\b/,
+];
+const NOT_FREE_TEXT = new Set(["terms_hash", "token_id", "ft_contract", "nft_contract", "mt_contract", "display", "termsHash", "tokenId", "ftContract", "nftContract", "mtContract", "kind"]);
+function hasSecretText(value: unknown, key = ""): boolean {
+  if (typeof value === "string") return !NOT_FREE_TEXT.has(key) && SECRET_TEXT.some((r) => r.test(value));
+  if (Array.isArray(value)) return value.some((v) => hasSecretText(v, key));
+  if (value !== null && typeof value === "object") return Object.entries(value).some(([k, v]) => hasSecretText(v, k));
+  return false;
+}
+
+function checkMetadata(ft: AccountId, decimals: number, symbol: string, metadata: FtMetadata | undefined, warnings: string[]): void {
+  if (metadata === undefined) {
+    warnings.push(METADATA_WARNING);
+    return;
+  }
+  if (metadata.decimals !== decimals || metadata.symbol !== symbol) {
+    fail("ft_metadata_mismatch", `desimal atau simbol tidak sama dengan ft_metadata ${ft}: diketik ${decimals} ${symbol}, token ${metadata.decimals} ${metadata.symbol}`);
+  }
+}
+
 const FEE_WARNING = "Token dengan biaya transfer tidak didukung: kontrak harus menerima jumlah persis, jadi titipan dari token berbiaya ditolak dan token kembali ke pemberi.";
 const REGISTER_WARNING = "Pembeli harus terdaftar di kontrak token (storage_deposit); kalau tidak, penyerahan gagal dan pembayarannya dibatalkan.";
 
@@ -110,14 +152,19 @@ const REGISTER_WARNING = "Pembeli harus terdaftar di kontrak token (storage_depo
  * Dari satu input per jenis ke scope, grant, sisi listing, detail, peringatan, dan titipan. Melempar `AssetTemplateError` dengan kode yang stabil bila input tidak sah.
  * @param now detik unix saat ini (disuntik supaya test deterministik)
  */
-export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(Date.now() / 1000)): AssetTemplate {
+export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(Date.now() / 1000), options: AssetTemplateOptions = {}): AssetTemplate {
   const entry = (KIND_TABLE as Record<string, (typeof KIND_TABLE)[AssetKind]>)[input.kind];
   if (!entry) return fail("bad_kind", `jenis aset tidak dikenal: ${JSON.stringify((input as { kind?: unknown }).kind)}`);
   if (!AMOUNT.test(input.unitPrice) || BigInt(input.unitPrice) > U128_MAX) fail("bad_price", `unitPrice harus bilangan bulat desimal > 0, dapat ${JSON.stringify(input.unitPrice)}`);
   seconds(input.expiresAt, "expiresAt");
   if (input.expiresAt <= now) fail("bad_expiry", "expiresAt sudah lewat");
 
+  // before the length checks: a long key typed in a free text field must be named as a secret, not as "too long"
+  if (hasSecretText(input)) fail("secret_in_listing", "listing tidak boleh memuat kode atau rahasia");
   const warnings: string[] = [];
+  const noUsdt = (ft: AccountId): void => {
+    if (options.circleUsdt !== undefined && ft === options.circleUsdt) fail("circle_usdt", "USDT lingkaran bukan aset escrow: kontrak menolak titipannya (ERR_ESCROW_USDT)");
+  };
   const meta: Record<string, unknown> = { kind: input.kind };
   let escrow = entry.escrow;
   let scope: string;
@@ -172,8 +219,10 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
     case "rwa":
     case "lst": {
       const ft = account(input.ftContract, "ftContract");
+      noUsdt(ft);
       const amt = amount(input.amount);
       const symbol = ascii(input.symbol, "symbol", 12);
+      checkMetadata(ft, input.decimals, symbol, input.metadata, warnings);
       scope = ftEscrowGrantScope(ft, amt);
       deposit = (circle, grantId) => buildFtEscrowDepositCall({ circleContract: circle, ftContract: ft, amount: amt, grantId });
       Object.assign(meta, { ft_contract: ft, amount: amt, decimals: input.decimals, symbol, display: `${formatTokenAmount(amt, input.decimals)} ${symbol}` });
@@ -187,6 +236,7 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
           if (check.buyer === false) warnings.push("Pembeli belum ada di whitelist token: penyerahan akan gagal sampai ia di-whitelist.");
           meta.whitelist = { circle_contract: check.circleContract, grantor: check.grantor, ...(check.buyer !== undefined ? { buyer: check.buyer } : {}) };
         }
+        warnings.push("Lingkaran menyimpan daftar token yang diterimanya sendiri (daftar lingkaran): listing RWA bisa ditolak backend bila token ini tidak ada di sana, jadi periksa lewat listings/check sebelum offer_grant dan titipan.");
         warnings.push("Token RWA tunduk pada aturan penerbitnya (whitelist, pembekuan, KYC); kontrak tidak menjamin nilainya.");
       }
       if (input.kind === "lst" && input.rate !== undefined) {
@@ -201,6 +251,7 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
       const mt = account(input.mtContract, "mtContract");
       const token = tokenId(input.tokenId);
       if (!/^nep(141|245):.+/.test(token)) fail("intents_token_id", "token_id saldo Intents harus berawalan nep141: atau nep245:");
+      if (options.circleUsdt !== undefined && token === `nep141:${options.circleUsdt}`) noUsdt(options.circleUsdt);
       const amt = amount(input.amount);
       scope = mtEscrowGrantScope(mt, token, amt);
       deposit = (circle, grantId) => buildMtEscrowDepositCall({ circleContract: circle, mtContract: mt, tokenId: token, amount: amt, grantId });
@@ -213,8 +264,10 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
       if (input.valueInfo !== undefined) meta.value_info = ascii(input.valueInfo, "valueInfo", 120);
       if (input.standard === "nep141") {
         const ft = account(input.ftContract, "ftContract");
+        noUsdt(ft);
         const amt = amount(input.amount);
         const symbol = ascii(input.symbol, "symbol", 12);
+        checkMetadata(ft, input.decimals, symbol, input.metadata, warnings);
         escrow = "ft";
         scope = ftEscrowGrantScope(ft, amt);
         deposit = (circle, grantId) => buildFtEscrowDepositCall({ circleContract: circle, ftContract: ft, amount: amt, grantId });
@@ -239,7 +292,7 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
       return fail("bad_kind", "jenis aset tidak dikenal");
   }
 
-  if (/"(code|secret|password|api_?key)"\s*:/i.test(JSON.stringify(meta))) fail("secret_in_listing", "listing tidak boleh memuat kode atau rahasia");
+  if (/"(code|secret|password|api_?key)"\s*:/i.test(JSON.stringify(meta)) || hasSecretText(meta)) fail("secret_in_listing", "listing tidak boleh memuat kode atau rahasia");
   const detail = JSON.stringify(meta);
   if (detail.length > 2048) fail("detail_too_long", `detail ${detail.length} karakter, maksimal 2048`);
   const deliveryMethod = DELIVERY_METHOD[escrow === "either" ? "ft" : escrow];
