@@ -8,7 +8,8 @@ An order is the agreement of a buyer and a seller on work. On the chain there is
 | Resource of the voucher | `orderResource`, `parseOrderResource` |
 | Budget (sum of the milestones) | `orderBudget` |
 | Lock of the budget as a bundle, like SD-067 | `orderBundleTerms` |
-| Voucher of a milestone after it is confirmed | `milestoneVoucher` |
+| Voucher of a milestone after it is confirmed (needs `paid`, the milestones already paid) | `milestoneVoucher` |
+| Ledger of the buyer for one order: remembers the milestones and proofs paid, also across a restart, and stops at the budget | `OrderLedger` (`payMilestone`, `payProofs`, `snapshot`, `restore`) |
 | Voucher per on-chain proof (keeper, solver) | `payForProofs` |
 
 Document keys, in this order: `circle, kind, buyer, seller, spec_hash, milestones[{amount, due_at}], sample_hash, target, proof{method, amount_per_tx}, nonce`; what is empty is `null`.
@@ -28,6 +29,8 @@ The budget is locked as a bundle with two legs (buyer to seller for the amount, 
 The voucher of a milestone is built **after** the milestone is confirmed (or after the dispute window), from the real state of the pair (`milestoneVoucher`). A disputed milestone is not paid and leaves the state as it was, so the next voucher does not carry it. There is no chain of vouchers signed in advance for several milestones: a cumulative voucher cannot skip a milestone.
 
 ## payForProofs
+`alreadyPaid` and `alreadySpent` are required (review BE-062, F4): a call that does not say what was paid before is refused, because an agent that runs again with the same proofs would pay them again. The easy way is `OrderLedger`. `verifyTx` is optional: it asks the chain whether a proof is a real transaction of that provider and method; a proof it denies is `unverified`.
+
 For a `keeper` or `solver` order the buyer's agent takes the proofs from the backend (`GET orders/{hash}/onchain-proofs`) and signs one voucher per proof of `proof.amount_per_tx`. A proof is refused (not paid) when it was signed by another account (`wrong_signer`), uses another method (`wrong_method`), was paid before (`already_paid`, also inside one list), or would pass the budget of the order (`over_budget`). The vouchers continue the state of the pair in the epoch given.
 
 ## Errors (`OrderError.code`)

@@ -148,9 +148,13 @@ export function orderBundleTerms(args: { order: OrderDocument; epoch: number; am
 /**
  * Voucher untuk tonggak `index` (mulai 1) sesudah tonggak itu terkonfirmasi, melanjutkan keadaan pasangan di `epoch`. Tonggak yang disengketakan tidak dibayar dan tidak mengubah
  * keadaan, jadi voucher tonggak berikutnya dibuat dari keadaan pasangan yang sebenarnya (`state`), bukan dari rantai voucher yang dihitung di depan.
+ * `paid` wajib: indeks tonggak yang sudah dibayar pemanggil (`OrderLedger` mencatatnya); tonggak yang sudah dibayar ditolak, jadi satu tonggak tidak dibayar dua kali.
  */
-export function milestoneVoucher(args: { order: OrderDocument; index: number; epoch: number; state: InvoicePairState }): UnsignedVoucher {
+export function milestoneVoucher(args: { order: OrderDocument; index: number; epoch: number; state: InvoicePairState; paid: readonly number[] }): UnsignedVoucher {
   const o = normalizeOrder(args.order);
+  // F5 (review BE-062): the library has no memory, so the caller must say which milestones it paid; a milestone is paid once
+  if (!Array.isArray(args.paid)) fail("order_bad_state", "paid (tonggak yang sudah dibayar) wajib diberikan");
+  if (args.paid.includes(args.index)) fail("order_bad_state", `tonggak ${args.index} sudah dibayar`);
   const item = o.milestones[args.index - 1];
   if (!Number.isInteger(args.index) || item === undefined) fail("order_bad_milestones", `tonggak ${args.index} tidak ada; pesanan ini punya ${o.milestones.length}`);
   if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch harus bilangan bulat >= 1, dapat ${args.epoch}`);
@@ -164,7 +168,7 @@ export function milestoneVoucher(args: { order: OrderDocument; index: number; ep
 
 /** Bukti on-chain dari backend (`GET orders/{hash}/onchain-proofs`, BE-055): satu transaksi penyedia. */
 export type OnchainProof = { txHash: string; method: string; signer: AccountId };
-export type ProofRefusal = { txHash: string; reason: "wrong_signer" | "wrong_method" | "already_paid" | "over_budget" };
+export type ProofRefusal = { txHash: string; reason: "wrong_signer" | "wrong_method" | "already_paid" | "over_budget" | "unverified" };
 export type PayForProofsResult = { vouchers: Voucher[]; paid: string[]; refused: ProofRefusal[]; state: InvoicePairState; spent: U128String };
 
 /**
@@ -177,8 +181,12 @@ export function payForProofs(args: {
   epoch: number;
   state: InvoicePairState;
   proofs: readonly OnchainProof[];
-  alreadyPaid?: readonly string[];
-  alreadySpent?: U128String;
+  /** Wajib (F4): hash transaksi yang sudah dibayar; `[]` ditulis eksplisit pada panggilan pertama. */
+  alreadyPaid: readonly string[];
+  /** Wajib (F4): yang sudah dibayar untuk pesanan ini, satuan credit terkecil (`"0"` pada panggilan pertama). */
+  alreadySpent: U128String;
+  /** Opsional (F12): tanya rantai apakah transaksi itu nyata, dari penyedia itu, dengan method itu; `false` menolaknya (`unverified`). Tanpa ini bukti dipercaya dari backend apa adanya. */
+  verifyTx?: (proof: OnchainProof) => boolean;
   secretKey: VoucherSecretKey;
 }): PayForProofsResult {
   const o = normalizeOrder(args.order);
@@ -186,8 +194,11 @@ export function payForProofs(args: {
   if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch harus bilangan bulat >= 1, dapat ${args.epoch}`);
   const budget = BigInt(orderBudget(o));
   const each = BigInt(o.proof!.amount_per_tx);
-  const seen = new Set(args.alreadyPaid ?? []);
-  let spent = BigInt(args.alreadySpent ?? "0");
+  if (!Array.isArray(args.alreadyPaid) || typeof args.alreadySpent !== "string" || !/^(0|[1-9]\d*)$/.test(args.alreadySpent)) {
+    fail("order_bad_state", "alreadyPaid dan alreadySpent wajib diberikan (dari panggilan sebelumnya)");
+  }
+  const seen = new Set(args.alreadyPaid);
+  let spent = BigInt(args.alreadySpent);
   let seq = args.state.seq;
   let cumulative = BigInt(args.state.cumulativeAmount);
   const resource = orderResource(orderHash(o));
@@ -196,7 +207,7 @@ export function payForProofs(args: {
   const refused: ProofRefusal[] = [];
   for (const proof of args.proofs) {
     const reason: ProofRefusal["reason"] | null =
-      proof.signer !== o.seller ? "wrong_signer" : proof.method !== o.proof!.method ? "wrong_method" : seen.has(proof.txHash) ? "already_paid" : spent + each > budget ? "over_budget" : null;
+      proof.signer !== o.seller ? "wrong_signer" : proof.method !== o.proof!.method ? "wrong_method" : seen.has(proof.txHash) ? "already_paid" : spent + each > budget ? "over_budget" : args.verifyTx !== undefined && !args.verifyTx(proof) ? "unverified" : null;
     if (reason !== null) {
       refused.push({ txHash: proof.txHash, reason });
       continue;
@@ -209,4 +220,57 @@ export function payForProofs(args: {
     paid.push(proof.txHash);
   }
   return { vouchers, paid, refused, state: { seq, cumulativeAmount: cumulative.toString() }, spent: spent.toString() };
+}
+
+/**
+ * Buku bayar satu pesanan di sisi pembeli (F4 dan F5): mencatat tonggak dan transaksi yang sudah dibayar dan jumlahnya, jadi satu tonggak tidak dibayar dua kali dan satu bukti tidak
+ * dibayar dua kali, juga setelah agen dijalankan lagi (simpan `snapshot()` dan buat lagi dengan `OrderLedger.restore`). Voucher tetap harus didaftarkan penjual; buku ini hanya mengingat
+ * apa yang sudah ditandatangani.
+ */
+export class OrderLedger {
+  readonly order: OrderDocument;
+  readonly #milestones = new Set<number>();
+  readonly #proofs = new Set<string>();
+  #spent = 0n;
+
+  constructor(order: OrderDocument, saved?: { milestones: readonly number[]; proofs: readonly string[]; spent: U128String }) {
+    this.order = order;
+    normalizeOrder(order);
+    if (saved) {
+      for (const m of saved.milestones) this.#milestones.add(m);
+      for (const t of saved.proofs) this.#proofs.add(t);
+      this.#spent = BigInt(saved.spent);
+    }
+  }
+  static restore(order: OrderDocument, saved: { milestones: readonly number[]; proofs: readonly string[]; spent: U128String }): OrderLedger {
+    return new OrderLedger(order, saved);
+  }
+  snapshot(): { milestones: number[]; proofs: string[]; spent: U128String } {
+    return { milestones: [...this.#milestones], proofs: [...this.#proofs], spent: this.#spent.toString() };
+  }
+  get spent(): U128String {
+    return this.#spent.toString();
+  }
+
+  /** Voucher untuk tonggak yang terkonfirmasi, dicatat sebagai dibayar; tonggak yang sama dua kali ditolak. */
+  payMilestone(args: { index: number; epoch: number; state: InvoicePairState; secretKey: VoucherSecretKey }): Voucher {
+    const unsigned = milestoneVoucher({ order: this.order, index: args.index, epoch: args.epoch, state: args.state, paid: [...this.#milestones] });
+    const amount = BigInt(unsigned.cumulativeAmount) - BigInt(args.state.cumulativeAmount);
+    if (this.#spent + amount > BigInt(orderBudget(this.order))) fail("order_bad_state", "melewati anggaran pesanan");
+    const signed = signVoucher(unsigned, args.secretKey);
+    this.#milestones.add(args.index);
+    this.#spent += amount;
+    return signed;
+  }
+
+  /** Bayar per bukti on-chain dengan catatan buku ini. */
+  payProofs(args: { epoch: number; state: InvoicePairState; proofs: readonly OnchainProof[]; secretKey: VoucherSecretKey; verifyTx?: (proof: OnchainProof) => boolean }): PayForProofsResult {
+    const result = payForProofs({
+      order: this.order, epoch: args.epoch, state: args.state, proofs: args.proofs, alreadyPaid: [...this.#proofs], alreadySpent: this.#spent.toString(), secretKey: args.secretKey,
+      ...(args.verifyTx ? { verifyTx: args.verifyTx } : {}),
+    });
+    for (const t of result.paid) this.#proofs.add(t);
+    this.#spent = BigInt(result.spent);
+    return result;
+  }
 }
