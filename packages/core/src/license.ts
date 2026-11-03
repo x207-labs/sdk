@@ -35,7 +35,7 @@ const HASH = /^[0-9a-f]{64}$/;
 const ACCOUNT = /^(?:[a-z\d]+[-_])*[a-z\d]+(?:\.(?:[a-z\d]+[-_])*[a-z\d]+)*$/;
 const isAccount = (v: unknown): v is string => typeof v === "string" && v.length >= 2 && v.length <= 64 && ACCOUNT.test(v);
 
-// ---- content_hash: sha256, or the Merkle root per 4 MiB for a file above 4 MiB -------------------------------------------------------------------------------------------
+// ---- content_hash: the Merkle root of leaves per 4 MiB, one scheme for every size -------------------------------------------------------------------------
 
 /** Ukuran potongan untuk Merkle dan untuk enkripsi: 4 MiB. */
 export const CONTENT_CHUNK = 4 * 1024 * 1024;
@@ -51,16 +51,18 @@ export function merkleRoot(leaves: readonly Uint8Array[]): Uint8Array {
   return sha256(concatBytes(NODE, merkleRoot(leaves.slice(0, k)), merkleRoot(leaves.slice(k))));
 }
 
-/** Hash isi bertahap: berkas sampai 4 MiB memakai sha256 biasa; yang lebih besar memakai akar Merkle per 4 MiB. */
+/**
+ * Hash isi bertahap, satu skema untuk semua ukuran (perbaikan F1 dan F2 dari tinjauan BE-062): berkas dipotong per 4 MiB, tiap potongan menjadi daun `sha256(0x00 ‖ potongan)`, dan
+ * daun digabung dengan `merkleRoot` (simpul `sha256(0x01 ‖ kiri ‖ kanan)`). Berkas satu potongan, juga yang kosong, tetap melewati daun, jadi tidak ada isi yang bisa sekaligus
+ * menjadi daun dan simpul: string 65 byte `0x01 ‖ kiri ‖ kanan` tidak punya hash yang sama dengan berkas besar.
+ */
 export class ContentHasher {
-  #whole = sha256.create();
   #leaf = sha256.create().update(LEAF);
   #leaves: Uint8Array[] = [];
   #inLeaf = 0;
   #total = 0;
 
   update(data: Uint8Array): this {
-    this.#whole.update(data);
     let offset = 0;
     while (offset < data.length) {
       const take = Math.min(CONTENT_CHUNK - this.#inLeaf, data.length - offset);
@@ -83,8 +85,7 @@ export class ContentHasher {
 
   /** Hash heks huruf kecil 64 karakter. Boleh dipanggil sekali. */
   digest(): string {
-    if (this.#total <= CONTENT_CHUNK) return bytesToHex(this.#whole.digest());
-    const leaves = this.#inLeaf > 0 ? [...this.#leaves, this.#leaf.digest()] : this.#leaves;
+    const leaves = this.#inLeaf > 0 || this.#total === 0 ? [...this.#leaves, this.#leaf.digest()] : this.#leaves;
     return bytesToHex(merkleRoot(leaves));
   }
 }
@@ -237,15 +238,22 @@ export const openSealedKey = (sealed: Uint8Array, buyerSecretKey: string): Uint8
 // ---- the release signed by the seller ---------------------------------------------------------------------------------------------------------------------------------
 
 /** Rilis kunci yang ditandatangani penjual: mengikat dokumen lisensi, isi, ciphertext, pembeli, dan kunci tersegel. */
-export type LicenseRelease = { circle: AccountId; license_hash: string; buyer: AccountId; content_hash: string; cipher_hash: string; sealed_key: string; at: number };
+export type LicenseRelease = {
+  circle: AccountId; license_hash: string; buyer: AccountId; content_hash: string; cipher_hash: string; sealed_key: string; at: number
+  /** Ukuran berkas asli dan ciphertext dalam byte, ikut ditandatangani: pemeriksa menolak isi yang ukurannya lain (tinjauan BE-062, F1 dan F2). */
+  content_size: number; cipher_size: number
+};
 const serializeRelease = (r: LicenseRelease): string =>
-  JSON.stringify({ circle: r.circle, license_hash: r.license_hash, buyer: r.buyer, content_hash: r.content_hash, cipher_hash: r.cipher_hash, sealed_key: r.sealed_key, at: r.at });
+  JSON.stringify({
+    circle: r.circle, license_hash: r.license_hash, buyer: r.buyer, content_hash: r.content_hash, cipher_hash: r.cipher_hash, sealed_key: r.sealed_key, at: r.at, content_size: r.content_size, cipher_size: r.cipher_size,
+  });
 
 function checkRelease(r: LicenseRelease): void {
   if (!isAccount(r.circle) || !isAccount(r.buyer)) fail("license_bad_account", "circle dan buyer harus akun NEAR");
   for (const h of [r.license_hash, r.content_hash, r.cipher_hash]) if (!HASH.test(h)) fail("license_bad_hash", "hash rilis harus 64 heksadesimal huruf kecil");
   if (!/^(?:[0-9a-f]{2}){80}$/.test(r.sealed_key)) fail("release_bad_key", "sealed_key harus 80 byte heks");
   if (!Number.isSafeInteger(r.at) || r.at <= 0) fail("license_bad_nonce", "at harus detik unix");
+  for (const n of [r.content_size, r.cipher_size]) if (!Number.isSafeInteger(n) || n < 0) fail("license_bad_hash", "content_size dan cipher_size harus bilangan bulat >= 0");
 }
 const NEP413_TAG = 2147484061;
 const u32le = (n: number): Uint8Array => {
@@ -278,11 +286,11 @@ export function verifyRelease(release: LicenseRelease, signature: string, seller
 
 /** Sisi penjual: membuat rilis (menyegel kunci ke pembeli) dan menandatanganinya. */
 export function createRelease(args: {
-  circle: AccountId; license_hash: string; buyer: AccountId; buyerPublicKey: string; content_hash: string; ciphertext: Uint8Array; contentKey: Uint8Array; at: number; sellerSecretKey: string; ephemeralSecret?: Uint8Array
+  circle: AccountId; license_hash: string; buyer: AccountId; buyerPublicKey: string; content_hash: string; content_size: number; ciphertext: Uint8Array; contentKey: Uint8Array; at: number; sellerSecretKey: string; ephemeralSecret?: Uint8Array
 }): { release: LicenseRelease; signature: string } {
   const release: LicenseRelease = {
     circle: args.circle, license_hash: args.license_hash, buyer: args.buyer, content_hash: args.content_hash, cipher_hash: contentHash(args.ciphertext),
-    sealed_key: bytesToHex(sealKey(args.contentKey, args.buyerPublicKey, args.ephemeralSecret)), at: args.at,
+    sealed_key: bytesToHex(sealKey(args.contentKey, args.buyerPublicKey, args.ephemeralSecret)), at: args.at, content_size: args.content_size, cipher_size: args.ciphertext.length,
   };
   return { release, signature: signRelease(release, args.sellerSecretKey) };
 }
@@ -303,7 +311,7 @@ export type DeliveryVerdict =
  */
 export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseRelease; signature: string; sellerPublicKey: string; buyerSecretKey: string }): DeliveryVerdict {
   const { ciphertext, release, signature } = args;
-  if (contentHash(ciphertext) !== release.cipher_hash) return { ok: false, reason: "cipher_hash_mismatch" };
+  if (ciphertext.length !== release.cipher_size || contentHash(ciphertext) !== release.cipher_hash) return { ok: false, reason: "cipher_hash_mismatch" };
   if (!verifyRelease(release, signature, args.sellerPublicKey)) return { ok: false, reason: "bad_signature" };
   const sealed = hexToBytes(release.sealed_key);
   let boxKey: Uint8Array;
@@ -321,7 +329,7 @@ export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseR
   } catch {
     return proof("decrypt_failed");
   }
-  return contentHash(content) === release.content_hash ? { ok: true, content } : proof("content_mismatch");
+  return content.length === release.content_size && contentHash(content) === release.content_hash ? { ok: true, content } : proof("content_mismatch");
 }
 
 /** Membuat bukti curang dari kiriman; melempar `proof_not_possible` bila kirimannya benar atau kesalahannya tidak bisa dibuktikan. */
@@ -337,7 +345,7 @@ export type ProofVerdict = { valid: true; reason: CheatReason } | { valid: false
 export function checkCheatProof(proof: CheatProof, sellerPublicKey: string): ProofVerdict {
   const { ciphertext, release, signature } = proof;
   if (!verifyRelease(release, signature, sellerPublicKey)) return { valid: false, reason: "bad_signature" };
-  if (contentHash(ciphertext) !== release.cipher_hash) return { valid: false, reason: "cipher_hash_mismatch" };
+  if (ciphertext.length !== release.cipher_size || contentHash(ciphertext) !== release.cipher_hash) return { valid: false, reason: "cipher_hash_mismatch" };
   let key: Uint8Array;
   try {
     key = openSealedWithBoxKey(hexToBytes(release.sealed_key), hexToBytes(proof.box_key));
@@ -350,7 +358,7 @@ export function checkCheatProof(proof: CheatProof, sellerPublicKey: string): Pro
   } catch {
     return { valid: true, reason: "decrypt_failed" };
   }
-  return contentHash(content) === release.content_hash ? { valid: false, reason: "file_is_correct" } : { valid: true, reason: "content_mismatch" };
+  return content.length === release.content_size && contentHash(content) === release.content_hash ? { valid: false, reason: "file_is_correct" } : { valid: true, reason: "content_mismatch" };
 }
 
 // ---- where the ciphertext lives: ContentSource (https and ipfs) --------------------------------------------------------------------------------------------------------

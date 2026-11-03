@@ -4,7 +4,7 @@ x207 stores no file. The seller keeps the **ciphertext** at any source; the buye
 
 | Piece | Function |
 | --- | --- |
-| `content_hash`: sha256 up to 4 MiB, Merkle root per 4 MiB above | `contentHash`, `ContentHasher`, `merkleRoot` |
+| `content_hash`: one scheme for every size, the Merkle root of leaves `sha256(0x00 ‖ chunk)` per 4 MiB (a short file is one leaf; nodes are `sha256(0x01 ‖ left ‖ right)`) | `contentHash`, `ContentHasher`, `merkleRoot` |
 | Document, hash, resource `x207:license:<hash>` | `serializeLicense`, `licenseDocumentHash`, `licenseResource` |
 | Encryption: XChaCha20-Poly1305 per 4 MiB chunk, final-chunk flag in the AAD | `encryptContent`, `decryptContent` |
 | Key sealed to the buyer (x25519 from the ed25519 voucher key) | `sealKey`, `openSealedKey`, `deriveBoxKey` |
@@ -21,6 +21,9 @@ Crypto: `@noble/ciphers` 1.3.0, `@noble/curves` 1.9.7, `@noble/hashes` 1.8.0 (al
 
 ## Proof of cheating
 Ciphertext, the release signed by the seller (it holds `cipher_hash`, `content_hash` and the sealed key) and the box key that opens the sealed key. The checker needs only the public key of the seller. A proof for a right file is refused (`file_is_correct`), a wrong box key is refused (`box_key_invalid`). The buyer's secret key never leaves the buyer.
+
+## Hash scheme and sizes
+The first scheme hashed a file up to 4 MiB as plain `sha256(data)` and a larger file as a Merkle root; a 65-byte string `0x01 ‖ left ‖ right` then had the hash of a large file (review BE-062, F1 and F2: a false proof of cheating, and a substituted file). Now every file goes through a leaf, so no body is both a leaf and a node. The signed release also holds `content_size` and `cipher_size`, and the verifier and the checker refuse a ciphertext or a file of another size.
 
 ## Limits
 - A sealed key that the buyer cannot open is not provable as cheating: the buyer disputes with reason `other` and nothing is paid.

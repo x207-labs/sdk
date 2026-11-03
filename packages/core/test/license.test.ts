@@ -25,27 +25,32 @@ const code = (fn: () => unknown): string => {
 const bytes = (n: number, fill = 7): Uint8Array => new Uint8Array(n).fill(fill);
 const text = (s: string) => new TextEncoder().encode(s);
 
-describe("SD-070 content_hash: sha256, Merkle per 4 MiB above 4 MiB", () => {
-  it("TC-SD-070-01 up to 4 MiB it is plain sha256 (the vector of abc), also for the empty file and for exactly 4 MiB", () => {
-    expect(contentHash(text("abc"))).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
-    expect(contentHash(new Uint8Array())).toBe(hex(sha(Buffer.alloc(0))));
-    expect(contentHash(bytes(CONTENT_CHUNK))).toBe(hex(sha(Buffer.alloc(CONTENT_CHUNK, 7))));
+describe("SD-070 content_hash: one scheme for every size, leaves of 4 MiB", () => {
+  const leaf = (chunk: Buffer) => sha(Buffer.concat([Buffer.from([0]), chunk]));
+  const node = (l: Buffer, r: Buffer) => sha(Buffer.concat([Buffer.from([1]), l, r]));
+  const c = (n: number, f: number) => Buffer.alloc(n, f);
+
+  it("TC-SD-070-01 a short file is one leaf, sha256(0x00 || data), also the empty file and exactly 4 MiB; it is no longer the plain sha256", () => {
+    expect(contentHash(text("abc"))).toBe(hex(leaf(Buffer.from("abc"))));
+    expect(contentHash(text("abc"))).not.toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"); // the plain sha256 of abc
+    expect(contentHash(new Uint8Array())).toBe(hex(leaf(Buffer.alloc(0))));
+    expect(contentHash(bytes(CONTENT_CHUNK))).toBe(hex(leaf(c(CONTENT_CHUNK, 7))));
   });
 
-  it("TC-SD-070-02 above 4 MiB it is the Merkle root of leaves sha256(0x00 || chunk), nodes sha256(0x01 || left || right), split at the largest power of two below", () => {
-    const leaf = (chunk: Buffer) => sha(Buffer.concat([Buffer.from([0]), chunk]));
-    const node = (l: Buffer, r: Buffer) => sha(Buffer.concat([Buffer.from([1]), l, r]));
-    const c = (n: number, f: number) => Buffer.alloc(n, f);
-    // 2 leaves: 4 MiB + 1 byte
+  it("TC-SD-070-02 above 4 MiB it is the Merkle root of the leaves, nodes sha256(0x01 || left || right), split at the largest power of two below", () => {
     const two = Buffer.concat([c(CONTENT_CHUNK, 1), c(1, 2)]);
     expect(contentHash(two)).toBe(hex(node(leaf(c(CONTENT_CHUNK, 1)), leaf(c(1, 2)))));
-    // exactly 8 MiB is two leaves, not plain sha256
     const eight = Buffer.concat([c(CONTENT_CHUNK, 1), c(CONTENT_CHUNK, 3)]);
     expect(contentHash(eight)).toBe(hex(node(leaf(c(CONTENT_CHUNK, 1)), leaf(c(CONTENT_CHUNK, 3)))));
-    expect(contentHash(eight)).not.toBe(hex(sha(eight)));
-    // 3 leaves: ((l0 l1) l2)
     const three = Buffer.concat([c(CONTENT_CHUNK, 1), c(CONTENT_CHUNK, 2), c(5, 3)]);
     expect(contentHash(three)).toBe(hex(node(node(leaf(c(CONTENT_CHUNK, 1)), leaf(c(CONTENT_CHUNK, 2))), leaf(c(5, 3)))));
+  });
+
+  it("TC-SD-070-02b [F2] the 65-byte string 0x01 || left || right does not have the hash of the large file it was made from, and a ciphertext of 65 bytes is not a ciphertext of 8 MiB", () => {
+    const big = Buffer.concat([c(CONTENT_CHUNK, 1), c(1, 2)]);
+    const forged = Buffer.concat([Buffer.from([1]), leaf(c(CONTENT_CHUNK, 1)), leaf(c(1, 2))]);
+    expect(forged.length).toBe(65);
+    expect(contentHash(forged)).not.toBe(contentHash(big));
   });
 
   it("TC-SD-070-03 the incremental hasher gives the same hash for any way of cutting the input", () => {
@@ -141,21 +146,21 @@ describe("SD-070 key sealed to the buyer", () => {
 describe("SD-070 release signed by the seller", () => {
   const plain = text("name,email\nann,ann@example.com\n");
   const content_hash = contentHash(plain);
-  const make = (overrides: Partial<Parameters<typeof createRelease>[0]> = {}, data = plain, claimed = content_hash) => {
+  const make = (overrides: Partial<Parameters<typeof createRelease>[0]> = {}, data = plain, claimed = content_hash, size = data.length) => {
     const { ciphertext, key } = encryptContent(data);
     const { release, signature } = createRelease({
-      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: claimed, ciphertext, contentKey: key, at: 1_800_000_000, sellerSecretKey: seller.secretKey, ...overrides,
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: claimed, content_size: size, ciphertext, contentKey: key, at: 1_800_000_000, sellerSecretKey: seller.secretKey, ...overrides,
     });
     return { ciphertext, key, release, signature };
   };
 
   it("TC-SD-070-09 the signing hash equals the NEP-413 hash of core, a signature verifies for the seller only, and any changed field breaks it", () => {
     const { release, signature } = make();
-    const message = JSON.stringify({ circle: release.circle, license_hash: release.license_hash, buyer: release.buyer, content_hash: release.content_hash, cipher_hash: release.cipher_hash, sealed_key: release.sealed_key, at: release.at });
+    const message = JSON.stringify({ circle: release.circle, license_hash: release.license_hash, buyer: release.buyer, content_hash: release.content_hash, cipher_hash: release.cipher_hash, sealed_key: release.sealed_key, at: release.at, content_size: release.content_size, cipher_size: release.cipher_size });
     expect(hex(releaseSigningHash(release))).toBe(hex(nep413SigningHash(message, sha(Buffer.from(message)), CIRCLE)));
     expect(verifyRelease(release, signature, seller.publicKey)).toBe(true);
     expect(verifyRelease(release, signature, stranger.publicKey)).toBe(false);
-    for (const change of [{ buyer: "other.x207-circle.near" }, { content_hash: "d".repeat(64) }, { cipher_hash: "d".repeat(64) }, { at: 1 }] as Array<Partial<LicenseRelease>>) {
+    for (const change of [{ buyer: "other.x207-circle.near" }, { content_hash: "d".repeat(64) }, { cipher_hash: "d".repeat(64) }, { at: 1 }, { content_size: 1 }, { cipher_size: 1 }] as Array<Partial<LicenseRelease>>) {
       expect(verifyRelease({ ...release, ...change }, signature, seller.publicKey), JSON.stringify(change)).toBe(false);
     }
     expect(verifyRelease(release, "ed25519:xx", seller.publicKey)).toBe(false);
@@ -191,7 +196,7 @@ describe("SD-070 release signed by the seller", () => {
     const first = make();
     const second = make({}, plain);
     // release of the second ciphertext's hash with the key of the first: sign a release that mixes them
-    const mixed = createRelease({ circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash, ciphertext: second.ciphertext, contentKey: first.key, at: 1_800_000_000, sellerSecretKey: seller.secretKey });
+    const mixed = createRelease({ circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash, content_size: plain.length, ciphertext: second.ciphertext, contentKey: first.key, at: 1_800_000_000, sellerSecretKey: seller.secretKey });
     const proof = makeCheatProof({ ciphertext: second.ciphertext, release: mixed.release, signature: mixed.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
     expect(checkCheatProof(proof, seller.publicKey)).toEqual({ valid: true, reason: "decrypt_failed" });
   });
@@ -209,6 +214,66 @@ describe("SD-070 release signed by the seller", () => {
     expect(checkCheatProof({ ...proof, box_key: "00".repeat(32) }, seller.publicKey)).toEqual({ valid: false, reason: "box_key_invalid" });
     expect(checkCheatProof({ ...proof, ciphertext: make().ciphertext }, seller.publicKey)).toEqual({ valid: false, reason: "cipher_hash_mismatch" });
     expect(checkCheatProof({ ...proof, release: { ...proof.release, content_hash: "e".repeat(64) } }, seller.publicKey)).toEqual({ valid: false, reason: "bad_signature" });
+  });
+});
+
+describe("SD-070 review BE-062 F1 and F2: no forged proof, no substituted file", () => {
+  const leaf = (b: Uint8Array) => sha(Buffer.concat([Buffer.from([0]), b]));
+  const node = (l: Uint8Array, r: Uint8Array) => sha(Buffer.concat([Buffer.from([1]), l, r]));
+
+  it("TC-SD-070-20 [F1] a 65-byte ciphertext built from the leaf hashes of an honest 8 MiB ciphertext is no proof of cheating against the honest seller", () => {
+    const plain = new Uint8Array(CONTENT_CHUNK * 2).fill(7);
+    const { ciphertext, key } = encryptContent(plain);
+    const { release, signature } = createRelease({
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(plain), content_size: plain.length, ciphertext, contentKey: key,
+      at: 1_800_000_000, sellerSecretKey: seller.secretKey,
+    });
+    const chunks: Uint8Array[] = [];
+    for (let i = 0; i < ciphertext.length; i += CONTENT_CHUNK) chunks.push(ciphertext.subarray(i, i + CONTENT_CHUNK));
+    expect(chunks).toHaveLength(3);
+    const forged = Buffer.concat([Buffer.from([1]), node(leaf(chunks[0]!), leaf(chunks[1]!)), leaf(chunks[2]!)]);
+    expect(forged.length).toBe(65);
+    const boxKey = hex(deriveBoxKey(Buffer.from(release.sealed_key, "hex"), buyer.secretKey));
+    expect(checkCheatProof({ ciphertext: forged, release, signature, box_key: boxKey }, seller.publicKey)).toEqual({ valid: false, reason: "cipher_hash_mismatch" });
+    // even if the hash were the same, the size of the signed release would refuse it
+    expect(forged.length).not.toBe(release.cipher_size);
+    expect(release.cipher_size).toBe(ciphertext.length);
+  });
+
+  it("TC-SD-070-21 [F2] a seller cannot deliver 65 bytes for the hash of a large file: verifyDelivery refuses the size and the hash", () => {
+    const big = new Uint8Array(CONTENT_CHUNK + 1).fill(1);
+    const forgedPlain = Buffer.concat([Buffer.from([1]), leaf(big.subarray(0, CONTENT_CHUNK)), leaf(big.subarray(CONTENT_CHUNK))]);
+    const { ciphertext, key } = encryptContent(forgedPlain);
+    const { release, signature } = createRelease({
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(big), content_size: big.length, ciphertext, contentKey: key,
+      at: 1_800_000_000, sellerSecretKey: seller.secretKey,
+    });
+    const verdict = verifyDelivery({ ciphertext, release, signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.ok === false && "proof" in verdict && verdict.reason).toBe("content_mismatch"); // the buyer gets a true proof against the seller
+    // a size in the release that matches the 65 bytes does not help: the hash does not
+    const lying = createRelease({
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(big), content_size: forgedPlain.length, ciphertext, contentKey: key,
+      at: 1_800_000_000, sellerSecretKey: seller.secretKey,
+    });
+    expect(verifyDelivery({ ciphertext, release: lying.release, signature: lying.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey }).ok).toBe(false);
+  });
+
+  it("TC-SD-070-22 a ciphertext or a file of another size than the signed one is refused, whatever its hash", () => {
+    const plain = text("rows,of,data\n1,2,3\n");
+    const { ciphertext, key } = encryptContent(plain);
+    const make = (content_size: number) => createRelease({
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(plain), content_size, ciphertext, contentKey: key,
+      at: 1_800_000_000, sellerSecretKey: seller.secretKey,
+    });
+    const good = make(plain.length);
+    expect(verifyDelivery({ ciphertext, release: good.release, signature: good.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey }).ok).toBe(true);
+    const wrongSize = make(plain.length + 1); // the seller states another size for the right file: that is cheating, and provable
+    const v = verifyDelivery({ ciphertext, release: wrongSize.release, signature: wrongSize.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
+    expect(v.ok).toBe(false);
+    expect(checkCheatProof({ ciphertext, release: wrongSize.release, signature: wrongSize.signature, box_key: hex(deriveBoxKey(Buffer.from(wrongSize.release.sealed_key, "hex"), buyer.secretKey)) }, seller.publicKey)).toEqual({ valid: true, reason: "content_mismatch" });
+    expect(code(() => make(-1))).toBe("license_bad_hash");
+    expect(code(() => make(1.5))).toBe("license_bad_hash");
   });
 });
 
