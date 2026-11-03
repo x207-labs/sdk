@@ -136,6 +136,22 @@ Members can agree a barter bundle on chain (one signature per participant over t
 
 `verify` reads the final block: a bundle that was just committed is visible only after finality; until then a leg voucher is refused `bundle_unknown` and the client can try again.
 
+### 3b. Bundle terms and `terms_hash` (interface 0.0.12)
+
+The signature of every participant of a bundle is over the same `terms_hash`, so the bytes of the terms are fixed. The Indonesian source of this section is `spec/barter-format.md`; the test vectors are in `spec/test-vectors/barter/`.
+
+1. **`message`** is the canonical JSON `{"circle":…,"epoch":…,"legs":[{"payer":…,"payee":…,"max_amount":…},…]}` without spaces. Legs are sorted by `(payer, payee)` (byte-wise UTF-8), so the order of the input does not change the hash. `max_amount` is a decimal string > 0 with no leading zero, at most `U128`; the pair `(payer, payee)` is unique; at least two legs; `payer` differs from `payee`.
+2. **`terms_hash`** is `sha256(UTF-8 message)` in 64 lowercase hex. Each participant signs `sha256(NEP-413 payload)` with `message` as above, `nonce` = the 32 bytes of `terms_hash`, `recipient` = the circle contract and `callback_url` = `None`, with its voucher key (`ed25519:<base58 64 bytes>`). A participant is every account that is a `payer` or a `payee`; the bundle is valid when each has exactly one valid signature over the same `terms_hash`.
+3. **`search_leg`** (optional, 0.0.5) `{"payer":…,"payee":…}` marks the leg that pays the seeker. It is a leg of the bundle, and when present its key comes **last** in `message`, after `legs`.
+4. **Bond and arbiter (0.0.12, CT-094).** A swap of two participants can carry a bond: the parties name an `arbiter` in the signed terms. Three keys are added **after `search_leg`**, in this order, and **only when there is an arbiter**: `arbiter`, `agreement_hash` (when given) and `confirm_by`. Example: `{"circle":…,"epoch":42,"legs":[…],"arbiter":"scraper.x207-circle.near","agreement_hash":"abab…","confirm_by":"1793900000000000000"}`. A bundle without an arbiter keeps exactly the `message` and the `terms_hash` it had before 0.0.12.
+   - `confirm_by` is a **decimal string** of nanoseconds, because the value does not fit a JavaScript number; it is at most `U64`.
+   - `agreement_hash` is the sha256 (64 lowercase hex) of the document of the agreement, kept off-chain.
+   - `arbiter` and `confirm_by` come together and `agreement_hash` needs them (`ERR_BAD_BUNDLE`); the arbiter is only for a swap of two participants and is not one of them or the owner of the circle (`ERR_ARBITER_INVALID`). At commit the contract also requires `confirm_by` to be between 1 hour and 14 days after the commit (`ERR_DEAL_WINDOW`) and, from `bond_threshold` of value on, an arbiter (`ERR_BOND_REQUIRED`).
+   - Only the two parties sign; the arbiter does not.
+5. **Argument of `commit_bundle`**: `bundle: { epoch, legs, search_leg?, arbiter?, agreement_hash?, confirm_by? }`. The contract builds the `message` from these fields, so a key that was signed MUST be sent.
+
+Test vectors: `bundle_abca.json` (three legs), `bundle_search.json` (with `search_leg`), `bundle_deal.json` (with `agreement_hash`) and `bundle_deal_no_agreement.json`.
+
 ### 4. The `PAYMENT-RESPONSE` header
 
 The server sends `PAYMENT-RESPONSE` on a 200 after a successful `/settle`, and on a 402 if `/settle` fails. It holds the `SettleResponse` of the facilitator.
