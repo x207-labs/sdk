@@ -1,4 +1,5 @@
 // Fixture lingkaran di near-sandbox: kontrak `x207-circle`, mock NEP-141 sebagai USDT, dan akun anggota.
+import { readFileSync } from "node:fs";
 import { CIRCLE_WASM, MOCK_FT_WASM, MOCK_INTENTS_WASM, Sandbox, SandboxAccount, startSandbox } from "./sandbox.js";
 
 /** Jendela pendek di dalam rentang sah (Spec Antarmuka Kontrak 3.4), sama dengan `short_params` di contracts. */
@@ -7,6 +8,23 @@ export const SHORT_PARAMS = {
   limit_growth: 1000, limit_cap: "1000000000", limit_decay: 0,
   fees: { clearing_fee_bps: 0, solver_fee_bps: 0 }, admission: "open",
 };
+
+/** Methods of `probes/mock_intents` that the tests call; a wasm without one of them is a stale build (security review 3, F1). */
+export const MOCK_INTENTS_METHODS = ["new", "set_mode", "mt_transfer_call", "mt_resolve", "balance_of", "ft_withdraw", "withdraw_resolve", "last_msg", "received"];
+
+/** Fails with a clear message when the built `mock_intents` wasm lacks an export, instead of a "method not found" that looks like a bug of the circle. */
+export function assertMockIntentsWasm(path: string = MOCK_INTENTS_WASM): void {
+  let exported: string[];
+  try {
+    exported = WebAssembly.Module.exports(new WebAssembly.Module(readFileSync(path))).map((e) => e.name);
+  } catch (error) {
+    throw new Error(`mock_intents wasm cannot be read at ${path} (${(error as Error).message}); build it: in contracts/: cargo near build non-reproducible-wasm --manifest-path probes/mock_intents/Cargo.toml`);
+  }
+  const missing = MOCK_INTENTS_METHODS.filter((name) => !exported.includes(name));
+  if (missing.length > 0) {
+    throw new Error(`mock_intents wasm is older than probes/mock_intents/src/lib.rs (no export: ${missing.join(", ")}); delete ${path} and build it again: in contracts/: cargo near build non-reproducible-wasm --manifest-path probes/mock_intents/Cargo.toml`);
+  }
+}
 
 export const CREDIT = 1_000_000n;
 export const TERMS_HASH = "a".repeat(64);
@@ -43,6 +61,7 @@ export async function deployCircle(params: object = SHORT_PARAMS, options: Deplo
 
     let intents: SandboxAccount | undefined;
     if (options.mockIntents) {
+      assertMockIntentsWasm();
       intents = await sandbox.createAccount("intents", "10");
       await sandbox.deploy(intents, MOCK_INTENTS_WASM);
       const initialized = await intents.call({ receiverId: intents.accountId, methodName: "new", args: {}, deposit: 0n });
