@@ -15,6 +15,7 @@ const contractsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../con
 export const CIRCLE_WASM = join(contractsDir, "target/near/x207_circle.wasm");
 export const MOCK_INTENTS_WASM = join(contractsDir, "target/near/mock_intents/mock_intents.wasm");
 export const MOCK_NFT_WASM = join(contractsDir, "target/near/mock_nft/mock_nft.wasm");
+export const MOCK_RWA_WASM = join(contractsDir, "target/near/mock_rwa/mock_rwa.wasm");
 export const MOCK_FT_WASM = join(contractsDir, "target/near/mock_ft/mock_ft.wasm");
 
 export function findSandboxBinary(): string | null {
