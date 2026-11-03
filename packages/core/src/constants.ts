@@ -23,11 +23,11 @@ export const MAX_BUNDLE_LEGS = 64;
 
 /**
  * Least deposit of `join`, in yoctoNEAR: `JOIN_STORAGE_DEPOSIT` of the contract (Spec Antarmuka Kontrak, `join`). The only place in this repository that
- * writes the number: `buildJoinCall`, the frontend, the agents and the tests read it from here. The contract returns what is above it in the same receipt
- * chain, so a larger value is safe for the contract and only needs the balance. ADR-41 (interface 0.0.9) raises it from 0.01 NEAR to a value that covers the
- * worst storage of one member (about 0.1 NEAR); change this line to the figure the contract release states, and nothing else.
+ * writes the number: `buildJoinCall`, the frontend, the agents and the tests read it from here. ADR-41 (interface 0.0.9) sets it to 0.32 NEAR, which covers
+ * the worst storage of one member (31 282 bytes measured by the contract owner). A contract before 0.0.9 asks for 0.01 NEAR and returns what is above it in the
+ * same receipt chain, so this value also works against it; the deposit is not returned when the member exits.
  */
-export const JOIN_STORAGE_DEPOSIT = 10_000_000_000_000_000_000_000n;
+export const JOIN_STORAGE_DEPOSIT = 320_000_000_000_000_000_000_000n;
 
 /** `JOIN_STORAGE_DEPOSIT` or any yoctoNEAR amount as a short NEAR text for messages, e.g. `0.01`. */
 export function formatNear(yocto: bigint): string {

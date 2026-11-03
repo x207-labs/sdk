@@ -27,7 +27,7 @@ describe("SD-012 client kontrak", () => {
       `{"circle_id":"agents-main","pubkey_voucher":"${KA}","terms_hash":"${HASH}"}`,
     );
     expect(call.deposit).toBe(JOIN_STORAGE_DEPOSIT);
-    expect(JOIN_STORAGE_DEPOSIT).toBeGreaterThanOrEqual(10n ** 22n); // 0.01 NEAR was the least; ADR-41 raises it
+    expect(JOIN_STORAGE_DEPOSIT).toBe(32n * 10n ** 22n); // ADR-41: 0.32 NEAR; the contract before 0.0.9 asks 0.01 and returns the excess
 
     const v = vector("args/join.json");
     const fromVector = buildJoinCall({ circleContract: "x207-circle.near", circleId: v.input.circleId, pubkeyVoucher: v.input.pubkeyVoucher, termsHash: v.input.termsHash });
