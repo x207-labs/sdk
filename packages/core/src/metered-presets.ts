@@ -43,8 +43,13 @@ export const DEFAULT_MAX_QUANTITY: Readonly<Record<MeteredUnit, number>> = { cal
 
 const SECRET_PARAM = /^(api[-_]?key|key|token|access[-_]?token|secret|password|passwd|pwd|auth|authorization|signature|sig|credential|session)$/i;
 
-/** Alasan endpoint ditolak sebagai alamat listing sumber daya, atau `null` bila https tanpa kredensial. */
-export function endpointProblem(endpoint: string): string | null {
+const MAX_URL = 512;
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/** Alasan endpoint ditolak sebagai alamat listing sumber daya, atau `null` bila https tanpa kredensial. Aturan yang sama dengan backend (BE-050, `endpointProblem`). */
+export function endpointProblem(endpoint: unknown): string | null {
+  if (typeof endpoint !== "string" || endpoint.length === 0 || endpoint.length > MAX_URL) return `endpoint harus teks 1 sampai ${MAX_URL} karakter`;
+  if (!/^[\x21-\x7e]+$/.test(endpoint)) return "endpoint harus ASCII tanpa spasi";
   let url: URL;
   try {
     url = new URL(endpoint);
@@ -52,7 +57,11 @@ export function endpointProblem(endpoint: string): string | null {
     return "endpoint bukan URL";
   }
   if (url.protocol !== "https:") return "endpoint harus https";
-  if (url.username !== "" || url.password !== "" || url.hash !== "") return "endpoint tidak boleh memuat kredensial atau fragmen";
+  if (url.username !== "" || url.password !== "") return "endpoint tidak boleh memuat nama pengguna atau kata sandi";
+  if (url.hash !== "") return "endpoint tidak boleh memuat fragmen";
+  const host = url.hostname.toLowerCase();
+  if (host.startsWith("[") || IPV4.test(host)) return "endpoint harus memakai nama host, bukan alamat IP";
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || !host.includes(".")) return "endpoint harus nama host publik";
   for (const name of url.searchParams.keys()) if (SECRET_PARAM.test(name)) return `endpoint tidak boleh memuat kredensial di query (${name})`;
   return null;
 }

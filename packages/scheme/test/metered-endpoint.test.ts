@@ -83,7 +83,7 @@ describe("SD-064 createMeteredEndpoint", () => {
   it("TC-SD-064-06 listingDetail is the flat JSON of BE-050 and refuses an endpoint that is not https or that carries a credential", () => {
     const e = createMeteredEndpoint({ kind: "gpu", unitPrice: "$0.5", handler: () => new Response() });
     expect(JSON.parse(e.listingDetail("https://gpu.example.com/run"))).toEqual({ kind: "gpu", unit: "minute", unit_price: "500000", endpoint: "https://gpu.example.com/run" });
-    for (const bad of ["http://gpu.example.com", "https://u:p@gpu.example.com", "https://gpu.example.com/run?api_key=1", "https://gpu.example.com/#x", "nope"]) {
+    for (const bad of ["http://gpu.example.com", "https://u:p@gpu.example.com", "https://gpu.example.com/run?api_key=1", "https://gpu.example.com/#x", "nope", "https://10.0.0.1/run", "https://localhost/run", "https://intranet/run", "https://box.local/run"]) {
       expect(reject(() => e.listingDetail(bad)), bad).toMatch(/endpoint/);
     }
   });
