@@ -16,7 +16,7 @@ x207 stores no file. The seller keeps the **ciphertext** at any source; the buye
 Crypto: `@noble/ciphers` 1.3.0, `@noble/curves` 1.9.7, `@noble/hashes` 1.8.0 (already in the lockfile as dependencies of other packages; approved by the coordinator).
 
 ## Sources and size
-- `https` takes any host name (S3, R2, Drive, Dropbox, your own server). The SDK refuses a non-https address, credentials in the address, and a redirect to a non-https address; the check of private addresses is the backend's.
+- `https` takes any public host name (S3, R2, Drive, Dropbox, your own server). The SDK refuses a non-https address, credentials in the address, and a host of the own network (an IP, `localhost`, `.local`, `.internal`, a trailing dot, a name that carries an IP such as `127.0.0.1.nip.io`, wildcard DNS). Redirects are followed by hand, at most 3, and **every** address goes through the same check before it is requested (review BE-062, F10). A browser hides the target of a redirect, so in a browser a redirect is refused and the direct address must be used. The check is on the text of the name: a buyer on a server must also resolve the name and refuse non-public addresses when it connects (the guard of the backend, `ssrf.ts`).
 - `ipfs` takes a **CIDv1 raw sha2-256**, which names one block. A **file larger than one block uses `https`**: CIDv0 and `dag-pb` (the root of a multi-block DAG) cannot be verified without walking the DAG, so they are refused (`source_cid_unsupported`). Whatever the source says, `cipher_hash` of the release is checked on the bytes.
 
 ## Proof of cheating

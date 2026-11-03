@@ -13,6 +13,7 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, concatBytes, hexToBytes, randomBytes } from "@noble/hashes/utils.js";
 import { base58Decode, base58Encode } from "./base58.js";
+import { publicHostProblem } from "./metered-presets.js";
 import type { AccountId } from "./types.js";
 
 export type LicenseErrorCode =
@@ -381,7 +382,7 @@ export interface ContentSource {
   fetch(ref: string, options?: FetchOptions): Promise<Uint8Array>;
 }
 export const DEFAULT_MAX_BYTES = 256 * 1024 * 1024;
-type FetchLike = (input: string, init?: { signal?: AbortSignal; redirect?: "follow" | "error" }) => Promise<Response>;
+type FetchLike = (input: string, init?: { signal?: AbortSignal; redirect?: "follow" | "error" | "manual" }) => Promise<Response>;
 
 async function readBody(res: Response, options: FetchOptions): Promise<Uint8Array> {
   const max = options.maxBytes ?? DEFAULT_MAX_BYTES;
@@ -420,25 +421,44 @@ export function httpsRefProblem(ref: string): string | null {
   }
   if (url.protocol !== "https:") return "ref harus https";
   if (url.username !== "" || url.password !== "" || url.hash !== "") return "ref tidak boleh memuat kredensial atau fragmen";
-  return null;
+  // F10 (review BE-062): a name of the own network (localhost, .internal, an IP, a name that carries an IP) is not a place to fetch a ciphertext from
+  const host = publicHostProblem(url.hostname);
+  return host === null ? null : host.replace("endpoint", "ref");
 }
 
-export function httpsSource(options: { fetch?: FetchLike } = {}): ContentSource {
+export const MAX_REDIRECTS = 3;
+export function httpsSource(options: { fetch?: FetchLike; maxRedirects?: number } = {}): ContentSource {
   const doFetch: FetchLike = options.fetch ?? ((input, init) => fetch(input, init));
+  const maxRedirects = options.maxRedirects ?? MAX_REDIRECTS;
   return {
     kind: "https",
     async fetch(ref, opts = {}) {
-      const problem = httpsRefProblem(ref);
-      if (problem !== null) fail("source_forbidden", problem);
-      let res: Response;
-      try {
-        res = await doFetch(ref, { ...(opts.signal ? { signal: opts.signal } : {}), redirect: "follow" });
-      } catch (e) {
-        return fail("source_failed", `unduhan gagal: ${e instanceof Error ? e.message : String(e)}`);
+      let current = ref;
+      for (let hop = 0; ; hop++) {
+        // every address, the first and each redirect, goes through the same check; redirects are followed by hand (F10, review BE-062)
+        const problem = httpsRefProblem(current);
+        if (problem !== null) fail("source_forbidden", hop === 0 ? problem : `pengalihan ke alamat yang ditolak: ${problem}`);
+        let res: Response;
+        try {
+          res = await doFetch(current, { ...(opts.signal ? { signal: opts.signal } : {}), redirect: "manual" });
+        } catch (e) {
+          return fail("source_failed", `unduhan gagal: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        if (res.type === "opaqueredirect") fail("source_forbidden", "browser menyembunyikan tujuan pengalihan: sumber dengan pengalihan tidak bisa diperiksa, pakai alamat langsung");
+        if (res.status >= 300 && res.status < 400) {
+          const location = res.headers.get("location");
+          if (hop >= maxRedirects) return fail("source_forbidden", `lebih dari ${maxRedirects} pengalihan`);
+          if (location === null) return fail("source_forbidden", "pengalihan tanpa Location");
+          try {
+            current = new URL(location, current).href;
+          } catch {
+            return fail("source_forbidden", "Location pengalihan bukan URL");
+          }
+          continue;
+        }
+        if (!res.ok) fail("source_failed", `sumber menjawab HTTP ${res.status}`);
+        return readBody(res, opts);
       }
-      if (res.url !== "" && !res.url.startsWith("https://")) fail("source_forbidden", "pengalihan ke alamat yang bukan https ditolak");
-      if (!res.ok) fail("source_failed", `sumber menjawab HTTP ${res.status}`);
-      return readBody(res, opts);
     },
   };
 }

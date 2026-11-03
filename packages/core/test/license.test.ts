@@ -337,7 +337,24 @@ describe("SD-070 ContentSource: https and ipfs", () => {
     }
     await expect(ok.fetch("https://cdn.example.com/x", { maxBytes: 5 })).rejects.toMatchObject({ code: "source_too_large" });
     await expect(httpsSource({ fetch: async () => reply(body, { status: 200, headers: { "content-length": "999999" } }) }).fetch("https://cdn.example.com/x", { maxBytes: 100 })).rejects.toMatchObject({ code: "source_too_large" });
-    await expect(httpsSource({ fetch: async () => reply(body, { status: 200, url: "http://evil.example.com/x" }) }).fetch("https://cdn.example.com/x")).rejects.toMatchObject({ code: "source_forbidden" });
+    // [F10] redirects are followed by hand and every address is checked: a hop to http or to a host of the own network is not requested
+    const seen: string[] = [];
+    const redirecting = (location: string) => httpsSource({ fetch: async (u: string) => (seen.push(u), seen.length === 1 ? new Response(null, { status: 302, headers: { location } }) : reply(body, { status: 200 })) });
+    await expect(redirecting("http://evil.example.com/x").fetch("https://cdn.example.com/x")).rejects.toMatchObject({ code: "source_forbidden" });
+    expect(seen).toEqual(["https://cdn.example.com/x"]); // the plain http address was never requested
+    for (const bad of ["https://localhost./x", "https://10.0.0.1/x", "https://metadata.google.internal/x", "https://127.0.0.1.nip.io/x"]) {
+      seen.length = 0;
+      await expect(redirecting(bad).fetch("https://cdn.example.com/x"), bad).rejects.toMatchObject({ code: "source_forbidden" });
+      expect(seen).toHaveLength(1);
+    }
+    seen.length = 0;
+    expect(Buffer.from(await redirecting("https://cdn2.example.com/y").fetch("https://cdn.example.com/x")).equals(Buffer.from(body))).toBe(true);
+    expect(seen).toEqual(["https://cdn.example.com/x", "https://cdn2.example.com/y"]);
+    const loop = httpsSource({ fetch: async () => new Response(null, { status: 301, headers: { location: "https://cdn.example.com/loop" } }) });
+    await expect(loop.fetch("https://cdn.example.com/x")).rejects.toMatchObject({ code: "source_forbidden" });
+    await expect(httpsSource({ fetch: async () => new Response(null, { status: 302 }) }).fetch("https://cdn.example.com/x")).rejects.toMatchObject({ code: "source_forbidden" });
+    // the first address goes through the same check
+    for (const bad of ["https://localhost/x", "https://box.internal/x", "https://192.168.1.5/x", "https://127.0.0.1.nip.io/x"]) await expect(ok.fetch(bad), bad).rejects.toMatchObject({ code: "source_forbidden" });
     await expect(httpsSource({ fetch: async () => reply(body, { status: 404 }) }).fetch("https://cdn.example.com/x")).rejects.toMatchObject({ code: "source_failed" });
     await expect(httpsSource({ fetch: async () => { throw new Error("offline"); } }).fetch("https://cdn.example.com/x")).rejects.toMatchObject({ code: "source_failed" });
   });
