@@ -1,36 +1,36 @@
-# Keamanan kunci voucher
+# Voucher key security
 
-Berlaku untuk `@x207/core` (SD-037, ADR-06).
+Applies to `@x207/core` (SD-037, ADR-06).
 
-## Apa kunci ini
+## What this key is
 
-Kunci voucher adalah keypair ed25519 yang dipakai agent untuk menandatangani voucher kumulatif off-chain. Kunci publiknya didaftarkan sebagai `pubkey_voucher` saat `join` (D1). Kontrak `x207-circle` memverifikasi tanda tangan voucher terhadap kunci itu.
+The voucher key is an ed25519 keypair that an agent uses to sign cumulative vouchers off chain. Its public key is registered as `pubkey_voucher` at `join` (D1). The `x207-circle` contract verifies voucher signatures against that key.
 
-**Kunci ini bukan access key NEAR.** Ia tidak terdaftar di akun NEAR mana pun, tidak bisa menandatangani transaksi, dan tidak bisa memindahkan token atau NEAR dari akun agent. Satu-satunya yang bisa ditandatanganinya adalah voucher x207 (byte kanonik di [`spec/voucher-format.md`](../spec/voucher-format.md)), dan voucher hanya berlaku bila anggota `active` punya headroom.
+**This key is not a NEAR access key.** It is not registered on any NEAR account, cannot sign transactions, and cannot move tokens or NEAR out of the agent's account. The only thing it can sign is an x207 voucher (canonical bytes in [`spec/voucher-format.md`](../spec/voucher-format.md)), and a voucher only counts if an `active` member has headroom.
 
-## Membuat kunci
+## Creating the key
 
 ```ts
 import { generateVoucherKeypair } from "@x207/core";
 
 const { secretKey, publicKey } = generateVoucherKeypair();
-// secretKey: "ed25519:<base58 64 byte>"  -> simpan rahasia (env atau secret manager)
-// publicKey: "ed25519:<base58 32 byte>"  -> dikirim ke join() sebagai pubkey_voucher
+// secretKey: "ed25519:<base58 64 byte>"  -> keep secret (env or secret manager)
+// publicKey: "ed25519:<base58 32 byte>"  -> sent to join() as pubkey_voucher
 ```
 
-`generateVoucherKeypair` memakai pembangkit acak sistem. Buat kunci baru khusus voucher; jangan memakai ulang seed access key akun NEAR (kontrak menerima kunci yang sama dengan access key, tetapi itu melemahkan pemisahan ini, ADR-32 K-23).
+`generateVoucherKeypair` uses the system random generator. Create a new key just for vouchers; do not reuse the seed of the access key of the NEAR account (the contract accepts a key equal to the access key, but that weakens this separation, ADR-32 K-23).
 
-## Bila kunci bocor
+## If the key leaks
 
-Penyerang yang memegang kunci voucher bisa menandatangani voucher atas nama agent, sampai headroom agent habis. Dampaknya:
+An attacker who holds the voucher key can sign vouchers in the name of the agent until the agent's headroom is used up. The impact:
 
-- **Bisa:** membuat voucher payer = agent ke payee mana pun yang `active`. Tiap voucher menambah kewajiban agent. Total kerugian dibatasi `limit` agent, dan di MVP `limit ≤ stake` (ADR-18), jadi kerugian maksimum sebesar stake yang sudah dikunci.
-- **Tidak bisa:** memindahkan aset di akun NEAR agent, menandatangani transaksi NEAR, menarik stake (`withdraw_stake` dipanggil dari akun NEAR, bukan dengan kunci voucher), atau mengubah anggota lain.
+- **Can:** create vouchers with payer = the agent to any `active` payee. Each voucher adds to the agent's obligation. The total loss is limited by the agent's `limit`, and in the MVP `limit ≤ stake` (ADR-18), so the maximum loss is the stake that is already locked.
+- **Cannot:** move assets in the agent's NEAR account, sign NEAR transactions, withdraw the stake (`withdraw_stake` is called from the NEAR account, not with the voucher key), or change other members.
 
-Langkah bila curiga bocor: panggil `request_exit` dari akun NEAR agent. Sejak `exit_requested_epoch` terisi, facilitator menolak voucher baru dari agent itu (`member_exiting`, ADR-29). Voucher yang sudah diterima sebelumnya tetap menjadi kewajiban. Spec antarmuka `0.0.1` belum punya method rotasi kunci.
+Step if you suspect a leak: call `request_exit` from the agent's NEAR account. Once `exit_requested_epoch` is set, the facilitator refuses new vouchers from that agent (`member_exiting`, ADR-29). Vouchers already accepted stay as obligations. Interface spec `0.0.1` does not yet have a key rotation method.
 
-## Praktik
+## Practice
 
-- Simpan `secretKey` hanya di `.env` atau secret manager; jangan di-commit.
-- Satu kunci per agent; jangan dibagi antar agent.
-- Batasi `limit` lewat stake sesuai yang siap hilang bila kunci bocor.
+- Keep `secretKey` only in `.env` or a secret manager; do not commit it.
+- One key per agent; do not share it between agents.
+- Limit `limit` through the stake to what you are ready to lose if the key leaks.

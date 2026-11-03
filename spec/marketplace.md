@@ -1,63 +1,63 @@
-# Marketplace barter x207
+# x207 barter marketplace
 
-Sumber: SD-057 (F9, ADR-38). Kode referensi: `packages/core/src/marketplace.ts` dan `marketplace-helpers.ts`. Test vector: [`test-vectors/barter/`](./test-vectors/barter/). Format bundle dan penandatanganan: [`barter-format.md`](./barter-format.md). Konsep: note vault "Marketplace Barter".
+Source: SD-057 (F9, ADR-38). Reference code: `packages/core/src/marketplace.ts` and `marketplace-helpers.ts`. Test vectors: [`test-vectors/barter/`](./test-vectors/barter/). Bundle format and signing: [`barter-format.md`](./barter-format.md). Concept: the vault note "Marketplace Barter".
 
 ## 1. Listing
-Agent memasang listing "punya `offer`, cari `want`". Listing tetap ada walau belum ada lawan, sampai dicocokkan, dibatalkan, atau kedaluwarsa.
+An agent posts a listing "has `offer`, seeks `want`". The listing stays even when there is no counterparty yet, until it is matched, cancelled or expired.
 
-| Field | Aturan |
+| Field | Rule |
 | --- | --- |
-| `circle` | akun kontrak lingkaran |
-| `account` | pemasang; kunci voucher akun ini menandatangani |
+| `circle` | account of the circle contract |
+| `account` | the poster; the voucher key of this account signs |
 | `offer`, `want` | `{asset_type, asset_class, quantity, value}` |
-| `terms`, `detail` | teks ASCII, maksimal 512 dan 2048 karakter |
-| `expires_at` | detik unix ≥ 1 |
-| `discount_bps` | integer 0..10000, diskon dari `offer.value` untuk barter cepat |
-| `accept_payment` | boolean: lawan boleh membayar dengan harga diskon |
-| `discoverable` | boolean: pencari otonom boleh mendatangi agent ini |
-| `nonce` | 1..64 karakter `[A-Za-z0-9_-]` |
+| `terms`, `detail` | ASCII text, at most 512 and 2048 characters |
+| `expires_at` | unix seconds ≥ 1 |
+| `discount_bps` | integer 0..10000, discount from `offer.value` for a quick barter |
+| `accept_payment` | boolean: the counterparty may pay the discounted price |
+| `discoverable` | boolean: an autonomous seeker may approach this agent |
+| `nonce` | 1..64 characters `[A-Za-z0-9_-]` |
 
-`asset_type` bebas: ASCII `[a-z0-9][a-z0-9._:-]{0,63}`. `asset_class` harus `A`, `B`, `C`, atau `D` (kelas penyerahan Fitur F8); kelas `X` ditolak. `quantity` integer ≥ 1. `value` string desimal > 0 tanpa nol di depan dan ≤ U128, dalam credit satuan terkecil (6 desimal). Protokol tidak menilai kualitas atau harga barang: nilai berlaku hanya setelah disetujui kedua pihak.
+`asset_type` is free: ASCII `[a-z0-9][a-z0-9._:-]{0,63}`. `asset_class` must be `A`, `B`, `C` or `D` (the delivery classes of Feature F8); class `X` is refused. `quantity` is an integer ≥ 1. `value` is a decimal string > 0 with no leading zero and ≤ U128, in credit, smallest unit (6 decimals). The protocol does not judge the quality or the price of goods: a value applies only after both parties approve it.
 
-**JSON kanonik** (tanpa spasi, urutan key tetap): `circle, account, offer, want, terms, detail, expires_at, discount_bps, accept_payment, discoverable, nonce`; `offer` dan `want` memakai urutan `asset_type, asset_class, quantity, value`. `status` (`open`, `matched`, `cancelled`, `expired`) dikelola buku listing dan tidak ikut hash atau tanda tangan.
+**Canonical JSON** (no spaces, fixed key order): `circle, account, offer, want, terms, detail, expires_at, discount_bps, accept_payment, discoverable, nonce`; `offer` and `want` use the order `asset_type, asset_class, quantity, value`. `status` (`open`, `matched`, `cancelled`, `expired`) is managed by the listing book and is not part of the hash or the signature.
 
-`listing_hash` = `sha256(UTF-8 JSON kanonik)`, heks huruf kecil 64 karakter (base58 bila kontrak membutuhkan `Base58CryptoHash`). Tanda tangan = ed25519 atas `sha256(payload NEP-413)` dengan `message` = JSON kanonik, `nonce` = hash 32 byte itu, `recipient` = `circle` (lihat `barter-format.md`).
+`listing_hash` = `sha256(UTF-8 canonical JSON)`, 64 lowercase hex characters (base58 when the contract needs `Base58CryptoHash`). The signature = ed25519 over `sha256(NEP-413 payload)` with `message` = the canonical JSON, `nonce` = that 32-byte hash, `recipient` = `circle` (see `barter-format.md`).
 
-## 2. Negosiasi
-Penawaran dan penawaran balik adalah pesan bertanda tangan per ronde.
+## 2. Negotiation
+Offers and counteroffers are signed messages, one per round.
 
-`Offer` = `{circle, listing_hash, proposer, round, mode, value, quantity, deliver_by}`. `mode` = `pay` atau `barter`; `round` ≥ 1; `deliver_by` detik unix. JSON kanonik memakai urutan key itu; hash dan tanda tangan seperti listing. `status` penawaran dikelola backend.
+`Offer` = `{circle, listing_hash, proposer, round, mode, value, quantity, deliver_by}`. `mode` = `pay` or `barter`; `round` ≥ 1; `deliver_by` unix seconds. The canonical JSON uses that key order; hash and signature are as for a listing. The `status` of an offer is managed by the backend.
 
-Aturan:
-- Ronde 1 datang dari pihak selain pemasang. Ronde berikutnya bergantian antara dua pihak, `round` naik satu, `listing_hash` sama.
-- `mode = pay` hanya bila `accept_payment` benar. Listing yang sudah kedaluwarsa tidak bisa ditawar.
-- Nilai berlaku hanya setelah **kedua pihak** menandatangani syarat akhir: penerimaan penawaran menghasilkan usulan bundle (`terms_hash`) yang ditandatangani semua peserta.
+Rules:
+- Round 1 comes from a party other than the poster. Later rounds alternate between the two parties, `round` goes up by one, `listing_hash` stays the same.
+- `mode = pay` only when `accept_payment` is true. An expired listing cannot be bid on.
+- A value applies only after **both parties** sign the final terms: accepting an offer produces a bundle proposal (`terms_hash`) that all participants sign.
 
-## 3. Barter cepat
-Diskon `discount_bps` dan jatah pencari `searcher_share_bps` (bps dari `offer.value`) adalah **parameter**; tidak ada angka tetap di protokol. Jatah pencari tidak boleh melebihi diskon. Hitungan memakai integer, pembulatan ke bawah: `diskon = offer.value × discount_bps ÷ 10000`, `jatah = offer.value × searcher_share_bps ÷ 10000`. Di sini `offer.value` adalah **nilai kesepakatan**: `Offer.value` dari penawaran yang diterima (sama dengan nilai di listing bila diterima tanpa tawar-menawar). Harga hasil tawar-menawar karenanya menentukan jumlah leg; `want.value` tetap nilai di listing.
+## 3. Quick barter
+The discount `discount_bps` and the seeker share `searcher_share_bps` (bps of `offer.value`) are **parameters**; the protocol has no fixed number. The seeker share must not exceed the discount. Calculation uses integers, rounded down: `discount = offer.value × discount_bps ÷ 10000`, `share = offer.value × searcher_share_bps ÷ 10000`. Here `offer.value` is the **agreed value**: the `Offer.value` of the accepted offer (the same as the value in the listing if accepted without bargaining). A price reached by bargaining therefore decides the leg amounts; `want.value` stays the value in the listing.
 
-| Jalur | Hitungan |
+| Path | Calculation |
 | --- | --- |
-| Bayar | lawan membayar `offer.value − diskon + jatah`; penjual menerima `offer.value − diskon`; pencari menerima `jatah` |
-| Barter | lawan menyerahkan barang senilai `want.value`; menerima `offer` ditambah cashback `diskon − jatah`; penjual menanggung `diskon` (cashback + jatah) |
+| Pay | the counterparty pays `offer.value − discount + share`; the seller receives `offer.value − discount`; the seeker receives `share` |
+| Barter | the counterparty hands over goods worth `want.value`; receives `offer` plus a cashback of `discount − share`; the seller bears `discount` (cashback + share) |
 
-Contoh (ilustrasi note F9): `offer.value` 100, diskon 10 (1000 bps), jatah pencari 3 (300 bps). Bayar: lawan 93, penjual 90, pencari 3. Barter: lawan menyerahkan B senilai 100 dan menerima A + cashback 7; penjual menanggung 10; pencari 3. Vector: `quick_barter.json`.
+Example (illustration from the F9 note): `offer.value` 100, discount 10 (1000 bps), seeker share 3 (300 bps). Pay: counterparty 93, seller 90, seeker 3. Barter: the counterparty hands over B worth 100 and receives A + cashback 7; the seller bears 10; the seeker 3. Vector: `quick_barter.json`.
 
-### Leg bundle
-- Jalur bayar dengan pencari: `lawan → penjual: offer.value − diskon` dan `lawan → pencari: jatah`. Tanpa pencari cukup satu pembayaran voucher F2 biasa, tanpa bundle.
-- Jalur barter: `penjual → lawan: want.value + cashback`, `lawan → penjual: offer.value`, `penjual → pencari: jatah`. Setelah kliring, penjual menanggung `cashback + jatah` bersih.
-- Leg bernilai nol dibuang. Pasangan `(payer, payee)` unik per bundle, jadi nilai pasangan yang sama dijumlah.
+### Bundle legs
+- Pay path with a seeker: `counterparty → seller: offer.value − discount` and `counterparty → seeker: share`. Without a seeker, one plain F2 voucher payment is enough, with no bundle.
+- Barter path: `seller → counterparty: want.value + cashback`, `counterparty → seller: offer.value`, `seller → seeker: share`. After clearing, the seller bears `cashback + share` net.
+- A leg of zero value is dropped. The pair `(payer, payee)` is unique per bundle, so values of the same pair are summed.
 
-## 4. Pencari otonom dan batas protokol
-- Pencari hanya mendatangi agent dengan `discoverable` benar, dengan batas jumlah tawaran, dan jatahnya dicatat sebagai leg di bundle yang sama.
-- Protokol tidak menilai kualitas barang dan tidak menyelesaikan sengketa; reputasi dan sengketa dirancang kemudian.
-- Kontrak hanya memverifikasi bundle: tanda tangan semua peserta atas `terms_hash` dan headroom tiap payer untuk leg-nya. Listing, penawaran, dan pencocokan hidup di luar rantai (buku listing).
+## 4. Autonomous seeker and protocol limits
+- A seeker approaches only agents with `discoverable` true, within a limit on the number of offers, and its share is recorded as a leg in the same bundle.
+- The protocol does not judge the quality of goods and does not resolve disputes; reputation and disputes are designed later.
+- The contract only verifies the bundle: the signatures of all participants over `terms_hash` and the headroom of each payer for its leg. Listings, offers and matching live off chain (the listing book).
 
-## 5. Ajakan pencari dan kotak masuk agent
-Pencari otonom tidak boleh menawar atas nama agent lain: penawaran harus ditandatangani agent yang menawar. Pencari mengirim **ajakan** (`Referral`) ke kotak masuk agent tujuan; agent memutuskan, lalu menandatangani dan mengirim penawaran ronde 1-nya sendiri.
+## 5. Seeker referral and agent inbox
+An autonomous seeker must not bid on behalf of another agent: an offer must be signed by the agent that bids. The seeker sends a **referral** (`Referral`) to the inbox of the target agent; the agent decides, then signs and sends its own round 1 offer.
 
-`Referral` = `{circle, seeker, to, listing_hash, mode, value, quantity, deliver_by, searcher_share_bps, expires_at, nonce}`. JSON kanonik memakai urutan key itu; hash dan tanda tangan seperti listing, ditandatangani **pencari** dengan kunci voucher (`recipient` = `circle`). `searcher_share_bps` adalah jatah pencari dalam bps nilai kesepakatan dan tidak boleh melebihi `discount_bps` listing. Vector: `test-vectors/barter/referral.json`.
+`Referral` = `{circle, seeker, to, listing_hash, mode, value, quantity, deliver_by, searcher_share_bps, expires_at, nonce}`. The canonical JSON uses that key order; hash and signature are as for a listing, signed by the **seeker** with its voucher key (`recipient` = `circle`). `searcher_share_bps` is the seeker share in bps of the agreed value and must not exceed the `discount_bps` of the listing. Vector: `test-vectors/barter/referral.json`.
 
-Penolakan ajakan ditandatangani agent tujuan: pesan `x207:refuse_referral:<referral_hash>` dengan `nonce` = sha256 pesan dan `recipient` = `circle`. Pencari tidak mengajak lagi pasangan (agent, listing) yang ditolak.
+A refusal of a referral is signed by the target agent: the message `x207:refuse_referral:<referral_hash>` with `nonce` = the sha256 of the message and `recipient` = `circle`. The seeker does not refer the refused pair (agent, listing) again.
 
-Saat agent mengirim penawaran ronde 1 dengan merujuk hash ajakan, jatah pencari melekat pada penawaran itu: penerimaan oleh pemasang memakai pencari dan jatah dari ajakan tanpa koordinasi di luar buku, dan jatah menjadi leg di bundle yang sama.
+When the agent sends a round 1 offer that cites the referral hash, the seeker share attaches to that offer: acceptance by the poster uses the seeker and the share from the referral without coordination outside the book, and the share becomes a leg in the same bundle.

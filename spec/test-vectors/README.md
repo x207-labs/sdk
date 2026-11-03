@@ -1,3 +1,3 @@
-# Test vector x207
+# x207 test vectors
 
-Sumber tunggal format voucher dan kliring, dibaca CI TypeScript `sdk` dan CI Rust `contracts`. Hanya JSON standar: jumlah sebagai string desimal, byte sebagai hex, kunci sebagai `ed25519:<base58>`.
+The single source of the voucher and clearing format, read by the TypeScript CI of `sdk` and the Rust CI of `contracts`. Plain JSON only: amounts as decimal strings, bytes as hex, keys as `ed25519:<base58>`.

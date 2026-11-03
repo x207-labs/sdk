@@ -1,21 +1,21 @@
-# `epoch_length` dan waktu tunggu pembayaran (untuk penjual)
+# `epoch_length` and the wait for payment (for sellers)
 
-`epoch_length` adalah parameter lingkaran yang dipegang DAO pemilik kontrak, bukan konstanta kode. Default demo 3600 detik (1 jam, ADR-25); rentang yang diterima kontrak 300 sampai 604800 detik (5 menit sampai 7 hari). Parameter terkait: `proposal_window` (default 600 detik) dan `payment_window` (default 1800 detik, minimal 900).
+`epoch_length` is a circle parameter held by the DAO that owns the contract, not a constant in the code. The demo default is 3600 seconds (1 hour, ADR-25); the range the contract accepts is 300 to 604800 seconds (5 minutes to 7 days). Related parameters: `proposal_window` (default 600 seconds) and `payment_window` (default 1800 seconds, minimum 900).
 
-## Cara mengubahnya
+## How to change it
 
-Hanya akun `owner` (Sputnik DAO lingkaran) yang boleh memanggil `set_params`. Alurnya: proposal `set_params` dibuat dan disetujui di DAO, lalu kontrak menyimpan nilai baru sebagai params *pending* yang berlaku mulai epoch berikutnya (diterapkan saat `close_epoch` epoch berjalan). Nilai di luar rentang ditolak `ERR_PARAM_OUT_OF_RANGE: <field>`. View `get_pending_params` menunjukkan nilai yang menunggu dan `effective_epoch`-nya, dan event `params_updated` mencatat perubahan. Dasbor menampilkannya di halaman Tata kelola.
+Only the `owner` account (the circle's Sputnik DAO) may call `set_params`. The flow: a `set_params` proposal is created and approved in the DAO, then the contract stores the new value as *pending* params that apply from the next epoch (applied at `close_epoch` of the current epoch). A value outside the range is refused with `ERR_PARAM_OUT_OF_RANGE: <field>`. The view `get_pending_params` shows the waiting value and its `effective_epoch`, and the event `params_updated` records the change. The dashboard shows it on the Governance page.
 
-## Kompromi untuk penjual
+## Trade-offs for sellers
 
-| Epoch lebih pendek | Epoch lebih panjang |
+| Shorter epoch | Longer epoch |
 | --- | --- |
-| Utang terhapus dan posisi bersih jatuh tempo lebih cepat, jadi risiko penjual menggantung lebih singkat | Lebih sedikit transaksi kliring dan registrasi per hari |
-| Lebih banyak transaksi `close_epoch`, `submit_clearing`, `commit_epoch` per hari | Penjual menunggu lebih lama sampai pembayaran tunai atas posisi bersihnya jatuh tempo |
-| Graf per epoch lebih kecil, jadi lebih sedikit siklus yang bisa dihapus | Graf lebih besar memberi lebih banyak peluang siklus (kepadatan, ADR-16) |
+| Debt is cleared and net positions fall due sooner, so the seller's risk hangs for a shorter time | Fewer clearing and registration transactions per day |
+| More `close_epoch`, `submit_clearing`, `commit_epoch` transactions per day | The seller waits longer until the cash payment of its net position falls due |
+| A smaller graph per epoch, so fewer cycles can be removed | A bigger graph gives more chances for cycles (density, ADR-16) |
 
-Waktu tunggu terburuk penjual untuk menerima uang tunai dari posisi bersih adalah sisa epoch ditambah `proposal_window` ditambah `payment_window` setelah `cutoff_at`.
+The seller's worst-case wait to receive cash from a net position is the rest of the epoch plus `proposal_window` plus `payment_window` after `cutoff_at`.
 
-## Apa yang dihitung "sudah dibayar"
+## What counts as "paid"
 
-Nilai yang terhapus kliring sudah terbayar lewat **pengurangan utang**: utang melingkar saling meniadakan, sehingga tidak ada pembayaran tunai untuk bagian itu. Hanya posisi bersih yang menjadi pembayaran tunai (USDT) di jendela pembayaran. Penjual yang menerima voucher dari pembeli yang kelak terhapus kliring tidak perlu menunggu tunai untuk bagian yang terhapus.
+Value removed by clearing is paid through **debt reduction**: circular debts cancel each other, so there is no cash payment for that part. Only the net position becomes a cash payment (USDT) in the payment window. A seller who receives a voucher from a buyer whose debt is later removed by clearing does not have to wait for cash for the removed part.
