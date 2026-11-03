@@ -9,6 +9,7 @@ import type {
 } from "@x402/core/types";
 import type { AccountId } from "@x207/core";
 import { assertCircleId } from "@x207/scheme";
+import { RateLimiter, type RateLimitOptions } from "./exact-guard.js";
 import { ChainUnavailableError } from "./rpc.js";
 
 export type PairStateQuery = { network: string; payer: string; payee: string; epoch: number };
@@ -71,8 +72,29 @@ function parsePairStateQuery(query: Record<string, string | undefined>): PairSta
   return { network, payer, payee, epoch: Number(epoch) };
 }
 
-export function createApp(service: FacilitatorService): Hono {
+export type AppOptions = {
+  /** Per client on `/verify` and `/settle` (default `RATE_LIMIT_DEFAULTS`); `false` turns it off. The client is the address of the socket, or the first `x-forwarded-for` when `trustProxy`. */
+  rateLimit?: RateLimitOptions | false;
+  trustProxy?: boolean;
+};
+
+export function createApp(service: FacilitatorService, options: AppOptions = {}): Hono {
   const app = new Hono();
+  const limiter = options.rateLimit === false ? undefined : new RateLimiter(options.rateLimit);
+  if (limiter) {
+    const limited = async (c: import("hono").Context, next: () => Promise<void>) => {
+      const forwarded = options.trustProxy ? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() : undefined;
+      const socket = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming?.socket?.remoteAddress;
+      const wait = limiter.hit(forwarded || socket || "unknown");
+      if (wait > 0) {
+        c.header("Retry-After", String(Math.max(1, Math.ceil(wait / 1000))));
+        return c.json({ error: "rate_limited", message: "too many requests" }, 429);
+      }
+      await next();
+    };
+    app.use("/verify", limited);
+    app.use("/settle", limited);
+  }
 
   const handlePayment = (run: (request: VerifyRequest) => Promise<unknown>) => async (c: import("hono").Context) => {
     let body: unknown;

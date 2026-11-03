@@ -18,6 +18,7 @@ import { X207SchemeFacilitator, type CircleConfig, type VerifyOptions } from "@x
 import { InvalidRequestError, type FacilitatorService, type PairStateQuery, type PairStateResponse } from "./app.js";
 import { NearChain, PendingStoreWriter } from "./chain.js";
 import { CachedVerifyChain, type ChainCacheOptions } from "./chain-cache.js";
+import { EXACT_DEFAULT_MAX_SPONSORED_GAS, ExactSenderGuard, verifiedExactPayer, type ExactGuardOptions } from "./exact-guard.js";
 import type { PendingStore } from "./pending-store.js";
 import type { NearRpc } from "./rpc.js";
 
@@ -35,6 +36,10 @@ export type FacilitatorServiceOptions = {
   exactSigner?: FacilitatorNearSigner;
   /** Jaringan untuk `exactSigner`; bawaan `near:mainnet`. */
   exactNetwork?: ExactNearNetwork;
+  /** Most gas a delegated `ft_transfer` may ask (default `EXACT_DEFAULT_MAX_SPONSORED_GAS`, 30 Tgas). The relayer pays it also when the transfer fails. */
+  exactMaxSponsoredGas?: bigint;
+  /** Failed settlements per payer before a pause (see `exact-guard.ts`). */
+  exactGuard?: ExactGuardOptions;
   verify?: Omit<VerifyOptions, "chain">;
   /** Short-lived cache of the chain reads of `verify` (see `chain-cache.ts` for what may be stale). Off when absent. */
   chainCache?: ChainCacheOptions;
@@ -88,10 +93,34 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
     facilitator.register(circle.network, scheme);
     byNetwork.set(circle.network, { circle, scheme, chain });
   }
-  if (options.exactSigner) facilitator.register(options.exactNetwork ?? EXACT_NEAR_NETWORK, new ExactNearScheme(options.exactSigner));
+  const exactGuard = new ExactSenderGuard(options.exactGuard);
+  if (options.exactSigner) {
+    facilitator.register(
+      options.exactNetwork ?? EXACT_NEAR_NETWORK,
+      new ExactNearScheme(options.exactSigner, undefined, { maxSponsoredGas: options.exactMaxSponsoredGas ?? EXACT_DEFAULT_MAX_SPONSORED_GAS }),
+    );
+  }
 
   const registered = (requirements: PaymentRequirements): boolean =>
     facilitator.getSupported().kinds.some((k) => k.scheme === requirements.scheme && k.network === requirements.network);
+
+  /** `exact`: refuse a paused payer before anything is submitted, and count a settlement that was submitted and failed (the relayer paid its gas). */
+  async function settleExact(payload: PaymentPayload, requirements: PaymentRequirements): Promise<SettleResponse> {
+    const payer = verifiedExactPayer(payload);
+    const paused = payer === undefined ? 0 : exactGuard.pausedFor(payer);
+    if (paused > 0) {
+      return {
+        success: false, errorReason: "payer_paused", errorMessage: `too many failed settlements; retry in ${Math.ceil(paused / 1000)} s`,
+        transaction: "", network: requirements.network, payer,
+      };
+    }
+    const response = await facilitator.settle(payload, requirements);
+    if (response.payer !== undefined && payer === response.payer) {
+      if (response.success) exactGuard.recordSuccess(payer);
+      else if (response.errorReason === "settlement_failed") exactGuard.recordFailure(payer);
+    }
+    return response;
+  }
 
   return {
     invalidatePayer(circleContract: AccountId, payer: AccountId): void {
@@ -105,6 +134,7 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
 
     async settle({ paymentPayload, paymentRequirements }: SettleRequest): Promise<SettleResponse> {
       if (!registered(paymentRequirements as PaymentRequirements)) return invalidNetwork(paymentRequirements.network);
+      if (paymentRequirements.scheme === "exact") return settleExact(paymentPayload as PaymentPayload, paymentRequirements as PaymentRequirements);
       const response = await facilitator.settle(paymentPayload as PaymentPayload, paymentRequirements as PaymentRequirements);
       const perRequest = options.perRequest;
       const entry = byNetwork.get(paymentRequirements.network);

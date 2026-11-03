@@ -46,7 +46,16 @@ const service = createFacilitatorService({
   pending,
   ...(process.env.X207_CHAIN_CACHE === "off" ? {} : { chainCache: {} }),
   ...(config.relayer ? { signers: [config.relayer.accountId] } : {}),
-  ...(exactSigner ? { exactSigner, exactNetwork } : {}),
+  ...(exactSigner
+    ? {
+        exactSigner, exactNetwork,
+        ...(process.env.X207_EXACT_MAX_SPONSORED_GAS ? { exactMaxSponsoredGas: BigInt(process.env.X207_EXACT_MAX_SPONSORED_GAS) } : {}),
+        exactGuard: {
+          ...(process.env.X207_EXACT_FAILURE_LIMIT ? { failureLimit: Number(process.env.X207_EXACT_FAILURE_LIMIT) } : {}),
+          ...(process.env.X207_EXACT_PAUSE_MS ? { pauseMs: Number(process.env.X207_EXACT_PAUSE_MS) } : {}),
+        },
+      }
+    : {}),
   // Mode demo SD-029: `/settle` menunggu registrasi on-chain, atau menjawab `settlement_pending` setelah timeout (SD-030).
   ...(config.registerMode === "per_request"
     ? {
@@ -59,7 +68,14 @@ const service = createFacilitatorService({
     : {}),
 });
 
-const server = serve({ fetch: createApp(service).fetch, port: config.port }, ({ port }) => {
+// Rate limit on /verify and /settle per client: X207_RATE_LIMIT_MAX per minute (default 120, 0 = off); X207_TRUST_PROXY=1 reads x-forwarded-for.
+const rateLimitMax = process.env.X207_RATE_LIMIT_MAX === undefined ? undefined : Number(process.env.X207_RATE_LIMIT_MAX);
+const app = createApp(service, {
+  rateLimit: rateLimitMax === 0 ? false : rateLimitMax === undefined ? {} : { max: rateLimitMax },
+  trustProxy: process.env.X207_TRUST_PROXY === "1",
+});
+
+const server = serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
   console.log(`x207 facilitator listening on :${port} (${config.circles.map((c) => c.network).join(", ")})`);
 });
 

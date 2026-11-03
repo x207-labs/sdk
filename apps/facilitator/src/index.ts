@@ -3,6 +3,7 @@ export {
   InvalidRequestError,
   createApp,
   RETRY_AFTER_SECONDS,
+  type AppOptions,
   type FacilitatorService,
   type PairStateQuery,
   type PairStateResponse,
@@ -23,7 +24,17 @@ export {
   type SchedulerOptions,
   type TickResult,
 } from "./scheduler.js";
-export { GasKeyLanes, MAX_GAS_KEY_LANES, encodeGasKeyTransaction, signGasKeyTransaction, type GasKeyCall } from "./gas-key.js";
+export { GAS_KEY_LANE_TIMEOUT_MS, GasKeyLanes, MAX_GAS_KEY_LANES, encodeGasKeyTransaction, signGasKeyTransaction, type GasKeyCall } from "./gas-key.js";
 export { NearRegistrationChain, REGISTER_GAS, transactionFailure, type NearRelayOptions } from "./relay.js";
 export { EXACT_NEAR_NETWORK, createFacilitatorService, type ExactNearNetwork, type FacilitatorServiceOptions } from "./service.js";
 export { CHAIN_CACHE_DEFAULTS, CachedVerifyChain, type ChainCacheOptions, type ChainCacheStats } from "./chain-cache.js";
+export {
+  EXACT_DEFAULT_MAX_SPONSORED_GAS,
+  EXACT_GUARD_DEFAULTS,
+  ExactSenderGuard,
+  RATE_LIMIT_DEFAULTS,
+  RateLimiter,
+  verifiedExactPayer,
+  type ExactGuardOptions,
+  type RateLimitOptions,
+} from "./exact-guard.js";
