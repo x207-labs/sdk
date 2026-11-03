@@ -49,6 +49,8 @@ const plain = (microValue: bigint): string => {
 
 /** `unitPrice × quantity` dalam satuan credit terkecil, dibulatkan ke atas (penjual tidak menerima kurang dari harganya; selisih paling banyak satu satuan terkecil). */
 export function meterAmount(unitPriceAtomic: string, quantityMicro: bigint): string {
+  // F8 (review BE-062): BigInt() takes hex, spaces and an empty text; the price is a decimal whole number above 0
+  if (!/^[1-9]\d*$/.test(unitPriceAtomic)) throw new MeterRejection(`harga satuan harus bilangan bulat desimal > 0, dapat ${JSON.stringify(unitPriceAtomic)}`);
   const amount = (BigInt(unitPriceAtomic) * quantityMicro + SCALE - 1n) / SCALE;
   if (amount === 0n) throw new MeterRejection("jumlah yang harus dibayar 0 setelah pembulatan");
   if (amount > U128_MAX) throw new MeterRejection("jumlah melebihi U128");

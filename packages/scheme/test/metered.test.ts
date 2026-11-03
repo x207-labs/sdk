@@ -56,6 +56,11 @@ describe("SD-062 harga terukur per request", () => {
     expect(atLimit.accepts[0]).toMatchObject({ amount: "200000", extra: { meter: { quantity: "10", max_quantity: "10" } } });
   });
 
+  it("TC-SD-062-08 [F8] meterAmount refuses a price that is not a decimal whole number above 0", () => {
+    for (const bad of ["0x10", " 12 ", "", "-1", "1.5", "0"]) expect(() => meterAmount(bad, 1_000_000n), JSON.stringify(bad)).toThrow(MeterRejection);
+    expect(meterAmount("20000", 1_000_000n)).toBe("20000");
+  });
+
   it("TC-SD-062-04 the smaller of the ceiling of the route and the one of the quote applies", async () => {
     const quote: PriceFn = () => ({ unit: "GB", quantity: 6, unitPrice: 0.02, maxQuantity: 8 });
     expect((await metered(quote, { maxQuantity: 5 }).run("")).status).toBe(413);

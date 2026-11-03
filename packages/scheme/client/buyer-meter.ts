@@ -145,6 +145,10 @@ export class BuyerMeter {
   authorize(announcement: MeterAnnouncement | undefined, amount: U128String): void {
     if (announcement === undefined) throw new MeterOverbilledError("meter_missing", "402 tidak mengumumkan extra.meter: satuan dan jumlah tagihan tidak diketahui");
     if (announcement.unit !== this.unit) throw new MeterOverbilledError("meter_unit_mismatch", `satuan ${announcement.unit}, diharapkan ${this.unit}`, { unit: announcement.unit });
+    // F8 (review BE-062): BigInt() reads hex ("0x10"), spaces and an empty text; the price is a decimal whole number above 0 or the announcement is refused
+    if (typeof announcement.unit_price !== "string" || !/^[1-9]\d*$/.test(announcement.unit_price)) {
+      throw new MeterOverbilledError("meter_bad_count", `unit_price harus bilangan bulat desimal > 0, dapat ${JSON.stringify(announcement.unit_price)}`);
+    }
     const announcedPrice = BigInt(announcement.unit_price);
     if (announcedPrice > this.unitPrice) {
       throw new MeterOverbilledError("meter_price_too_high", `harga satuan ${announcement.unit_price} di atas yang disetujui ${this.unitPrice}`, { unit_price: announcement.unit_price });

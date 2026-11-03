@@ -152,4 +152,13 @@ describe("SD-068 buyer-side count", () => {
     expect(code(() => new BuyerMeter({ epoch: 1, unit: "call", unitPrice: "1", baseCumulative: "-1" }))).toBe("meter_bad_count");
     expect(code(() => m.sign(voucher("1000000"), keys.secretKey))).toBe("meter_wrong_epoch"); // the voucher helper is for epoch 42
   });
+
+  it("TC-SD-068-09 [F8] a price in the 402 is a decimal whole number: hex, spaces, an empty text and a sign are refused as meter_bad_count", () => {
+    const m = gb();
+    for (const bad of ["0x10", " 20000 ", "", "-5", "1e4", "20000.0", "+20000", "0"]) {
+      expect(code(() => m.authorize({ unit: "GB", quantity: "1", unit_price: bad }, "20000")), JSON.stringify(bad)).toBe("meter_bad_count");
+    }
+    expect(code(() => m.authorize({ unit: "GB", quantity: "1", unit_price: "20000" }, "20000"))).toBe("no error");
+    expect(code(() => m.authorize({ unit: "GB", quantity: "1", unit_price: 20000 as unknown as string }, "20000"))).toBe("meter_bad_count");
+  });
 });
