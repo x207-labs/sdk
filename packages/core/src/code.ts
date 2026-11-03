@@ -1,13 +1,13 @@
 // Format listing kode sekali tukar (SD-076, pipeline P3, ADR-48). Yang dijual adalah satu kode (voucher, kunci lisensi, kode redeem) yang hanya bisa dipakai sekali. Pertukarannya
-// adalah pertukaran adil SD-070 dengan kode sebagai isi: kode dienkripsi, `code_hash` adalah `contentHash` SD-070 atas byte kode, jadi `createRelease`, `verifyDelivery`,
-// `makeCheatProof`, dan `checkCheatProof` dipakai apa adanya dengan `content_hash = code_hash` dan `license_hash = codeDocumentHash`. Pembeli yang menerima kode yang bukan `code_hash`
-// mendapat bukti curang yang diperiksa siapa saja.
+// adalah pertukaran adil SD-070 dengan `salt ‖ kode` sebagai isi: payload (salt 32 byte acak, lalu byte UTF-8 kode) dienkripsi, dan `code_commitment` adalah `contentHash` SD-070
+// atas payload itu (`sha256(0x00 ‖ salt ‖ kode)`). Listing publik hanya memuat `code_commitment`; salt acak membuat kode berentropi rendah ("SAVE20", 6 sampai 8 karakter) tidak bisa
+// ditebak dari hash. `createRelease`, `verifyDelivery`, `makeCheatProof`, dan `checkCheatProof` dipakai apa adanya dengan `content_hash = code_commitment` dan
+// `license_hash = codeDocumentHash`: pembeli yang menerima payload yang tidak cocok dengan `code_commitment` mendapat bukti curang yang diperiksa siapa saja.
 //
-// Modul ini tidak memakai node:crypto atau Buffer. Batas yang diakui: (1) `code_hash` terlihat di listing, jadi kode yang pendek atau mudah ditebak bisa diuji satu per satu dari hash;
-// karena itu panjang kode paling sedikit 8 byte, dan penerbit disarankan memakai kode acak (>= 64 bit). (2) Penjual yang menjual kode yang sama dua kali di circle yang sama ditolak
-// lewat `code_hash` unik (BE-069), bukan oleh modul ini. (3) Kode yang sudah terpakai tidak bisa dibuktikan curang: tanpa API penerbit (`verifiable = false`) pembeli hanya
-// terlindungi oleh batas nilai dan oleh jaminan penjual.
-import { bytesToHex } from "@noble/hashes/utils.js";
+// Modul ini tidak memakai node:crypto atau Buffer. Batas yang diakui: (1) penjual yang sama bisa mendaftarkan kode yang sama dengan salt lain, jadi kode ganda tidak terdeteksi lewat
+// hash; yang menahannya adalah cek penerbit sebelum kunci dilepas, batas nilai kode tanpa cek, jaminan, dan reputasi. (2) Kode yang sudah terpakai tidak bisa dibuktikan curang:
+// tanpa API penerbit (`verifiable = false`) pembeli hanya terlindungi oleh batas nilai dan oleh jaminan penjual.
+import { bytesToHex, concatBytes, randomBytes } from "@noble/hashes/utils.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { contentHash, createRelease, encryptContent, makeCheatProof, verifyDelivery, type CheatProof, type DeliveryVerdict, type LicenseRelease } from "./license.js";
 import type { AccountId, U128String } from "./types.js";
@@ -21,7 +21,7 @@ export const MAX_CODE_BYTES = 1024;
 export const CODE_DISPUTE_WINDOW_SECONDS = 3600;
 
 export type CodeErrorCode =
-  | "code_bad_account" | "code_bad_hash" | "code_bad_value" | "code_bad_code" | "code_bad_nonce" | "code_bad_resource" | "code_bad_arbiter" | "code_bad_limit" | "code_over_limit_unbonded";
+  | "code_bad_account" | "code_bad_commitment" | "code_bad_salt" | "code_bad_value" | "code_bad_code" | "code_bad_nonce" | "code_bad_resource" | "code_bad_arbiter" | "code_bad_limit" | "code_over_limit_unbonded";
 
 export class CodeError extends Error {
   constructor(readonly code: CodeErrorCode, message: string) {
@@ -55,8 +55,8 @@ export interface CodeIssuer {
 export type CodeDocument = {
   circle: AccountId;
   seller: AccountId;
-  /** `contentHash` atas byte UTF-8 kode: 64 heksadesimal huruf kecil. Unik per circle. */
-  code_hash: string;
+  /** `codeCommitment(kode, salt)`: 64 heksadesimal huruf kecil. Tidak membocorkan kode; salt dan kode hanya ada di payload terenkripsi. */
+  code_commitment: string;
   /** Penerbit kode (akun NEAR atau nama layanan yang dikenal backend); hanya dicatat, penerbit tidak ikut menandatangani. */
   issuer: string;
   /** Nilai kode dalam unit terkecil credit, string bilangan bulat > 0. */
@@ -68,27 +68,37 @@ export type CodeDocument = {
   nonce: string;
 };
 
-/** `code_hash` dari kode: `contentHash` SD-070 atas byte UTF-8. Panjang kode `MIN_CODE_BYTES` sampai `MAX_CODE_BYTES`. */
-export function codeHash(code: string): string {
+export const CODE_SALT_BYTES = 32;
+/** Salt acak 32 byte untuk satu kode. */
+export const newCodeSalt = (): Uint8Array => randomBytes(CODE_SALT_BYTES);
+
+function checkCodeText(code: string): Uint8Array {
   const bytes = utf8(code);
   if (bytes.length < MIN_CODE_BYTES || bytes.length > MAX_CODE_BYTES) return fail("code_bad_code", `kode harus ${MIN_CODE_BYTES} sampai ${MAX_CODE_BYTES} byte`);
   if (code !== code.trim() || /[\u0000-\u001f]/.test(code)) return fail("code_bad_code", "kode tidak boleh diawali atau diakhiri spasi dan tidak boleh memuat karakter kontrol");
-  return contentHash(bytes);
+  return bytes;
 }
+/** Isi yang dienkripsi dan dihash: `salt (32) ‖ byte UTF-8 kode`. */
+export function codePayload(code: string, salt: Uint8Array): Uint8Array {
+  if (salt.length !== CODE_SALT_BYTES) return fail("code_bad_salt", `salt harus ${CODE_SALT_BYTES} byte`);
+  return concatBytes(salt, checkCodeText(code));
+}
+/** `code_commitment` = `contentHash` SD-070 atas `salt ‖ kode`. */
+export const codeCommitment = (code: string, salt: Uint8Array): string => contentHash(codePayload(code, salt));
 
 export function normalizeCode(doc: CodeDocument): Required<CodeDocument> {
   for (const [name, value] of [["circle", doc.circle], ["seller", doc.seller]] as const) if (!isAccount(value)) fail("code_bad_account", `${name} bukan akun NEAR: ${JSON.stringify(value)}`);
-  if (!HASH.test(doc.code_hash)) fail("code_bad_hash", "code_hash harus 64 heksadesimal huruf kecil");
+  if (!HASH.test(doc.code_commitment)) fail("code_bad_commitment", "code_commitment harus 64 heksadesimal huruf kecil");
   if (typeof doc.issuer !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(doc.issuer)) fail("code_bad_account", "issuer harus 1 sampai 64 karakter [a-z0-9._-]");
   if (parseAmount(doc.value, "value", "code_bad_value") === 0n) fail("code_bad_value", "value harus lebih dari 0");
-  if (typeof doc.verifiable !== "boolean") fail("code_bad_hash", "verifiable harus boolean");
+  if (typeof doc.verifiable !== "boolean") fail("code_bad_value", "verifiable harus boolean");
   const arbiter = doc.arbiter ?? null;
   if (arbiter !== null) {
     if (!isAccount(arbiter)) fail("code_bad_arbiter", "arbiter bukan akun NEAR");
     if (arbiter === doc.seller) fail("code_bad_arbiter", "arbiter tidak boleh penjual");
   }
   if (typeof doc.nonce !== "string" || !/^[A-Za-z0-9._-]{1,32}$/.test(doc.nonce)) fail("code_bad_nonce", "nonce harus 1 sampai 32 karakter [A-Za-z0-9._-]");
-  return { circle: doc.circle, seller: doc.seller, code_hash: doc.code_hash, issuer: doc.issuer, value: doc.value, verifiable: doc.verifiable, arbiter, nonce: doc.nonce };
+  return { circle: doc.circle, seller: doc.seller, code_commitment: doc.code_commitment, issuer: doc.issuer, value: doc.value, verifiable: doc.verifiable, arbiter, nonce: doc.nonce };
 }
 
 /** Kode tanpa cek penerbit dengan nilai di atas `limit` (bawaan `UNVERIFIABLE_CODE_LIMIT`) dan tanpa arbiter wajib ditolak. */
@@ -104,7 +114,7 @@ export function checkCodeDocument(doc: CodeDocument, limit: U128String = UNVERIF
   return normal;
 }
 
-/** JSON kanonik: kunci `circle, seller, code_hash, issuer, value, verifiable, arbiter, nonce`. Tidak memeriksa batas nilai (lihat `checkCodeDocument`). */
+/** JSON kanonik: kunci `circle, seller, code_commitment, issuer, value, verifiable, arbiter, nonce`. Tidak memeriksa batas nilai (lihat `checkCodeDocument`). */
 export const serializeCode = (doc: CodeDocument): string => JSON.stringify(normalizeCode(doc));
 export const codeDocumentHash = (doc: CodeDocument): string => bytesToHex(sha256(utf8(serializeCode(doc))));
 export function codeResource(hash: string): string {
@@ -117,29 +127,39 @@ export function parseCodeResource(resource: string): string | null {
   return HASH.test(hash) ? hash : null;
 }
 
-/** Sisi penjual: mengenkripsi kode (XChaCha20-Poly1305, SD-070). Pasang `ciphertext` di sumber mana saja; `code_hash` masuk ke dokumen listing. */
-export function encryptCode(code: string, options: Parameters<typeof encryptContent>[1] = {}): { ciphertext: Uint8Array; key: Uint8Array; code_hash: string } {
-  const hash = codeHash(code);
-  return { ...encryptContent(utf8(code), options), code_hash: hash };
+/** Sisi penjual: mengenkripsi `salt ‖ kode` (XChaCha20-Poly1305, SD-070). Pasang `ciphertext` di sumber mana saja; `code_commitment` masuk ke dokumen listing. Salt acak bila tidak diberikan; simpan `salt`. */
+export function encryptCode(code: string, options: Parameters<typeof encryptContent>[1] & { salt?: Uint8Array } = {}): { ciphertext: Uint8Array; key: Uint8Array; code_commitment: string; salt: Uint8Array } {
+  const { salt = newCodeSalt(), ...rest } = options;
+  const payload = codePayload(code, salt);
+  return { ...encryptContent(payload, rest), code_commitment: contentHash(payload), salt };
 }
 
-/** Sisi penjual: rilis kunci untuk satu pembeli. Memeriksa batas nilai dan bahwa `code` cocok dengan `doc.code_hash` (`code_bad_hash` bila tidak). */
-export function createCodeRelease(args: Omit<Parameters<typeof createRelease>[0], "license_hash" | "content_hash" | "content_size" | "circle"> & { doc: CodeDocument; code: string; limit?: U128String }): ReturnType<typeof createRelease> {
-  const { doc, code, limit, ...rest } = args;
+/** Sisi penjual: rilis kunci untuk satu pembeli. Memeriksa batas nilai dan bahwa `salt` dan `code` cocok dengan `doc.code_commitment` (`code_bad_commitment` bila tidak). */
+export function createCodeRelease(args: Omit<Parameters<typeof createRelease>[0], "license_hash" | "content_hash" | "content_size" | "circle"> & { doc: CodeDocument; code: string; salt: Uint8Array; limit?: U128String }): ReturnType<typeof createRelease> {
+  const { doc, code, salt, limit, ...rest } = args;
   const normal = checkCodeDocument(doc, limit);
-  if (codeHash(code) !== normal.code_hash) fail("code_bad_hash", "kode tidak cocok dengan code_hash dokumen");
-  return createRelease({ ...rest, circle: normal.circle, license_hash: codeDocumentHash(normal), content_hash: normal.code_hash, content_size: utf8(code).length });
+  const payload = codePayload(code, salt);
+  if (contentHash(payload) !== normal.code_commitment) fail("code_bad_commitment", "salt dan kode tidak cocok dengan code_commitment dokumen");
+  return createRelease({ ...rest, circle: normal.circle, license_hash: codeDocumentHash(normal), content_hash: normal.code_commitment, content_size: payload.length });
 }
 
-/** Sisi pembeli: memeriksa kiriman kode. Hasil `ok` memuat `code` (teks) selain byte. */
-export function verifyCodeDelivery(args: Parameters<typeof verifyDelivery>[0] & { doc?: CodeDocument }): DeliveryVerdict & { code?: string } {
+/** Memecah payload hasil dekripsi menjadi salt (heks) dan kode; `null` bila bentuknya salah. */
+export function splitCodePayload(payload: Uint8Array): { salt: string; code: string } | null {
+  if (payload.length <= CODE_SALT_BYTES) return null;
+  return { salt: bytesToHex(payload.subarray(0, CODE_SALT_BYTES)), code: new TextDecoder().decode(payload.subarray(CODE_SALT_BYTES)) };
+}
+
+/** Sisi pembeli: memeriksa kiriman kode. Hasil `ok` memuat `code` (teks) dan `salt` (heks) selain byte payload; `content_hash` rilis harus `code_commitment`. */
+export function verifyCodeDelivery(args: Parameters<typeof verifyDelivery>[0] & { doc?: CodeDocument }): DeliveryVerdict & { code?: string; salt?: string } {
   if (args.doc !== undefined) {
     const normal = normalizeCode(args.doc);
     const r = args.release;
-    if (r.license_hash !== codeDocumentHash(normal) || r.content_hash !== normal.code_hash || r.circle !== normal.circle) return { ok: false, reason: "wrong_purchase" };
+    if (r.license_hash !== codeDocumentHash(normal) || r.content_hash !== normal.code_commitment || r.circle !== normal.circle) return { ok: false, reason: "wrong_purchase" };
   }
   const verdict = verifyDelivery(args);
-  return verdict.ok ? { ...verdict, code: new TextDecoder().decode(verdict.content) } : verdict;
+  if (!verdict.ok) return verdict;
+  const parts = splitCodePayload(verdict.content);
+  return parts === null ? { ok: false, reason: "wrong_purchase" } : { ...verdict, ...parts };
 }
 export const makeCodeCheatProof = (args: Parameters<typeof verifyDelivery>[0]): CheatProof => makeCheatProof(args);
 
