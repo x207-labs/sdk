@@ -20,3 +20,18 @@ export const NEAR_AI_CLOUD_URL = "https://cloud-api.near.ai/v1";
 
 /** Batas leg satu bundle di kontrak (interface 0.0.8, `ERR_BAD_BUNDLE`): lebih dari ini log `bundle_committed` melewati 16 KiB. */
 export const MAX_BUNDLE_LEGS = 64;
+
+/**
+ * Least deposit of `join`, in yoctoNEAR: `JOIN_STORAGE_DEPOSIT` of the contract (Spec Antarmuka Kontrak, `join`). The only place in this repository that
+ * writes the number: `buildJoinCall`, the frontend, the agents and the tests read it from here. The contract returns what is above it in the same receipt
+ * chain, so a larger value is safe for the contract and only needs the balance. ADR-41 (interface 0.0.9) raises it from 0.01 NEAR to a value that covers the
+ * worst storage of one member (about 0.1 NEAR); change this line to the figure the contract release states, and nothing else.
+ */
+export const JOIN_STORAGE_DEPOSIT = 10_000_000_000_000_000_000_000n;
+
+/** `JOIN_STORAGE_DEPOSIT` or any yoctoNEAR amount as a short NEAR text for messages, e.g. `0.01`. */
+export function formatNear(yocto: bigint): string {
+  const whole = yocto / 10n ** 24n;
+  const fraction = (yocto % 10n ** 24n).toString().padStart(24, "0").replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : `${whole}`;
+}

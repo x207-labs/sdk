@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import {
   JOIN_STORAGE_DEPOSIT,
+  formatNear,
   buildJoinCall,
   buildStakeMsg,
   buildStakeTransferCall,
@@ -25,8 +26,8 @@ describe("SD-012 client kontrak", () => {
     expect(JSON.stringify(call.args)).toBe(
       `{"circle_id":"agents-main","pubkey_voucher":"${KA}","terms_hash":"${HASH}"}`,
     );
-    expect(call.deposit).toBe(10n ** 22n);
-    expect(JOIN_STORAGE_DEPOSIT).toBe(10n ** 22n);
+    expect(call.deposit).toBe(JOIN_STORAGE_DEPOSIT);
+    expect(JOIN_STORAGE_DEPOSIT).toBeGreaterThanOrEqual(10n ** 22n); // 0.01 NEAR was the least; ADR-41 raises it
 
     const v = vector("args/join.json");
     const fromVector = buildJoinCall({ circleContract: "x207-circle.near", circleId: v.input.circleId, pubkeyVoucher: v.input.pubkeyVoucher, termsHash: v.input.termsHash });
@@ -41,7 +42,15 @@ describe("SD-012 client kontrak", () => {
     expect(() => buildJoinCall({ ...base, termsHash: "A".repeat(64) })).toThrow(/terms_hash/);
     expect(() => buildJoinCall({ ...base, termsHash: HASH, pubkeyVoucher: "secp256k1:abc" })).toThrow(/pubkey_voucher/);
     expect(() => buildJoinCall({ ...base, termsHash: HASH, deposit: 1n })).toThrow(/deposit/);
-    expect(buildJoinCall({ ...base, termsHash: HASH, deposit: 2n * 10n ** 22n }).deposit).toBe(2n * 10n ** 22n);
+    expect(() => buildJoinCall({ ...base, termsHash: HASH, deposit: JOIN_STORAGE_DEPOSIT - 1n })).toThrow(/JOIN_STORAGE_DEPOSIT \(\d/);
+    expect(buildJoinCall({ ...base, termsHash: HASH, deposit: 2n * JOIN_STORAGE_DEPOSIT }).deposit).toBe(2n * JOIN_STORAGE_DEPOSIT);
+  });
+
+  it("TC-SD-012-02b formatNear writes yoctoNEAR as a short NEAR text", () => {
+    expect(formatNear(10n ** 22n)).toBe("0.01");
+    expect(formatNear(10n ** 23n)).toBe("0.1");
+    expect(formatNear(3n * 10n ** 24n)).toBe("3");
+    expect(formatNear(1n)).toBe("0.000000000000000000000001");
   });
 
   it("TC-SD-012-03 builder msg stake dan ft_transfer_call", () => {

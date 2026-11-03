@@ -2,13 +2,11 @@
 // Hanya membangun panggilan dan membaca view lewat fungsi yang disuntik; penanda tangan transaksi
 // dan RPC dipilih pemanggil, sehingga entry ini tidak menarik near-api-js.
 import { base58Decode } from "../base58.js";
-import { USDT_TOKEN_ID } from "../constants.js";
+import { JOIN_STORAGE_DEPOSIT, USDT_TOKEN_ID, formatNear } from "../constants.js";
 import type { AccountId, U128String } from "../types.js";
 import type { MemberView } from "./types.generated.js";
 import type { ContractCall } from "./settlement.js";
 
-/** `JOIN_STORAGE_DEPOSIT`: 0,01 NEAR dalam yoctoNEAR (Spec Antarmuka Kontrak, method `join`). */
-export const JOIN_STORAGE_DEPOSIT = 10_000_000_000_000_000_000_000n;
 
 const TERMS_HASH = /^[0-9a-f]{64}$/;
 const ACCOUNT = /^(?:[a-z\d]+[-_])*[a-z\d]+(?:\.(?:[a-z\d]+[-_])*[a-z\d]+)*$/;
@@ -39,7 +37,7 @@ export function buildJoinCall(input: {
   }
   assertVoucherPublicKey(input.pubkeyVoucher);
   const deposit = input.deposit ?? JOIN_STORAGE_DEPOSIT;
-  if (deposit < JOIN_STORAGE_DEPOSIT) throw new Error("deposit kurang dari JOIN_STORAGE_DEPOSIT (0,01 NEAR)");
+  if (deposit < JOIN_STORAGE_DEPOSIT) throw new Error(`deposit kurang dari JOIN_STORAGE_DEPOSIT (${formatNear(JOIN_STORAGE_DEPOSIT)} NEAR)`);
   return {
     receiverId: input.circleContract,
     methodName: "join",
