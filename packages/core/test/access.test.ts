@@ -3,9 +3,9 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { FtEscrowView } from "../src/access.js";
+import type { FtEscrowView, MtEscrowView } from "../src/access.js";
 import {
-  AccessGrantError, GRANT_UNITS, assertBuyerRegisteredAtToken, buildFtEscrowDepositCall, buildFtEscrowMsg, buildRemoveIntentCall, ftEscrowGrantScope, buildWithdrawIntentsBalanceCall, escrowGrantScope, grantResource, isKnownX207Event, listGrantsOf, meterGrant, parseEventLog, parseGrantResource, priceOfGrant,
+  AccessGrantError, GRANT_UNITS, assertBuyerRegisteredAtToken, buildFtEscrowDepositCall, buildMtEscrowDepositCall, mtEscrowGrantScope, buildFtEscrowMsg, buildRemoveIntentCall, ftEscrowGrantScope, buildWithdrawIntentsBalanceCall, escrowGrantScope, grantResource, isKnownX207Event, listGrantsOf, meterGrant, parseEventLog, parseGrantResource, priceOfGrant,
   type AccessAssetAdapter, type AccessGrant, type EscrowState, type EscrowStep, type EscrowView, type AssetClassEntry, type ContractAbi, type GrantStatus, type MeterCharge, type ProofResult, type RegisteredAssetClass, type RevokeReason,
 } from "@x207/core";
 
@@ -185,6 +185,23 @@ describe("SD-050 event F8", () => {
     expect(held).toMatchObject({ event: "ft_escrow_held", grant_id: 3, ft_contract: "rwa.near", amount: "2500000" });
     expect(() => parseEventLog(log({ grant_id: 3, ft_contract: "rwa.near" }))).toThrow(/amount/);
     const view: FtEscrowView = { grant_id: 3, ft_contract: "rwa.near", amount: "2500000", state: "held", buyer: null };
+    expect(view.state).toBe("held");
+  });
+
+  it("TC-SD-060-05 multi-token escrow: scope, deposit through mt_transfer_call, the event and the view type (interface 0.0.11)", () => {
+    expect(JSON.parse(mtEscrowGrantScope("mt.near", "nep141:usdt.tether-token.near", "750000"))).toEqual({ mt_contract: "mt.near", token_id: "nep141:usdt.tether-token.near", amount: "750000" });
+    expect(() => mtEscrowGrantScope("mt.near", "", "1")).toThrow(AccessGrantError);
+    expect(() => mtEscrowGrantScope("mt.near", "t1", "0")).toThrow(AccessGrantError);
+    expect(buildMtEscrowDepositCall({ circleContract: "circle.near", mtContract: "mt.near", tokenId: "t1", amount: "750000", grantId: 4 })).toEqual({
+      receiverId: "mt.near", methodName: "mt_transfer_call",
+      args: { receiver_id: "circle.near", token_id: "t1", amount: "750000", approval: null, memo: null, msg: '{"action":"escrow","grant_id":4}' }, deposit: 1n,
+    });
+    const log = (data: unknown) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.11", event: "mt_escrow_held", data: [data] })}`;
+    const held = parseEventLog(log({ grant_id: 4, mt_contract: "mt.near", token_id: "t1", amount: "750000" }))![0]!;
+    expect(isKnownX207Event(held)).toBe(true);
+    expect(held).toMatchObject({ event: "mt_escrow_held", token_id: "t1", amount: "750000" });
+    expect(() => parseEventLog(log({ grant_id: 4, mt_contract: "mt.near", amount: "1" }))).toThrow(/token_id/);
+    const view: MtEscrowView = { grant_id: 4, mt_contract: "mt.near", token_id: "t1", amount: "750000", state: "held", buyer: null };
     expect(view.state).toBe("held");
   });
 });

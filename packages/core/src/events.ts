@@ -6,7 +6,7 @@ import type { AccountId, U128String } from "./types.js";
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.10";
+export const KNOWN_EVENT_VERSION = "0.0.11";
 
 export class EventParseError extends Error {
   constructor(message: string) {
@@ -89,6 +89,7 @@ export type X207EventMap = {
   grant_revoked: { grant_id: number; reason: "grantor" | "grantee" | "operator" | "expired" | "defaulted" };
   escrow_held: { grant_id: number; nft_contract: AccountId; token_id: string };
   ft_escrow_held: { grant_id: number; ft_contract: AccountId; amount: U128String };
+  mt_escrow_held: { grant_id: number; mt_contract: AccountId; token_id: string; amount: U128String };
   escrow_failed: { grant_id: number; step: EscrowStepValue; epoch: number; payer: AccountId; payee: AccountId; delta: U128String; reverted: boolean };
   intent_removed: { intent_hash: string; account_id: AccountId };
   intents_withdrawn: { amount: U128String };
@@ -176,6 +177,7 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   params_updated: { old: "params", new: "params", changed: "strarr", effective_epoch: "int" },
   escrow_held: { grant_id: "int", nft_contract: "str", token_id: "str" },
   ft_escrow_held: { grant_id: "int", ft_contract: "str", amount: "str" },
+  mt_escrow_held: { grant_id: "int", mt_contract: "str", token_id: "str", amount: "str" },
   escrow_failed: {
     grant_id: "int", step: { enum: ["complete", "cancel"] }, epoch: "int", payer: "str", payee: "str", delta: "str", reverted: "bool",
   },

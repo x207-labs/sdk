@@ -49,6 +49,38 @@ export const escrowGrantScope = (nftContract: AccountId, tokenId: string): strin
 export type FtEscrowView = Abi.FtEscrowView;
 
 /**
+ * Escrow kelas A untuk satu multi-token NEP-245 (interface 0.0.11, CT-092): jumlah persis dari satu `token_id` di satu kontrak multi-token, misalnya saldo
+ * `nep141:<usdt>` di NEAR Intents atau share pool. Hasil view `get_mt_escrow`; `null` bila grant tidak punya escrow multi-token. Satu titipan hanya boleh
+ * memuat satu token dan satu jumlah (`ERR_ESCROW_MT_BATCH` untuk titipan batch). Token berbiaya transfer tidak didukung seperti pada NEP-141.
+ */
+export type MtEscrowView = Abi.MtEscrowView;
+
+/**
+ * `limits.scope` grant kelas A untuk multi-token: JSON dengan `mt_contract`, `token_id` dan `amount` (satuan terkecil token itu, teks). Titipan harus sama
+ * persis; kontrak, token, atau jumlah lain ditolak (`ERR_ESCROW_MT_MISMATCH`, `ERR_ESCROW_MT_AMOUNT`).
+ */
+export const mtEscrowGrantScope = (mtContract: AccountId, tokenId: string, amount: U128String): string => {
+  if (tokenId.length === 0) throw new AccessGrantError("tokenId tidak boleh kosong");
+  if (!/^[1-9]\d*$/.test(amount)) throw new AccessGrantError(`amount harus string bilangan bulat > 0, dapat ${JSON.stringify(amount)}`);
+  return JSON.stringify({ mt_contract: mtContract, token_id: tokenId, amount });
+};
+
+/**
+ * Titipan pemberi grant untuk multi-token: `mt_transfer_call` NEP-245 (satu token) di kontrak multi-token ke kontrak lingkaran, dengan `msg` yang sama
+ * seperti titipan NEP-141 (`{"action":"escrow","grant_id":N}`), jumlah persis dari scope, dan deposit 1 yoctoNEAR. Titipan batch (`mt_batch_transfer_call`)
+ * ditolak kontrak.
+ */
+export function buildMtEscrowDepositCall(input: { circleContract: AccountId; mtContract: AccountId; tokenId: string; amount: U128String; grantId: GrantId }): ContractCall {
+  mtEscrowGrantScope(input.mtContract, input.tokenId, input.amount);
+  return {
+    receiverId: input.mtContract,
+    methodName: "mt_transfer_call",
+    args: { receiver_id: input.circleContract, token_id: input.tokenId, amount: input.amount, approval: null, memo: null, msg: buildFtEscrowMsg(input.grantId) },
+    deposit: 1n,
+  };
+}
+
+/**
  * `limits.scope` grant kelas A untuk token NEP-141: JSON dengan `ft_contract` dan `amount` (satuan terkecil token, teks). Titipan harus sama persis dengan
  * jumlah ini; kontrak token lain atau jumlah lain ditolak saat titip.
  */

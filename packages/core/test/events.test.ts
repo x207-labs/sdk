@@ -41,6 +41,7 @@ const SAMPLES: Record<string, unknown> = {
   intents_withdrawn: { amount: "1500000" },
   escrow_held: { grant_id: 1, nft_contract: "nft.test.near", token_id: "t1" },
   ft_escrow_held: { grant_id: 3, ft_contract: "rwa.near", amount: "2500000" },
+  mt_escrow_held: { grant_id: 4, mt_contract: "mt.near", token_id: "nep141:usdt.tether-token.near", amount: "750000" },
   escrow_failed: { grant_id: 1, step: "complete", epoch: 42, payer: B, payee: A, delta: "10000000", reverted: true },
   exit_requested: { account_id: A, epoch: 42 },
   stake_withdrawn: { account_id: A, amount: "50000000" },
@@ -122,8 +123,8 @@ describe("SD-011 parseEventLog", () => {
   });
 
   it("TC-SD-060-04 version 0.0.10 (two digit patch) is read by number, not by text: accepted, and the check ignores the patch of a higher version", () => {
-    expect(KNOWN_EVENT_VERSION).toBe("0.0.10");
-    for (const version of ["0.0.9", "0.0.10", "0.0.11", "0.0.100"]) {
+    expect(KNOWN_EVENT_VERSION).toBe("0.0.11");
+    for (const version of ["0.0.9", "0.0.10", "0.0.11", "0.0.12", "0.0.100"]) {
       expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, version)), version).not.toThrow();
     }
     expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, "0.1.0"))).toThrow(EventParseError);
@@ -156,7 +157,7 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.10 untuk setiap event yang dikenal", () => {
+  it("skema parser cocok dengan abi.json 0.0.11 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);
