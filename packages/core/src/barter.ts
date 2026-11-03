@@ -47,7 +47,18 @@ export type SearchLeg = { payer: AccountId; payee: AccountId };
  * Syarat bundle yang disetujui semua pihak: `terms_hash` dihitung dari bentuk kanoniknya. `search_leg` opsional (SD-047, interface 0.0.5):
  * bila ada, kuncinya terakhir di JSON kanonik; bila tidak ada (atau `null`), bytes dan `terms_hash` sama dengan format sebelum 0.0.5.
  */
-export type BundleTerms = { circle: AccountId; epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg | null };
+export type BundleTerms = {
+  circle: AccountId; epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg | null;
+  /**
+   * CT-094 (interface 0.0.12, SD-073): the arbiter that both parties of a swap of two chose. It is part of the signed terms and the sign that the swap carries a bond. `arbiter` and
+   * `confirm_by` come together; `agreement_hash` needs them. The three keys come after `search_leg` in the canonical JSON, so a bundle without them keeps its `terms_hash`.
+   */
+  arbiter?: AccountId | null;
+  /** sha256 (64 lowercase hex) of the document of the agreement, kept off-chain. */
+  agreement_hash?: string | null;
+  /** The end of the window in which a party can confirm or dispute, in nanoseconds, as a decimal string (it does not fit a JavaScript number). */
+  confirm_by?: string | null;
+};
 
 function checkSide(side: BarterSide, name: string): void {
   if (typeof side !== "object" || side === null) throw new BarterFormatError(`${name} harus objek`);
@@ -88,6 +99,24 @@ export function validateBundleTerms(terms: BundleTerms): void {
     if (typeof search !== "object" || !isAccount(search.payer) || !isAccount(search.payee)) throw new BarterFormatError("search_leg harus {payer, payee} akun NEAR");
     if (!seen.has(`${search.payer}>${search.payee}`)) throw new BarterFormatError("search_leg bukan salah satu leg bundle");
   }
+  validateDealTerms(terms);
+}
+
+const HASH64 = /^[0-9a-f]{64}$/;
+const U64_MAX = 18446744073709551615n;
+/** Syarat jaminan CT-094: `arbiter` dan `confirm_by` datang bersama, `agreement_hash` butuh keduanya, hanya untuk dua peserta, dan arbiter bukan peserta. */
+function validateDealTerms(terms: BundleTerms): void {
+  const arbiter = terms.arbiter ?? null;
+  const agreement = terms.agreement_hash ?? null;
+  const confirmBy = terms.confirm_by ?? null;
+  if (arbiter === null && agreement === null && confirmBy === null) return;
+  if (arbiter === null || confirmBy === null) throw new BarterFormatError("arbiter dan confirm_by datang bersama; agreement_hash butuh keduanya (ERR_BAD_BUNDLE)");
+  if (!isAccount(arbiter)) throw new BarterFormatError("arbiter bukan akun NEAR");
+  if (agreement !== null && !HASH64.test(agreement)) throw new BarterFormatError("agreement_hash harus 64 heksadesimal huruf kecil");
+  if (typeof confirmBy !== "string" || !/^[1-9]\d*$/.test(confirmBy) || BigInt(confirmBy) > U64_MAX) throw new BarterFormatError("confirm_by harus string desimal nanodetik > 0 dan <= U64");
+  const participants = new Set(terms.legs.flatMap((l) => [l.payer, l.payee]));
+  if (participants.size !== 2) throw new BarterFormatError("arbiter hanya untuk swap dua peserta (ERR_BAD_BUNDLE)");
+  if (participants.has(arbiter)) throw new BarterFormatError("arbiter tidak boleh peserta swap (ERR_ARBITER_INVALID)");
 }
 
 /** JSON kanonik intent: key `circle, account, offer{service,calls,value}, need{...}, expiresAt, nonce`, tanpa spasi. */
@@ -100,7 +129,7 @@ export function serializeIntent(intent: BarterIntent): string {
   });
 }
 
-/** JSON kanonik syarat bundle: `circle, epoch, legs[{payer,payee,max_amount}]` lalu `search_leg{payer,payee}` bila diisi; leg diurutkan menurut (payer, payee). */
+/** JSON kanonik syarat bundle: `circle, epoch, legs[{payer,payee,max_amount}]` lalu `search_leg{payer,payee}` bila diisi, lalu `arbiter`, `agreement_hash` (bila ada), `confirm_by` bila ada arbiter; leg diurutkan menurut (payer, payee). */
 export function serializeBundleTerms(terms: BundleTerms): string {
   validateBundleTerms(terms);
   const legs = [...terms.legs]
@@ -110,6 +139,7 @@ export function serializeBundleTerms(terms: BundleTerms): string {
   return JSON.stringify({
     circle: terms.circle, epoch: terms.epoch, legs,
     ...(search !== undefined && search !== null ? { search_leg: { payer: search.payer, payee: search.payee } } : {}),
+    ...(terms.arbiter ? { arbiter: terms.arbiter, ...(terms.agreement_hash ? { agreement_hash: terms.agreement_hash } : {}), confirm_by: terms.confirm_by } : {}),
   });
 }
 
@@ -127,10 +157,11 @@ export const intentHashBase58 = (intent: BarterIntent): string => base58Encode(i
  * Argumen `bundle` untuk `commit_bundle` dari syarat yang ditandatangani: `{epoch, legs}` dan `search_leg` bila ada. Kontrak menghitung
  * `terms_hash` dari argumen ini, jadi `search_leg` yang ikut ditandatangani wajib ikut dikirim (interface 0.0.5).
  */
-export const bundleInput = (terms: BundleTerms): { epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg } => ({
+export const bundleInput = (terms: BundleTerms): { epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg; arbiter?: AccountId; agreement_hash?: string; confirm_by?: string } => ({
   epoch: terms.epoch,
   legs: terms.legs,
   ...(terms.search_leg ? { search_leg: terms.search_leg } : {}),
+  ...(terms.arbiter ? { arbiter: terms.arbiter, ...(terms.agreement_hash ? { agreement_hash: terms.agreement_hash } : {}), confirm_by: terms.confirm_by! } : {}),
 });
 
 /** `sha256(JSON kanonik syarat bundle)`: 32 byte. */

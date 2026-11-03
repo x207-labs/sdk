@@ -6,7 +6,7 @@ import type { AccountId, U128String } from "./types.js";
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.11";
+export const KNOWN_EVENT_VERSION = "0.0.12";
 
 export class EventParseError extends Error {
   constructor(message: string) {
@@ -94,6 +94,18 @@ export type X207EventMap = {
   intent_removed: { intent_hash: string; account_id: AccountId };
   intents_withdrawn: { amount: U128String };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
+  // interface 0.0.12 (SD-073): freeze of a member (CT-095), official contracts of an asset type (CT-096), deal with a bond and an arbiter (CT-094)
+  freeze_proposed: { account_id: AccountId; eta: Ns; reason_hash: string | null };
+  member_frozen: { account_id: AccountId; from_epoch: number };
+  freeze_cancelled: { account_id: AccountId };
+  member_unfrozen: { account_id: AccountId };
+  asset_contracts_set: { asset_type: string; contracts: AccountId[] };
+  bond_locked: { bundle_id: string | number; account_id: AccountId; amount: U128String };
+  deal_confirmed: { bundle_id: string | number; account_id: AccountId; of: AccountId };
+  deal_disputed: { bundle_id: string | number; complainant: AccountId; accused: AccountId; evidence_hash: string; disputed_at: Ns };
+  deal_ruled: { bundle_id: string | number; arbiter: AccountId; verdict: "accused_guilty" | "complaint_false" | "no_fault" };
+  bond_slashed: { bundle_id: string | number; from: AccountId; to: AccountId; amount: U128String; from_stake: U128String; to_stake: U128String };
+  bond_released: { bundle_id: string | number; account_id: AccountId; amount: U128String; reason: "confirmed" | "elapsed" | "arbiter_silent" | "ruling" };
 };
 
 export type X207EventName = keyof X207EventMap;
@@ -187,6 +199,17 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
     bundle_id: "bundleid", terms_hash: "str", epoch: "int",
     legs: { list: { payer: "str", payee: "str", max_amount: "str" } }, solver: "str",
   },
+  freeze_proposed: { account_id: "str", eta: "str", reason_hash: "strnull" },
+  member_frozen: { account_id: "str", from_epoch: "int" },
+  freeze_cancelled: { account_id: "str" },
+  member_unfrozen: { account_id: "str" },
+  asset_contracts_set: { asset_type: "str", contracts: "strarr" },
+  bond_locked: { bundle_id: "bundleid", account_id: "str", amount: "str" },
+  deal_confirmed: { bundle_id: "bundleid", account_id: "str", of: "str" },
+  deal_disputed: { bundle_id: "bundleid", complainant: "str", accused: "str", evidence_hash: "str", disputed_at: "str" },
+  deal_ruled: { bundle_id: "bundleid", arbiter: "str", verdict: { enum: ["accused_guilty", "complaint_false", "no_fault"] } },
+  bond_slashed: { bundle_id: "bundleid", from: "str", to: "str", amount: "str", from_stake: "str", to_stake: "str" },
+  bond_released: { bundle_id: "bundleid", account_id: "str", amount: "str", reason: { enum: ["confirmed", "elapsed", "arbiter_silent", "ruling"] } },
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

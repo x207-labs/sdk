@@ -53,6 +53,18 @@ const SAMPLES: Record<string, unknown> = {
   upgrade_applied: { code_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ", applied_at: "1793990000000000000" },
   solver_fee_claim_failed: { account_id: B, amount: "150000" },
   bundle_committed: { bundle_id: "b1", terms_hash: "b".repeat(64), epoch: 42, legs: [{ payer: A, payee: B, max_amount: "1000000" }], solver: B },
+  // interface 0.0.12 (SD-073)
+  freeze_proposed: { account_id: A, eta: "1793900000000000000", reason_hash: null },
+  member_frozen: { account_id: A, from_epoch: 42 },
+  freeze_cancelled: { account_id: A },
+  member_unfrozen: { account_id: A },
+  asset_contracts_set: { asset_type: "token:nep141", contracts: ["usdt.near", "usdc.near"] },
+  bond_locked: { bundle_id: 1, account_id: A, amount: "20000000" },
+  deal_confirmed: { bundle_id: 1, account_id: A, of: B },
+  deal_disputed: { bundle_id: 1, complainant: A, accused: B, evidence_hash: "ab".repeat(32), disputed_at: "1793900000000000000" },
+  deal_ruled: { bundle_id: 1, arbiter: "arbiter.near", verdict: "accused_guilty" },
+  bond_slashed: { bundle_id: 1, from: B, to: A, amount: "20000000", from_stake: "80000000", to_stake: "120000000" },
+  bond_released: { bundle_id: 1, account_id: A, amount: "20000000", reason: "ruling" },
   // event P0 lain di abi 0.0.1 dan member_admitted (spec)
   member_admitted: { account_id: A, status: "active" },
   clearing_submitted: { epoch: 42, solver: B, cleared_total: "180000000", edge_count: 3, replaced_solver: null, replaced_cleared_total: null },
@@ -123,7 +135,7 @@ describe("SD-011 parseEventLog", () => {
   });
 
   it("TC-SD-060-04 version 0.0.10 (two digit patch) is read by number, not by text: accepted, and the check ignores the patch of a higher version", () => {
-    expect(KNOWN_EVENT_VERSION).toBe("0.0.11");
+    expect(KNOWN_EVENT_VERSION).toBe("0.0.12");
     for (const version of ["0.0.9", "0.0.10", "0.0.11", "0.0.12", "0.0.100"]) {
       expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, version)), version).not.toThrow();
     }
@@ -157,7 +169,7 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.11 untuk setiap event yang dikenal", () => {
+  it("skema parser cocok dengan abi.json 0.0.12 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);

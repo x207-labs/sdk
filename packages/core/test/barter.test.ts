@@ -97,6 +97,53 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(termsHash({ ...old, search_leg: null })).toBe(bundleVector.termsHash);
   });
 
+  it("SD-073 syarat jaminan (interface 0.0.12): arbiter, agreement_hash, confirm_by datang setelah search_leg, confirm_by string, hash cocok dengan vector, bundle tanpa arbiter tidak berubah", () => {
+    for (const name of ["bundle_deal", "bundle_deal_no_agreement"]) {
+      const v = vector(name);
+      const terms = v.terms as BundleTerms;
+      expect(serializeBundleTerms(terms)).toBe(v.message);
+      expect(termsHash(terms)).toBe(v.termsHash);
+      expect(termsHash(terms)).toBe(sha256(v.message).toString("hex"));
+      expect(v.signingHash).toBe(nep413(v.message, sha256(v.message), terms.circle).toString("hex"));
+      for (const [account, k] of [[A, "kA"], [B, "kB"]] as const) expect(signBundle(terms, account, seed(k))).toEqual(v.signatures.find((s: { account: string }) => s.account === account));
+      const pubkeys = v.participants as Record<string, string>;
+      expect(bundleFullySigned(terms, v.signatures, pubkeys)).toBe(true);
+      // any of the three keys changed or dropped: the old signatures are worth nothing
+      expect(bundleFullySigned({ ...terms, confirm_by: "1793900000000000001" }, v.signatures, pubkeys)).toBe(false);
+      expect(bundleFullySigned({ ...terms, arbiter: "other.x207-circle.near" }, v.signatures, pubkeys)).toBe(false);
+      expect(bundleFullySigned({ ...terms, arbiter: undefined, agreement_hash: undefined, confirm_by: undefined }, v.signatures, pubkeys)).toBe(false);
+    }
+    const withAgreement = vector("bundle_deal");
+    expect(Object.keys(JSON.parse(withAgreement.message))).toEqual(["circle", "epoch", "legs", "arbiter", "agreement_hash", "confirm_by"]);
+    expect(typeof JSON.parse(withAgreement.message).confirm_by).toBe("string"); // nanoseconds do not fit a JavaScript number
+    expect(Object.keys(JSON.parse(vector("bundle_deal_no_agreement").message))).toEqual(["circle", "epoch", "legs", "arbiter", "confirm_by"]);
+    // with search_leg too: search_leg first, then the deal keys
+    const both = { ...(withAgreement.terms as BundleTerms), search_leg: { payer: B, payee: A } };
+    expect(Object.keys(JSON.parse(serializeBundleTerms(both)))).toEqual(["circle", "epoch", "legs", "search_leg", "arbiter", "agreement_hash", "confirm_by"]);
+    // the argument of commit_bundle carries the three keys only when there is an arbiter
+    expect(bundleInput(withAgreement.terms as BundleTerms)).toMatchObject({ arbiter: C, agreement_hash: "ab".repeat(32), confirm_by: "1793900000000000000" });
+    expect(Object.keys(bundleInput(bundleVector.terms as BundleTerms))).toEqual(["epoch", "legs"]);
+    expect(Object.keys(bundleInput(vector("bundle_deal_no_agreement").terms as BundleTerms))).toEqual(["epoch", "legs", "arbiter", "confirm_by"]);
+    // null is the same as absent
+    const old = bundleVector.terms as BundleTerms;
+    expect(serializeBundleTerms({ ...old, arbiter: null, agreement_hash: null, confirm_by: null })).toBe(bundleVector.message);
+  });
+
+  it("SD-073 syarat jaminan yang salah ditolak seperti kontrak: arbiter tanpa confirm_by, agreement_hash tanpa arbiter, hash buruk, confirm_by bukan string desimal, arbiter peserta, lebih dari dua peserta", () => {
+    const deal = vector("bundle_deal").terms as BundleTerms;
+    const bad = (over: Partial<BundleTerms>) => () => serializeBundleTerms({ ...deal, ...over });
+    expect(bad({ confirm_by: undefined })).toThrow(/datang bersama/);
+    expect(bad({ arbiter: undefined })).toThrow(/datang bersama/);
+    expect(bad({ arbiter: undefined, confirm_by: undefined })).toThrow(/datang bersama/); // agreement_hash alone
+    expect(bad({ agreement_hash: "AB".repeat(32) })).toThrow(/agreement_hash/);
+    expect(bad({ confirm_by: "0" })).toThrow(/confirm_by/);
+    expect(bad({ confirm_by: "18446744073709551616" })).toThrow(/confirm_by/);
+    expect(bad({ confirm_by: 1793900000 as unknown as string })).toThrow(/confirm_by/);
+    expect(bad({ arbiter: "NOT AN ACCOUNT" })).toThrow(/arbiter bukan akun/);
+    expect(bad({ arbiter: A })).toThrow(/ERR_ARBITER_INVALID/);
+    expect(() => serializeBundleTerms({ ...(vector("bundle_abca").terms as BundleTerms), arbiter: "arbiter.x207-circle.near", confirm_by: "1793900000000000000" })).toThrow(/dua peserta/);
+  });
+
   it("bundleInput: argumen commit_bundle memuat search_leg hanya bila ada", () => {
     const searched = vector("bundle_search").terms as BundleTerms;
     expect(bundleInput(searched)).toEqual({ epoch: 42, legs: searched.legs, search_leg: searched.search_leg });

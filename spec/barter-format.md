@@ -24,6 +24,13 @@ Contoh A→B→C→A (10, 8, 6 credit): [`test-vectors/barter/bundle_abca.json`]
 7. Aturan: pasangan `(payer, payee)` harus salah satu leg bundle (SDK melempar `BarterFormatError`; kontrak `ERR_BAD_BUNDLE`). Kontrak membatasi `max_amount` leg itu sampai `max_search_share_bps` (bawaan 500 = 5%) dari jumlah `max_amount` semua leg; lebih dari itu `ERR_SEARCH_SHARE_EXCEEDED`. `search_leg` ikut di bytes yang ditandatangani, jadi peserta yang menandatangani syarat tanpa `search_leg` tidak sah untuk bundle dengan `search_leg` (`ERR_BUNDLE_SIGNATURES`).
 8. Argumen `commit_bundle`: `bundle: { epoch, legs, search_leg? }`.
 
+### Jaminan dan arbiter (interface 0.0.12, CT-094, SD-073)
+9. **`arbiter`**, **`agreement_hash`** (opsional), dan **`confirm_by`** menandai swap dua peserta yang membawa jaminan. Ketiganya ada di `message` **sesudah `search_leg`**, dengan urutan `arbiter`, `agreement_hash` (bila ada), `confirm_by`, dan hanya bila ada arbiter, sehingga bundle tanpa arbiter (`bundle_abca`, `bundle_search`) tidak berubah `terms_hash`-nya. Contoh: `{"circle":…,"epoch":…,"legs":[…],"arbiter":"scraper.x207-circle.near","agreement_hash":"abab…","confirm_by":"1793900000000000000"}`.
+10. **`confirm_by` adalah string desimal** (nanodetik; tidak muat di angka JavaScript). `agreement_hash` adalah sha256 heks huruf kecil 64 karakter dari dokumen kesepakatan yang disimpan di luar rantai.
+11. Aturan (SDK melempar `BarterFormatError`; kontrak `ERR_BAD_BUNDLE` atau `ERR_ARBITER_INVALID`): `arbiter` dan `confirm_by` datang bersama, `agreement_hash` butuh keduanya, hanya untuk dua peserta, dan arbiter bukan peserta. Kontrak juga menuntut `confirm_by` antara 1 jam dan 14 hari setelah commit (`ERR_DEAL_WINDOW`) dan arbiter bukan pemilik lingkaran; itu hanya terlihat saat commit, jadi SDK tidak memeriksanya.
+12. Argumen `commit_bundle`: `bundle: { epoch, legs, search_leg?, arbiter?, agreement_hash?, confirm_by? }`.
+13. Vector: `test-vectors/barter/bundle_deal.json` (dengan `agreement_hash`) dan `bundle_deal_no_agreement.json`; hanya A dan B yang menandatangani, arbiter tidak.
+
 Contoh dengan leg pencari (55, 40, 5 credit; leg 5 dari 100 = 500 bps): [`test-vectors/barter/bundle_search.json`](./test-vectors/barter/bundle_search.json). Byte JSON dan `terms_hash`-nya dicocokkan dengan kontrak 0.0.5 di near-sandbox (`packages/core/test/sandbox/search-leg.sandbox.test.ts`: `get_bundle.terms_hash` kontrak sama dengan `termsHash` SDK) dan dengan fungsi `terms_message` di `contracts/x207-circle/src/bundle.rs`. Sisi kontrak menyalin vector ke `contracts/tests/vectors/barter/` bila ingin test unit.
 
 ## Aturan kontrak yang berlaku untuk bundle

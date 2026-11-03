@@ -61,6 +61,24 @@ writeFileSync(`${out}bundle_search.json`, JSON.stringify({
   participants: Object.fromEntries(Object.entries(participants).map(([account, k]) => [account, voucherPublicKey(seed(k))])),
   signatures: Object.entries(participants).map(([account, k]) => signBundle(searchTerms, account, seed(k))),
 }, null, 2) + "\n");
+// Swap dua peserta dengan jaminan dan arbiter (SD-073, interface 0.0.12, CT-094): A <-> B, arbiter C (bukan peserta). Tiga kunci datang setelah `search_leg`, hanya bila ada arbiter:
+// `arbiter`, `agreement_hash` (bila ada), `confirm_by` (string desimal nanodetik). Bundle tanpa arbiter (bundle_abca, bundle_search) tidak berubah. Yang menandatangani hanya A dan B.
+const dealParticipants = { [A]: "kA", [B]: "kB" };
+const dealLegs = [
+  { payer: B, payee: A, max_amount: "120000000" },
+  { payer: A, payee: B, max_amount: "100000000" },
+];
+for (const [file, extra] of [
+  ["bundle_deal", { arbiter: C, agreement_hash: "ab".repeat(32), confirm_by: "1793900000000000000" }],
+  ["bundle_deal_no_agreement", { arbiter: C, confirm_by: "1793900000000000000" }],
+]) {
+  const dealTerms = { circle: CIRCLE, epoch: 42, legs: dealLegs, ...extra };
+  writeFileSync(`${out}${file}.json`, JSON.stringify({
+    circle: CIRCLE, terms: dealTerms, message: serializeBundleTerms(dealTerms), termsHash: termsHash(dealTerms), signingHash: hex(bundleSigningHash(dealTerms)),
+    participants: Object.fromEntries(Object.entries(dealParticipants).map(([account, k]) => [account, voucherPublicKey(seed(k))])),
+    signatures: Object.entries(dealParticipants).map(([account, k]) => signBundle(dealTerms, account, seed(k))),
+  }, null, 2) + "\n");
+}
 // Listing dan penawaran (SD-055). Andi (translator) menawarkan jasa 100 credit, diskon 10%, mencari jasa 100 credit.
 const listing = {
   circle: CIRCLE, account: A,

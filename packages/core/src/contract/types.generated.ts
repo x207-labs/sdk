@@ -1,16 +1,16 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.11";
+export const X207_CIRCLE_ABI_VERSION = "0.0.12";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "3202e5c2393ad1c81d44b9b40e918975f43a0ed0d935490dc8ff3a97e9516867";
+export const X207_CIRCLE_ABI_SHA256 = "525b8e6561d6ea3f50953cfcacc021d2e51f83bb1607d7a618b4cc3b17a90b9b";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };
 export type Admission = "open" | "dao";
 export type AssetClass = "A" | "B" | "C" | "D" | "X";
 export type AssetClassEntry = { "accepted_proofs": string[]; "asset_type": string; "class": AssetClass; "delivery_methods": string[]; "terms_hash": string };
-export type BundleInput = { "epoch": number; "legs": BundleLeg[]; "search_leg"?: SearchLeg | null };
+export type BundleInput = { "agreement_hash"?: string | null; "arbiter"?: string | null; "confirm_by"?: string | null; "epoch": number; "legs": BundleLeg[]; "search_leg"?: SearchLeg | null };
 export type BundleLeg = { "max_amount": string; "payee": string; "payer": string };
 export type BundleLegView = { "max_amount": string; "payee": string; "payer": string; "registered": string };
 export type BundleSignature = { "account_id": string; "signature": string };
@@ -20,12 +20,16 @@ export type CircleConfig = { "circle_id": string; "contract_id": string; "decima
 export type ClaimDestination = "near" | "intents";
 export type ClearingEdge = { "cleared": string; "creditor": string; "debtor": string };
 export type ClearingProposal = { "cleared_total": string; "committed": boolean; "edge_count": number; "edges": ClearingEdge[]; "epoch": number; "solver": string; "submitted_at": string };
+export type DealState = "open" | "disputed";
+export type DealView = { "accused"?: string | null; "agreement_hash"?: string | null; "arbiter": string; "bond_each": string; "bundle_id": number; "complainant"?: string | null; "confirm_by": string; "disputed_at"?: string | null; "evidence_hash"?: string | null; "locked": boolean[]; "parties": string[]; "state": DealState };
 export type EpochPhaseView = "open" | "cutoff" | "clearing" | "commit" | "payment_window" | "finalized";
 export type EpochView = { "closed_at"?: string | null; "committed_at"?: string | null; "cutoff_at": string; "edge_count": number; "epoch": number; "finalized_at"?: string | null; "opened_at": string; "params": Params; "participant_count": number; "payment_deadline"?: string | null; "phase": EpochPhaseView; "pool": string; "proposal_deadline"?: string | null; "shortfall": string; "total_cleared": string; "total_obligation": string };
 export type EscrowState = "held" | "completing" | "cancelling" | "delivered" | "cancelled" | "stuck";
 export type EscrowStep = "complete" | "cancel";
 export type EscrowView = { "buyer"?: string | null; "grant_id": number; "nft_contract": string; "state": EscrowState; "token_id": string };
 export type Fees = { "clearing_fee_bps": number; "solver_fee_bps": number };
+export type FreezeState = "pending" | "frozen";
+export type FreezeView = { "eta": string; "from_epoch": number; "reason_hash"?: string | null; "state": FreezeState };
 export type FtEscrowView = { "amount": string; "buyer"?: string | null; "ft_contract": string; "grant_id": number; "state": EscrowState };
 export type GrantInput = { "asset_type": string; "delivery_method": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "unit": string; "unit_price": string };
 export type GrantLimits = { "expires_at": string; "quota"?: string | null; "scope": string };
@@ -36,7 +40,7 @@ export type MemberStatus = "pending" | "active" | "suspended" | "exited";
 export type MemberView = { "account_id": string; "admitted": boolean; "exit_requested_epoch"?: number | null; "joined_at": string; "last_active_epoch": number; "limit": string; "pubkey_voucher": string; "settled_history": string; "stake": string; "status": MemberStatus; "terms_hash": string };
 export type MtEscrowView = { "amount": string; "buyer"?: string | null; "grant_id": number; "mt_contract": string; "state": EscrowState; "token_id": string };
 export type ObligationView = { "cleared": string; "creditor": string; "cumulative": string; "debtor": string; "epoch": number; "last_seq": number; "obligation": string };
-export type Params = { "admission": Admission; "base_limit_ratio": number; "epoch_length": number; "fees": Fees; "limit_cap": string; "limit_decay": number; "limit_growth": number; "max_search_share_bps"?: number; "payment_window": number; "proposal_window": number };
+export type Params = { "admission": Admission; "base_limit_ratio": number; "bond_bps"?: number; "bond_threshold"?: string; "epoch_length": number; "fees": Fees; "limit_cap": string; "limit_decay": number; "limit_growth": number; "max_search_share_bps"?: number; "payment_window": number; "proposal_window": number };
 export type PendingParams = { "effective_epoch": number; "params": Params };
 export type PoolView = { "accounted": string; "epoch_pools": string; "in_flight": string; "reserve": string; "solver_fees": string; "total_stake": string };
 export type PositionRole = "debtor" | "creditor";
@@ -50,16 +54,21 @@ export type RevokeReason = "grantor" | "grantee" | "operator" | "expired" | "def
 export type SearchLeg = { "payee": string; "payer": string };
 export type SimulationResult = { "better_than_current": boolean; "cleared_total": string; "edge_count": number; "reason"?: string | null; "valid": boolean };
 export type UpgradeView = { "code_hash": string; "eta": string };
+export type Verdict = "accused_guilty" | "complaint_false" | "no_fault";
 export type Voucher = { "circle": string; "cumulativeAmount": string; "epoch": number; "payee": string; "payer": string; "resource": string; "seq": number; "unit": string };
 
 /** View: `args` = argumen JSON, `result` = nilai kembalian. */
 export type CircleViews = {
+  "bond_locked": { args: { "account_id": string }; result: string };
   "get_asset_class": { args: { "asset_type": string }; result: AssetClassEntry | null };
+  "get_asset_contracts": { args: { "asset_type": string }; result: string[] };
   "get_bundle": { args: { "bundle_id": number }; result: BundleView | null };
   "get_circle": { args: Record<string, never>; result: CircleConfig };
   "get_clearing_proposal": { args: { "epoch": number }; result: ClearingProposal | null };
+  "get_deal": { args: { "bundle_id": number }; result: DealView | null };
   "get_epoch": { args: { "epoch"?: number | null }; result: EpochView | null };
   "get_escrow": { args: { "grant_id": number }; result: EscrowView | null };
+  "get_freeze": { args: { "account_id": string }; result: FreezeView | null };
   "get_ft_escrow": { args: { "grant_id": number }; result: FtEscrowView | null };
   "get_grant": { args: { "grant_id": number }; result: AccessGrant | null };
   "get_intent": { args: { "intent_hash": string }; result: IntentView | null };
@@ -73,6 +82,7 @@ export type CircleViews = {
   "headroom": { args: { "account_id": string }; result: string };
   "intents_balance": { args: Record<string, never>; result: string };
   "interface_version": { args: Record<string, never>; result: string };
+  "is_frozen": { args: { "account_id": string }; result: boolean };
   "last_seq": { args: { "payer": string; "payee": string; "epoch": number }; result: number };
   "limit": { args: { "account_id": string }; result: string };
   "list_asset_classes": { args: { "from_index": number; "limit": number }; result: AssetClassEntry[] };
@@ -91,14 +101,18 @@ export type CircleViews = {
 export type CircleCalls = {
   "accept_grant": { args: { "grant_id": number; "delivery_pubkey"?: string | null }; result: void };
   "admit_member": { args: { "account_id": string }; result: void };
+  "apply_freeze": { args: { "account_id": string }; result: void };
   "apply_upgrade": { args: Record<string, never>; result: Promise };
   "cancel_escrow": { args: { "grant_id": number }; result: Promise };
+  "cancel_freeze": { args: { "account_id": string }; result: void };
   "claim": { args: { "epoch": number; "destination": ClaimDestination }; result: Promise; payable: true };
   "claim_solver_fee": { args: Record<string, never>; result: Promise; payable: true };
   "close_epoch": { args: { "epoch": number }; result: void };
   "commit_bundle": { args: { "bundle": BundleInput; "signatures": BundleSignature[] }; result: number };
   "commit_epoch": { args: { "epoch": number }; result: void };
   "complete_escrow": { args: { "grant_id": number; "voucher": Voucher; "signature": string }; result: Promise };
+  "confirm_deal": { args: { "bundle_id": number }; result: void };
+  "dispute_deal": { args: { "bundle_id": number; "evidence_hash": string }; result: void };
   "finalize_epoch": { args: { "epoch": number }; result: void };
   "ft_on_transfer": { args: { "sender_id": string; "amount": string; "msg": string }; result: PromiseOrValueString };
   "join": { args: { "circle_id": string; "pubkey_voucher": string; "terms_hash": string }; result: MemberView; payable: true };
@@ -113,6 +127,7 @@ export type CircleCalls = {
   "on_solver_fee_resolved": { args: { "account_id": string; "amount": string }; result: string; private: true };
   "on_withdraw_resolved": { args: { "account_id": string; "amount": string }; result: boolean; private: true };
   "post_intent": { args: { "intent_hash": string }; result: void };
+  "propose_freeze": { args: { "account_id": string; "reason_hash"?: string | null }; result: void };
   "propose_upgrade": { args: { "code_hash": string }; result: void };
   "prune_epoch": { args: { "epoch": number; "max_items": number }; result: number };
   "register_cumulative": { args: { "voucher": Voucher; "signature": string }; result: string };
@@ -121,15 +136,19 @@ export type CircleCalls = {
   "remove_intent": { args: { "intent_hash": string }; result: void };
   "request_exit": { args: Record<string, never>; result: void; payable: true };
   "revoke_grant": { args: { "grant_id": number; "reason": RevokeReason }; result: void };
+  "rule_deal": { args: { "bundle_id": number; "verdict": Verdict }; result: void };
   "set_asset_class": { args: { "asset_type": string; "entry": AssetClassEntry }; result: void };
+  "set_asset_contracts": { args: { "asset_type": string; "contracts": string[] }; result: void };
   "set_params": { args: { "params": Params }; result: void };
+  "settle_deal": { args: { "bundle_id": number }; result: void };
   "submit_clearing": { args: { "epoch": number; "edges": ClearingEdge[] }; result: string };
+  "unfreeze_member": { args: { "account_id": string }; result: void };
   "withdraw_intents_balance": { args: Record<string, never>; result: Promise };
   "withdraw_stake": { args: Record<string, never>; result: PromiseOrValueBoolean; payable: true };
 };
 
-export const CIRCLE_VIEW_METHODS = ["get_asset_class","get_bundle","get_circle","get_clearing_proposal","get_epoch","get_escrow","get_ft_escrow","get_grant","get_intent","get_mt_escrow","get_owner","get_params","get_pending_params","get_pool","get_upgrade","grants_of","headroom","intents_balance","interface_version","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
-export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_upgrade","cancel_escrow","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","complete_escrow","finalize_epoch","ft_on_transfer","join","migrate","mt_on_transfer","new","nft_on_transfer","offer_grant","on_claim_resolved","on_escrow_resolved","on_intents_withdrawn","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","prune_epoch","register_cumulative","register_in_bundle","register_voucher","remove_intent","request_exit","revoke_grant","set_asset_class","set_params","submit_clearing","withdraw_intents_balance","withdraw_stake"] as const;
+export const CIRCLE_VIEW_METHODS = ["bond_locked","get_asset_class","get_asset_contracts","get_bundle","get_circle","get_clearing_proposal","get_deal","get_epoch","get_escrow","get_freeze","get_ft_escrow","get_grant","get_intent","get_mt_escrow","get_owner","get_params","get_pending_params","get_pool","get_upgrade","grants_of","headroom","intents_balance","interface_version","is_frozen","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
+export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_freeze","apply_upgrade","cancel_escrow","cancel_freeze","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","complete_escrow","confirm_deal","dispute_deal","finalize_epoch","ft_on_transfer","join","migrate","mt_on_transfer","new","nft_on_transfer","offer_grant","on_claim_resolved","on_escrow_resolved","on_intents_withdrawn","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_freeze","propose_upgrade","prune_epoch","register_cumulative","register_in_bundle","register_voucher","remove_intent","request_exit","revoke_grant","rule_deal","set_asset_class","set_asset_contracts","set_params","settle_deal","submit_clearing","unfreeze_member","withdraw_intents_balance","withdraw_stake"] as const;
 
 /** Nama event NEP-297 dan urutan field `data`-nya. */
 export const CIRCLE_EVENTS = {
@@ -163,6 +182,17 @@ export const CIRCLE_EVENTS = {
   "grant_revoked": ["grant_id","reason"],
   "escrow_held": ["grant_id","nft_contract","token_id"],
   "ft_escrow_held": ["grant_id","ft_contract","amount"],
+  "freeze_proposed": ["account_id","eta","reason_hash"],
+  "member_frozen": ["account_id","from_epoch"],
+  "freeze_cancelled": ["account_id"],
+  "member_unfrozen": ["account_id"],
+  "asset_contracts_set": ["asset_type","contracts"],
+  "bond_locked": ["bundle_id","account_id","amount"],
+  "deal_confirmed": ["bundle_id","account_id","of"],
+  "deal_disputed": ["bundle_id","complainant","accused","evidence_hash","disputed_at"],
+  "deal_ruled": ["bundle_id","arbiter","verdict"],
+  "bond_slashed": ["bundle_id","from","to","amount","from_stake","to_stake"],
+  "bond_released": ["bundle_id","account_id","amount","reason"],
   "mt_escrow_held": ["grant_id","mt_contract","token_id","amount"],
   "escrow_failed": ["grant_id","step","epoch","payer","payee","delta","reverted"],
   "bundle_committed": ["bundle_id","terms_hash","epoch","legs","solver"],

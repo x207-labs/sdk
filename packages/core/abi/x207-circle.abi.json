@@ -44,11 +44,47 @@
       },
       {
         "kind": "call",
+        "name": "apply_freeze",
+        "params": {
+          "args": [
+            {
+              "name": "account_id",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        }
+      },
+      {
+        "kind": "call",
         "name": "apply_upgrade",
         "result": {
           "serialization_type": "json",
           "type_schema": {
             "$ref": "#/definitions/Promise"
+          }
+        }
+      },
+      {
+        "kind": "view",
+        "name": "bond_locked",
+        "params": {
+          "args": [
+            {
+              "name": "account_id",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        },
+        "result": {
+          "serialization_type": "json",
+          "type_schema": {
+            "type": "string"
           }
         }
       },
@@ -73,6 +109,21 @@
           "type_schema": {
             "$ref": "#/definitions/Promise"
           }
+        }
+      },
+      {
+        "kind": "call",
+        "name": "cancel_freeze",
+        "params": {
+          "args": [
+            {
+              "name": "account_id",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
         }
       },
       {
@@ -223,6 +274,46 @@
       },
       {
         "kind": "call",
+        "name": "confirm_deal",
+        "params": {
+          "args": [
+            {
+              "name": "bundle_id",
+              "type_schema": {
+                "format": "uint64",
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        }
+      },
+      {
+        "kind": "call",
+        "name": "dispute_deal",
+        "params": {
+          "args": [
+            {
+              "name": "bundle_id",
+              "type_schema": {
+                "format": "uint64",
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            },
+            {
+              "name": "evidence_hash",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        }
+      },
+      {
+        "kind": "call",
         "name": "finalize_epoch",
         "params": {
           "args": [
@@ -301,6 +392,30 @@
       },
       {
         "kind": "view",
+        "name": "get_asset_contracts",
+        "params": {
+          "args": [
+            {
+              "name": "asset_type",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        },
+        "result": {
+          "serialization_type": "json",
+          "type_schema": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        }
+      },
+      {
+        "kind": "view",
         "name": "get_bundle",
         "params": {
           "args": [
@@ -371,6 +486,36 @@
       },
       {
         "kind": "view",
+        "name": "get_deal",
+        "params": {
+          "args": [
+            {
+              "name": "bundle_id",
+              "type_schema": {
+                "format": "uint64",
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        },
+        "result": {
+          "serialization_type": "json",
+          "type_schema": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/DealView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "kind": "view",
         "name": "get_epoch",
         "params": {
           "args": [
@@ -424,6 +569,34 @@
             "anyOf": [
               {
                 "$ref": "#/definitions/EscrowView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "kind": "view",
+        "name": "get_freeze",
+        "params": {
+          "args": [
+            {
+              "name": "account_id",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        },
+        "result": {
+          "serialization_type": "json",
+          "type_schema": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/FreezeView"
               },
               {
                 "type": "null"
@@ -698,6 +871,27 @@
           "serialization_type": "json",
           "type_schema": {
             "type": "string"
+          }
+        }
+      },
+      {
+        "kind": "view",
+        "name": "is_frozen",
+        "params": {
+          "args": [
+            {
+              "name": "account_id",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        },
+        "result": {
+          "serialization_type": "json",
+          "type_schema": {
+            "type": "boolean"
           }
         }
       },
@@ -1418,6 +1612,30 @@
       },
       {
         "kind": "call",
+        "name": "propose_freeze",
+        "params": {
+          "args": [
+            {
+              "name": "account_id",
+              "type_schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "reason_hash",
+              "type_schema": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          ],
+          "serialization_type": "json"
+        }
+      },
+      {
+        "kind": "call",
         "name": "propose_upgrade",
         "params": {
           "args": [
@@ -1600,6 +1818,29 @@
       },
       {
         "kind": "call",
+        "name": "rule_deal",
+        "params": {
+          "args": [
+            {
+              "name": "bundle_id",
+              "type_schema": {
+                "format": "uint64",
+                "minimum": 0.0,
+                "type": "integer"
+              }
+            },
+            {
+              "name": "verdict",
+              "type_schema": {
+                "$ref": "#/definitions/Verdict"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        }
+      },
+      {
+        "kind": "call",
         "name": "set_asset_class",
         "params": {
           "args": [
@@ -1621,6 +1862,30 @@
       },
       {
         "kind": "call",
+        "name": "set_asset_contracts",
+        "params": {
+          "args": [
+            {
+              "name": "asset_type",
+              "type_schema": {
+                "type": "string"
+              }
+            },
+            {
+              "name": "contracts",
+              "type_schema": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        }
+      },
+      {
+        "kind": "call",
         "name": "set_params",
         "params": {
           "args": [
@@ -1628,6 +1893,23 @@
               "name": "params",
               "type_schema": {
                 "$ref": "#/definitions/Params"
+              }
+            }
+          ],
+          "serialization_type": "json"
+        }
+      },
+      {
+        "kind": "call",
+        "name": "settle_deal",
+        "params": {
+          "args": [
+            {
+              "name": "bundle_id",
+              "type_schema": {
+                "format": "uint64",
+                "minimum": 0.0,
+                "type": "integer"
               }
             }
           ],
@@ -1717,6 +1999,21 @@
           "type_schema": {
             "type": "string"
           }
+        }
+      },
+      {
+        "kind": "call",
+        "name": "unfreeze_member",
+        "params": {
+          "args": [
+            {
+              "name": "account_id",
+              "type_schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "serialization_type": "json"
         }
       },
       {
@@ -1869,6 +2166,27 @@
         },
         "BundleInput": {
           "properties": {
+            "agreement_hash": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "arbiter": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "confirm_by": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "epoch": {
               "format": "uint64",
               "minimum": 0.0,
@@ -2110,6 +2428,86 @@
           ],
           "type": "object"
         },
+        "DealState": {
+          "enum": [
+            "open",
+            "disputed"
+          ],
+          "type": "string"
+        },
+        "DealView": {
+          "properties": {
+            "accused": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "agreement_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "arbiter": {
+              "type": "string"
+            },
+            "bond_each": {
+              "type": "string"
+            },
+            "bundle_id": {
+              "format": "uint64",
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "complainant": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "confirm_by": {
+              "type": "string"
+            },
+            "disputed_at": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "evidence_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "locked": {
+              "items": {
+                "type": "boolean"
+              },
+              "type": "array"
+            },
+            "parties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "state": {
+              "$ref": "#/definitions/DealState"
+            }
+          },
+          "required": [
+            "arbiter",
+            "bond_each",
+            "bundle_id",
+            "confirm_by",
+            "locked",
+            "parties",
+            "state"
+          ],
+          "type": "object"
+        },
         "EpochPhaseView": {
           "enum": [
             "open",
@@ -2302,6 +2700,40 @@
           "required": [
             "clearing_fee_bps",
             "solver_fee_bps"
+          ],
+          "type": "object"
+        },
+        "FreezeState": {
+          "enum": [
+            "pending",
+            "frozen"
+          ],
+          "type": "string"
+        },
+        "FreezeView": {
+          "properties": {
+            "eta": {
+              "type": "string"
+            },
+            "from_epoch": {
+              "format": "uint64",
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "reason_hash": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "state": {
+              "$ref": "#/definitions/FreezeState"
+            }
+          },
+          "required": [
+            "eta",
+            "from_epoch",
+            "state"
           ],
           "type": "object"
         },
@@ -2587,6 +3019,16 @@
               "minimum": 0.0,
               "type": "integer"
             },
+            "bond_bps": {
+              "default": 2000,
+              "format": "uint16",
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "bond_threshold": {
+              "default": "100000000",
+              "type": "string"
+            },
             "epoch_length": {
               "format": "uint64",
               "minimum": 0.0,
@@ -2833,6 +3275,28 @@
             "eta"
           ],
           "type": "object"
+        },
+        "Verdict": {
+          "oneOf": [
+            {
+              "enum": [
+                "accused_guilty"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "complaint_false"
+              ],
+              "type": "string"
+            },
+            {
+              "enum": [
+                "no_fault"
+              ],
+              "type": "string"
+            }
+          ]
         },
         "Voucher": {
           "properties": {
@@ -3188,6 +3652,94 @@
     },
     {
       "fields": [
+        "account_id",
+        "eta",
+        "reason_hash"
+      ],
+      "name": "freeze_proposed"
+    },
+    {
+      "fields": [
+        "account_id",
+        "from_epoch"
+      ],
+      "name": "member_frozen"
+    },
+    {
+      "fields": [
+        "account_id"
+      ],
+      "name": "freeze_cancelled"
+    },
+    {
+      "fields": [
+        "account_id"
+      ],
+      "name": "member_unfrozen"
+    },
+    {
+      "fields": [
+        "asset_type",
+        "contracts"
+      ],
+      "name": "asset_contracts_set"
+    },
+    {
+      "fields": [
+        "bundle_id",
+        "account_id",
+        "amount"
+      ],
+      "name": "bond_locked"
+    },
+    {
+      "fields": [
+        "bundle_id",
+        "account_id",
+        "of"
+      ],
+      "name": "deal_confirmed"
+    },
+    {
+      "fields": [
+        "bundle_id",
+        "complainant",
+        "accused",
+        "evidence_hash",
+        "disputed_at"
+      ],
+      "name": "deal_disputed"
+    },
+    {
+      "fields": [
+        "bundle_id",
+        "arbiter",
+        "verdict"
+      ],
+      "name": "deal_ruled"
+    },
+    {
+      "fields": [
+        "bundle_id",
+        "from",
+        "to",
+        "amount",
+        "from_stake",
+        "to_stake"
+      ],
+      "name": "bond_slashed"
+    },
+    {
+      "fields": [
+        "bundle_id",
+        "account_id",
+        "amount",
+        "reason"
+      ],
+      "name": "bond_released"
+    },
+    {
+      "fields": [
         "grant_id",
         "mt_contract",
         "token_id",
@@ -3236,10 +3788,10 @@
       "name": "intent_removed"
     }
   ],
-  "interface_version": "0.0.11",
+  "interface_version": "0.0.12",
   "metadata": {
     "name": "x207-circle",
-    "version": "0.0.11"
+    "version": "0.0.12"
   },
   "schema_version": "0.4.0"
 }

@@ -8,6 +8,7 @@ export * as ContractAbi from "./contract/types.generated.js";
 export * from "./events.js";
 export * from "./contract/settlement.js";
 export * from "./contract/client.js";
+export * from "./contract/deal.js";
 export * from "./contract/onboard.js";
 export * from "./contract/view.js";
 export * from "./barter.js";
