@@ -242,20 +242,26 @@ export type OnchainProof = {
   receiver?: AccountId; proposal_id?: number; action?: string; proposal_kind?: string;
 };
 export type ProofRefusal = { txHash: string; reason: "wrong_signer" | "wrong_method" | "already_paid" | "over_budget" | "unverified" | "wrong_receiver" | "not_a_vote" | "kind_not_in_mandate" };
-/** `paid` adalah hash transaksi yang dibayar; `keys` adalah kunci anti-ganda yang dicatat (hash transaksi, atau `proposal:<id>` untuk pesanan `delegate`). */
-export type PayForProofsResult = { vouchers: Voucher[]; paid: string[]; keys: string[]; refused: ProofRefusal[]; state: InvoicePairState; spent: U128String };
+/**
+ * `paid` adalah hash transaksi yang dibayar; `paidKeys` adalah kunci anti-ganda yang dicatat: hash transaksi, atau `proposal:<id>` untuk pesanan `delegate`. Panggilan berikutnya memberi
+ * `paidKeys` (bukan `paid`) sebagai `alreadyPaid` (B5-F1, review BE-062).
+ */
+export type PayForProofsResult = { vouchers: Voucher[]; paid: string[]; paidKeys: string[]; refused: ProofRefusal[]; state: InvoicePairState; spent: U128String };
 
 /**
  * Helper pembeli untuk pesanan `keeper` dan `solver`: satu voucher per bukti yang cocok, masing-masing sebesar `proof.amount_per_tx`, berurutan di epoch `epoch` mulai dari keadaan
  * pasangan `state`. Bukti ditolak (bukan dibayar) bila ditandatangani akun lain, memakai method lain, sudah dibayar (`alreadyPaid`, juga bila muncul dua kali), atau akan melewati
  * anggaran pesanan (`alreadySpent` + yang dibayar di sini tidak boleh melebihi `orderBudget`). Tidak ada yang dibayar untuk pesanan dengan pola lain.
  */
-export function payForProofs(args: {
+export type PayForProofsArgs = {
   order: OrderDocument;
   epoch: number;
   state: InvoicePairState;
   proofs: readonly OnchainProof[];
-  /** Wajib (F4): hash transaksi yang sudah dibayar; `[]` ditulis eksplisit pada panggilan pertama. */
+  /**
+   * Wajib (F4): kunci yang sudah dibayar, yaitu `paidKeys` dari panggilan sebelumnya (untuk `keeper` dan `solver` sama dengan hash transaksi, untuk `delegate` `proposal:<id>`); `[]`
+   * ditulis eksplisit pada panggilan pertama. Untuk pesanan `delegate` isi yang bukan `proposal:<id>` ditolak, karena hash transaksi tidak melindungi proposal yang sama.
+   */
   alreadyPaid: readonly string[];
   /** Wajib (F4): yang sudah dibayar untuk pesanan ini, satuan credit terkecil (`"0"` pada panggilan pertama). */
   alreadySpent: U128String;
@@ -266,7 +272,9 @@ export function payForProofs(args: {
   /** Method bukti yang dipakai DAO untuk pesanan `delegate` (bawaan `PROOF_METHODS.delegate`). */
   options?: OrderOptions;
   secretKey: VoucherSecretKey;
-}): PayForProofsResult {
+};
+
+export function payForProofs(args: PayForProofsArgs): PayForProofsResult {
   const o = normalizeOrder(args.order, args.options);
   const delegate = o.kind === "delegate";
   const mandate = delegate ? normalizeMandate(args.mandate ?? fail("order_mandate_required", "pesanan delegate dibayar terhadap mandatnya: berikan mandate")) : null;
@@ -278,6 +286,10 @@ export function payForProofs(args: {
   if (!Array.isArray(args.alreadyPaid) || typeof args.alreadySpent !== "string" || !/^(0|[1-9]\d*)$/.test(args.alreadySpent)) {
     fail("order_bad_state", "alreadyPaid dan alreadySpent wajib diberikan (dari panggilan sebelumnya)");
   }
+  if (delegate) {
+    const stray = args.alreadyPaid.find((k) => !/^proposal:\d+$/.test(k));
+    if (stray !== undefined) fail("order_bad_state", `alreadyPaid pesanan delegate berisi paidKeys (proposal:<id>), bukan hash transaksi: ${JSON.stringify(stray)}`);
+  }
   const seen = new Set(args.alreadyPaid);
   let spent = BigInt(args.alreadySpent);
   let seq = args.state.seq;
@@ -285,7 +297,7 @@ export function payForProofs(args: {
   const resource = orderResource(orderHash(o, args.options));
   const vouchers: Voucher[] = [];
   const paid: string[] = [];
-  const keys: string[] = [];
+  const paidKeys: string[] = [];
   const refused: ProofRefusal[] = [];
   for (const proof of args.proofs) {
     // a delegate is paid once per proposal, whatever the number of transactions on it; the other kinds once per transaction
@@ -306,11 +318,53 @@ export function payForProofs(args: {
     cumulative += each;
     spent += each;
     seen.add(key);
-    keys.push(key);
+    paidKeys.push(key);
     vouchers.push(signVoucher({ circle: o.circle, payer: o.buyer, payee: o.seller, epoch: args.epoch, seq, cumulativeAmount: cumulative.toString(), unit: CREDIT_UNIT, resource }, args.secretKey));
     paid.push(proof.txHash);
   }
-  return { vouchers, paid, keys, refused, state: { seq, cumulativeAmount: cumulative.toString() }, spent: spent.toString() };
+  return { vouchers, paid, paidKeys, refused, state: { seq, cumulativeAmount: cumulative.toString() }, spent: spent.toString() };
+}
+
+/**
+ * Like `payForProofs`, but `verifyTx` may ask the chain (B5-F3, review BE-062): it can return a promise. Every proof that is not already paid is asked first, one after the other, then the
+ * synchronous rules run with the answers; a proof that the chain does not confirm is `unverified`. An error of the verifier is an error of the call (nothing is signed), not a pass.
+ */
+export async function payForProofsAsync(args: Omit<PayForProofsArgs, "verifyTx"> & { verifyTx?: (proof: OnchainProof) => boolean | Promise<boolean> }): Promise<PayForProofsResult> {
+  const { verifyTx, ...rest } = args;
+  if (verifyTx === undefined) return payForProofs(rest);
+  const paid = new Set(args.alreadyPaid);
+  const answers = new Map<OnchainProof, boolean>();
+  for (const proof of args.proofs) {
+    const key = args.order.kind === "delegate" && Number.isSafeInteger(proof.proposal_id) ? `proposal:${proof.proposal_id}` : proof.txHash;
+    if (!paid.has(key)) answers.set(proof, (await verifyTx(proof)) === true);
+  }
+  return payForProofs({ ...rest, verifyTx: (proof) => answers.get(proof) ?? true });
+}
+
+/**
+ * A verifier for `payForProofsAsync` that asks a NEAR node (JSON-RPC `tx`, final) about the transaction of a proof: it must exist, every receipt must have succeeded, it must be signed by
+ * `proof.signer`, be one `FunctionCall` of `proof.method`, and, when the proof names a `receiver` (a delegate's vote), go to that account. It does not check the arguments of the call (the
+ * proposal and the action); the backend checks those when it accepts the claim. An answer of the node that is not understood is `false`, a network error is thrown.
+ */
+export function rpcTxVerifier(rpcUrl: string, fetchImpl: typeof fetch = fetch): (proof: OnchainProof) => Promise<boolean> {
+  return async (proof) => {
+    const res = await fetchImpl(rpcUrl, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: "x207", method: "tx", params: { tx_hash: proof.txHash, sender_account_id: proof.signer, wait_until: "FINAL" } }),
+    });
+    const body = (await res.json()) as { result?: { status?: unknown; transaction?: { signer_id?: string; receiver_id?: string; actions?: Array<{ FunctionCall?: { method_name?: string } }> }; receipts_outcome?: Array<{ outcome?: { status?: unknown } }> }; error?: { cause?: { name?: string } } };
+    if (body.result === undefined) {
+      const name = body.error?.cause?.name;
+      if (name === "UNKNOWN_TRANSACTION" || name === "TIMEOUT_ERROR") return false;
+      throw new Error(`rpc tx: ${JSON.stringify(body.error ?? body)}`);
+    }
+    const { status, transaction, receipts_outcome: receipts } = body.result;
+    const done = typeof status === "object" && status !== null && ("SuccessValue" in status || "SuccessReceiptId" in status);
+    const failed = (receipts ?? []).some((r) => typeof r.outcome?.status === "object" && r.outcome.status !== null && "Failure" in r.outcome.status);
+    const actions = transaction?.actions ?? [];
+    return done && !failed && transaction?.signer_id === proof.signer && actions.length === 1 && actions[0]?.FunctionCall?.method_name === proof.method
+      && (proof.receiver === undefined || transaction.receiver_id === proof.receiver);
+  };
 }
 
 /**
@@ -323,6 +377,7 @@ export class OrderLedger {
   readonly #milestones = new Set<number>();
   readonly #proofs = new Set<string>();
   #spent = 0n;
+  #asking = false;
 
   constructor(order: OrderDocument, saved?: { milestones: readonly number[]; proofs: readonly string[]; spent: U128String }) {
     this.order = order;
@@ -354,13 +409,31 @@ export class OrderLedger {
     return signed;
   }
 
+  /** Like `payProofs`, with a `verifyTx` that may ask the chain (see `payForProofsAsync`). Not for two calls at once: the ledger is read before the chain is asked, so a second call is refused. */
+  async payProofsAsync(args: { epoch: number; state: InvoicePairState; proofs: readonly OnchainProof[]; secretKey: VoucherSecretKey; verifyTx?: (proof: OnchainProof) => boolean | Promise<boolean>; mandate?: DelegateMandate; options?: OrderOptions }): Promise<PayForProofsResult> {
+    if (this.#asking) fail("order_bad_state", "payProofsAsync sedang berjalan: tunggu hasilnya sebelum memanggil lagi");
+    this.#asking = true;
+    let result: PayForProofsResult;
+    try {
+      result = await payForProofsAsync({
+      order: this.order, epoch: args.epoch, state: args.state, proofs: args.proofs, alreadyPaid: [...this.#proofs], alreadySpent: this.#spent.toString(), secretKey: args.secretKey,
+      ...(args.verifyTx ? { verifyTx: args.verifyTx } : {}), ...(args.mandate ? { mandate: args.mandate } : {}), ...(args.options ? { options: args.options } : {}),
+      });
+    } finally {
+      this.#asking = false;
+    }
+    for (const t of result.paidKeys) this.#proofs.add(t);
+    this.#spent = BigInt(result.spent);
+    return result;
+  }
+
   /** Bayar per bukti on-chain dengan catatan buku ini. */
   payProofs(args: { epoch: number; state: InvoicePairState; proofs: readonly OnchainProof[]; secretKey: VoucherSecretKey; verifyTx?: (proof: OnchainProof) => boolean; mandate?: DelegateMandate; options?: OrderOptions }): PayForProofsResult {
     const result = payForProofs({
       order: this.order, epoch: args.epoch, state: args.state, proofs: args.proofs, alreadyPaid: [...this.#proofs], alreadySpent: this.#spent.toString(), secretKey: args.secretKey,
       ...(args.verifyTx ? { verifyTx: args.verifyTx } : {}), ...(args.mandate ? { mandate: args.mandate } : {}), ...(args.options ? { options: args.options } : {}),
     });
-    for (const t of result.keys) this.#proofs.add(t);
+    for (const t of result.paidKeys) this.#proofs.add(t);
     this.#spent = BigInt(result.spent);
     return result;
   }

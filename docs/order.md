@@ -32,7 +32,7 @@ The budget is locked as a bundle with two legs (buyer to seller for the amount, 
 The voucher of a milestone is built **after** the milestone is confirmed (or after the dispute window), from the real state of the pair (`milestoneVoucher`). A disputed milestone is not paid and leaves the state as it was, so the next voucher does not carry it. There is no chain of vouchers signed in advance for several milestones: a cumulative voucher cannot skip a milestone.
 
 ## payForProofs
-`alreadyPaid` and `alreadySpent` are required (review BE-062, F4): a call that does not say what was paid before is refused, because an agent that runs again with the same proofs would pay them again. The easy way is `OrderLedger`. `verifyTx` is optional: it asks the chain whether a proof is a real transaction of that provider and method; a proof it denies is `unverified`.
+`alreadyPaid` and `alreadySpent` are required (review BE-062, F4). `alreadyPaid` takes the `paidKeys` that the previous call returned, not `paid`: for a `keeper` or `solver` order a key is the hash of the transaction, for a `delegate` order it is `proposal:<id>`, and a hash in the `alreadyPaid` of a delegate order is refused (`order_bad_state`), because it would not stop a second transaction on the same proposal (B5-F1). a call that does not say what was paid before is refused, because an agent that runs again with the same proofs would pay them again. The easy way is `OrderLedger`. `verifyTx` is optional: it asks the chain whether a proof is a real transaction of that provider and method; a proof it denies is `unverified`. `payForProofs` is synchronous, so its `verifyTx` cannot wait for a node; `payForProofsAsync` (and `OrderLedger.payProofsAsync`, which refuses a second call while one runs) takes a `verifyTx` that returns a promise and asks the proofs that are not paid yet one after the other (B5-F3). `rpcTxVerifier(rpcUrl)` is a verifier for it: the node must know the transaction (final), every receipt succeeded, the signer is `proof.signer`, it is one call of `proof.method`, and it went to `proof.receiver` when the proof has one. It does not read the arguments (the proposal and the action): the backend does that when it takes the claim.
 
 For a `keeper` or `solver` order the buyer's agent takes the proofs from the backend (`GET orders/{hash}/onchain-proofs`) and signs one voucher per proof of `proof.amount_per_tx`. A proof is refused (not paid) when it was signed by another account (`wrong_signer`), uses another method (`wrong_method`), was paid before (`already_paid`, also inside one list), or would pass the budget of the order (`over_budget`). The vouchers continue the state of the pair in the epoch given.
 
@@ -44,14 +44,15 @@ The owner of a token pays a delegate for research and for votes cast according t
 
 `proof.amount_per_tx` is the **price of one vote**, not of one transaction. The vote is on the DAO, not on the x207 contract, so the indexer does not see it: the delegate claims each transaction with a signed notice (`orderClaimNotice`, keys `circle, order_hash, actor, action: "claim", at, tx_hash`, signed by `signOrderClaim`) sent to `POST orders/{hash}/claims`, the backend checks the transaction through RPC, and `onchain-proofs` then lists it with `receiver`, `proposal_id`, `action` and `proposal_kind`.
 
-`payForProofs` (or `OrderLedger.payProofs`) needs the `mandate` for a delegate order and pays a proof only if all of these hold, in this order of refusal:
+`payForProofs` (or `OrderLedger.payProofs`) needs the `mandate` for a delegate order and pays a proof only if all of these hold, in this order of refusal (the first rule that fails is the reason given; B5-F5 of the review of batch 5):
 1. `signer` is the seller (`wrong_signer`);
-2. `receiver` is `mandate.dao` (`wrong_receiver`);
-3. `method` is the one of the order (`wrong_method`); the default is `PROOF_METHODS.delegate = ["act_proposal"]`, and a DAO that uses another method passes `options: { delegateMethods }` to `normalizeOrder`, `serializeOrder`, `orderHash` and `payForProofs` (the method of veNEAR has not been checked yet);
+2. `method` is the one of the order (`wrong_method`); the default is `PROOF_METHODS.delegate = ["act_proposal"]`, and a DAO that uses another method passes `options: { delegateMethods }` to `normalizeOrder`, `serializeOrder`, `orderHash` and `payForProofs` (the method of veNEAR has not been checked yet);
+3. `receiver` is `mandate.dao` (`wrong_receiver`);
 4. `action` is `VoteApprove` or `VoteReject` (`not_a_vote`): `act_proposal` is also used for `Finalize`, `VoteRemove` and others, which are not paid;
 5. `proposal_kind` is in `mandate.kinds` (`kind_not_in_mandate`);
 6. the `proposal_id` was not paid before (`already_paid`): a proposal is paid **once**, however many transactions the delegate sends on it (the ledger stores `proposal:<id>`);
-7. the budget of the order is not passed (`over_budget`).
+7. the budget of the order is not passed (`over_budget`);
+8. when a `verifyTx` is given, the chain confirms the transaction (`unverified`).
 
 The delegation can be revoked at any time: the buyer stops paying (the ledger has nothing more to pay), and the DAO side is closed by the `dao-vote` adapter of the broker (BE-061).
 

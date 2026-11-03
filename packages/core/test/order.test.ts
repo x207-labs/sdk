@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  DELEGATE_VOTE_ACTIONS, MAX_MILESTONES, OrderLedger, mandateHash, normalizeMandate, orderClaimNotice, serializeMandate, signOrderClaim, type DelegateMandate, ORDER_KINDS, ORDER_PATTERN, OrderError, generateVoucherKeypair, milestoneVoucher, normalizeOrder, orderBudget, orderBundleTerms, orderHash, orderResource,
+  DELEGATE_VOTE_ACTIONS, MAX_MILESTONES, payForProofsAsync, rpcTxVerifier, OrderLedger, mandateHash, normalizeMandate, orderClaimNotice, serializeMandate, signOrderClaim, type DelegateMandate, ORDER_KINDS, ORDER_PATTERN, OrderError, generateVoucherKeypair, milestoneVoucher, normalizeOrder, orderBudget, orderBundleTerms, orderHash, orderResource,
   parseOrderResource, payForProofs, serializeOrder, validateUnsignedVoucher, verifyVoucher, type OrderDocument,
 } from "../src/index.js";
 
@@ -264,7 +264,7 @@ describe("SD-069 review BE-062 F4 and F5: the paid milestones and proofs must be
       ],
     });
     expect(result.paid).toEqual([vote(1).txHash, vote(8).txHash]);
-    expect(result.keys).toEqual(["proposal:1", "proposal:8"]);
+    expect(result.paidKeys).toEqual(["proposal:1", "proposal:8"]);
     expect(Object.fromEntries(result.refused.map((r) => [r.txHash, r.reason]))).toEqual({
       tx1again: "already_paid", [vote(2).txHash]: "not_a_vote", [vote(3).txHash]: "not_a_vote", [vote(4).txHash]: "wrong_receiver", [vote(5).txHash]: "kind_not_in_mandate",
       [vote(6).txHash]: "wrong_signer", [vote(7).txHash]: "wrong_method",
@@ -311,5 +311,62 @@ describe("SD-069 review BE-062 F4 and F5: the paid milestones and proofs must be
     expect(code(() => orderClaimNotice({ circle: CIRCLE, orderHash: hash, actor: delegate.seller, at: 1, txHash: "not a hash!" }))).toBe("order_bad_hash");
     expect(code(() => orderClaimNotice({ circle: CIRCLE, orderHash: hash, actor: "BAD ACCOUNT", at: 1, txHash }))).toBe("order_bad_account");
     expect(code(() => orderClaimNotice({ circle: CIRCLE, orderHash: hash, actor: delegate.seller, at: 0, txHash }))).toBe("order_bad_state");
+  });
+
+  // ---- review batch 5 (BE-062) ----
+  it("TC-SD-072-06 [B5-F1] alreadyPaid takes paidKeys: fed back, a second transaction on a paid proposal is already_paid; fed the paid hashes it is refused loudly, not paid again", () => {
+    const common = { order: delegate, epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, mandate, secretKey: key.secretKey, alreadySpent: "0" };
+    const first = payForProofs({ ...common, alreadyPaid: [], proofs: [vote(7)] });
+    expect(first.paid).toEqual([vote(7).txHash]);
+    expect(first.paidKeys).toEqual(["proposal:7"]);
+    const second = payForProofs({ ...common, state: first.state, alreadySpent: first.spent, alreadyPaid: first.paidKeys, proofs: [vote(7, { txHash: "second00" })] });
+    expect(second.paid).toEqual([]);
+    expect(second.refused).toEqual([{ txHash: "second00", reason: "already_paid" }]);
+    // the mistake of B5-F1: the hashes of `paid` are not the keys, and the call says so instead of paying again
+    expect(code(() => payForProofs({ ...common, state: first.state, alreadySpent: first.spent, alreadyPaid: first.paid, proofs: [vote(7, { txHash: "second00" })] }))).toBe("order_bad_state");
+    // keeper orders are unchanged: the key is the hash, and paid equals paidKeys
+    const k = payForProofs({ order: keeper, epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [{ txHash: "txk1xxxx", method: "close_epoch", signer: keeper.seller }], alreadyPaid: [], alreadySpent: "0", secretKey: key.secretKey });
+    expect(k.paidKeys).toEqual(k.paid);
+  });
+
+  it("TC-SD-072-07 [B5-F3] verifyTx may ask the chain: a proof the chain denies is unverified, a proof already paid is not asked, and an error of the verifier signs nothing", async () => {
+    const asked: string[] = [];
+    const verifyTx = async (p: { txHash: string }) => {
+      asked.push(p.txHash);
+      await new Promise((r) => setTimeout(r, 1));
+      return p.txHash !== vote(2).txHash;
+    };
+    const common = { order: delegate, epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, mandate, secretKey: key.secretKey, alreadySpent: "0", verifyTx };
+    const result = await payForProofsAsync({ ...common, alreadyPaid: ["proposal:1"], proofs: [vote(1), vote(2), vote(3)] });
+    expect(asked).toEqual([vote(2).txHash, vote(3).txHash]); // proposal 1 was paid before: not asked
+    expect(result.paid).toEqual([vote(3).txHash]);
+    expect(result.refused).toEqual([{ txHash: vote(1).txHash, reason: "already_paid" }, { txHash: vote(2).txHash, reason: "unverified" }]);
+    await expect(payForProofsAsync({ ...common, alreadyPaid: [], verifyTx: async () => { throw new Error("rpc down"); }, proofs: [vote(4)] })).rejects.toThrow(/rpc down/);
+    // without a verifier it is the synchronous call
+    expect((await payForProofsAsync({ order: delegate, epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, mandate, secretKey: key.secretKey, alreadySpent: "0", alreadyPaid: [], proofs: [vote(5)] })).paid).toHaveLength(1);
+    // the ledger: the same, and two calls at once are refused
+    const ledger = new OrderLedger(delegate);
+    const slow = ledger.payProofsAsync({ epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [vote(1)], mandate, secretKey: key.secretKey, verifyTx });
+    await expect(ledger.payProofsAsync({ epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [vote(1)], mandate, secretKey: key.secretKey, verifyTx })).rejects.toThrow(/sedang berjalan/);
+    expect((await slow).paidKeys).toEqual(["proposal:1"]);
+    expect((await ledger.payProofsAsync({ epoch: 42, state: { seq: 1, cumulativeAmount: "500000" }, proofs: [vote(1, { txHash: "again000" })], mandate, secretKey: key.secretKey, verifyTx })).refused[0]!.reason).toBe("already_paid");
+  });
+
+  it("TC-SD-072-08 [B5-F3] rpcTxVerifier: a transaction that exists, succeeded, was signed by the signer, is one call of the method, and went to the receiver passes; each other case does not", async () => {
+    const tx = (over: Record<string, unknown> = {}) => ({
+      status: { SuccessValue: "" }, receipts_outcome: [{ outcome: { status: { SuccessValue: "" } } }],
+      transaction: { signer_id: delegate.seller, receiver_id: DAO, actions: [{ FunctionCall: { method_name: "act_proposal" } }] }, ...over,
+    });
+    const node = (result: unknown, error?: unknown) => (async () => new Response(JSON.stringify(error ? { error } : { result }), { status: 200 })) as unknown as typeof fetch;
+    const ask = (result: unknown, proof = vote(1), error?: unknown) => rpcTxVerifier("http://node.test", node(result, error))(proof);
+    expect(await ask(tx())).toBe(true);
+    expect(await ask(tx({ status: { Failure: {} } }))).toBe(false);
+    expect(await ask(tx({ status: "Started" }))).toBe(false);
+    expect(await ask(tx({ receipts_outcome: [{ outcome: { status: { Failure: {} } } }] }))).toBe(false);
+    expect(await ask(tx({ transaction: { signer_id: "other.near", receiver_id: DAO, actions: [{ FunctionCall: { method_name: "act_proposal" } }] } }))).toBe(false);
+    expect(await ask(tx({ transaction: { signer_id: delegate.seller, receiver_id: "other.near", actions: [{ FunctionCall: { method_name: "act_proposal" } }] } }))).toBe(false);
+    expect(await ask(tx({ transaction: { signer_id: delegate.seller, receiver_id: DAO, actions: [{ FunctionCall: { method_name: "vote" } }] } }))).toBe(false);
+    expect(await ask(undefined, vote(1), { cause: { name: "UNKNOWN_TRANSACTION" } })).toBe(false);
+    await expect(ask(undefined, vote(1), { cause: { name: "INTERNAL_ERROR" } })).rejects.toThrow(/rpc tx/);
   });
 });
