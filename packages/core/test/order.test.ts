@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  MAX_MILESTONES, OrderLedger, ORDER_KINDS, ORDER_PATTERN, OrderError, generateVoucherKeypair, milestoneVoucher, normalizeOrder, orderBudget, orderBundleTerms, orderHash, orderResource,
+  DELEGATE_VOTE_ACTIONS, MAX_MILESTONES, OrderLedger, mandateHash, normalizeMandate, orderClaimNotice, serializeMandate, signOrderClaim, type DelegateMandate, ORDER_KINDS, ORDER_PATTERN, OrderError, generateVoucherKeypair, milestoneVoucher, normalizeOrder, orderBudget, orderBundleTerms, orderHash, orderResource,
   parseOrderResource, payForProofs, serializeOrder, validateUnsignedVoucher, verifyVoucher, type OrderDocument,
 } from "../src/index.js";
 
@@ -39,10 +39,10 @@ describe("SD-069 order document, hash and resource", () => {
     expect(code(() => orderResource("zz"))).toBe("order_bad_resource");
   });
 
-  it("TC-SD-069-02 twelve kinds, each with one payment pattern; the catalog numbers are the ones of P6 (monitoring and consulting are metered like P5, not orders)", () => {
-    expect(ORDER_KINDS).toHaveLength(12);
+  it("TC-SD-069-02 thirteen kinds (SD-072 added delegate), each with one payment pattern; the catalog numbers are the ones of P6 (monitoring and consulting are metered like P5, not orders)", () => {
+    expect(ORDER_KINDS).toHaveLength(13);
     expect(Object.values(ORDER_PATTERN).filter((p) => p === "milestone")).toHaveLength(8);
-    expect(ORDER_PATTERN).toMatchObject({ bug: "outcome", lead: "outcome", keeper: "proof", solver: "proof" });
+    expect(ORDER_PATTERN).toMatchObject({ bug: "outcome", lead: "outcome", keeper: "proof", solver: "proof", delegate: "proof" });
     expect(code(() => orderHash({ ...base, kind: "monitoring" as never }))).toBe("order_bad_kind");
   });
 
@@ -210,5 +210,106 @@ describe("SD-069 review BE-062 F4 and F5: the paid milestones and proofs must be
     const again = OrderLedger.restore(keeper, ledger.snapshot()).payProofs({ epoch: 5, state: first.state, proofs: proofs("t1", "t2", "t3"), secretKey: key.secretKey });
     expect(again.paid).toEqual(["t3"]);
     expect(again.refused.map((r) => r.reason)).toEqual(["already_paid", "already_paid"]);
+  });
+
+  // ---- SD-072 delegate order ----
+  const DAO = "gauge.dao.near";
+  const mandate: DelegateMandate = { circle: CIRCLE, dao: DAO, kinds: ["transfer", "function_call"], rules_hash: H("c") };
+  const delegate: OrderDocument = { ...base, kind: "delegate", seller: "delegate.x207-circle.near", proof: { method: "act_proposal", amount_per_tx: "500000" }, mandate_hash: mandateHash(mandate), milestones: [{ amount: "2000000", due_at: 1_800_000_000 }] };
+  const vote = (id: number, over: Partial<{ txHash: string; method: string; signer: string; receiver: string; action: string; proposal_kind: string }> = {}) => ({
+    txHash: `tx${id}`.padEnd(8, "x"), method: "act_proposal", signer: delegate.seller, receiver: DAO, proposal_id: id, action: "VoteApprove", proposal_kind: "transfer", ...over,
+  });
+
+  it("TC-SD-072-01 the mandate has fixed keys and sorted kinds, its hash is sha256 of the JSON, and a bad mandate is order_bad_mandate", () => {
+    const text = serializeMandate({ ...mandate, kinds: ["transfer", "function_call"] });
+    expect(text).toBe(`{"circle":"${CIRCLE}","dao":"${DAO}","kinds":["function_call","transfer"],"rules_hash":"${H("c")}"}`);
+    expect(mandateHash(mandate)).toBe(createHash("sha256").update(text).digest("hex"));
+    expect(mandateHash({ ...mandate, kinds: ["function_call", "transfer"] })).toBe(mandateHash(mandate)); // the order of kinds does not matter
+    expect(mandateHash({ ...mandate, rules_hash: H("d") })).not.toBe(mandateHash(mandate));
+    for (const bad of [{ kinds: [] }, { kinds: ["Transfer"] }, { kinds: ["transfer", "transfer"] }, { rules_hash: "xyz" }, { dao: "NOT AN ACCOUNT" }, { kinds: Array.from({ length: 17 }, (_, i) => `kind_${i}`) }]) {
+      expect(code(() => normalizeMandate({ ...mandate, ...bad })), JSON.stringify(bad)).toBe("order_bad_mandate");
+    }
+  });
+
+  it("TC-SD-072-02 a delegate order needs mandate_hash, other kinds must not have one, and only a delegate order carries it in the JSON (the hash of every other order is unchanged)", () => {
+    expect(code(() => orderHash({ ...delegate, mandate_hash: null }))).toBe("order_mandate_required");
+    expect(code(() => orderHash({ ...delegate, mandate_hash: "zz" }))).toBe("order_bad_mandate");
+    expect(code(() => orderHash({ ...base, mandate_hash: H("c") }))).toBe("order_mandate_forbidden");
+    expect(code(() => orderHash({ ...keeper, mandate_hash: H("c") }))).toBe("order_mandate_forbidden");
+    expect(code(() => orderHash({ ...delegate, proof: null }))).toBe("order_bad_proof");
+    expect(code(() => orderHash({ ...delegate, proof: { method: "vote", amount_per_tx: "500000" } }))).toBe("order_bad_proof"); // not in the default list
+    expect(orderHash({ ...delegate, proof: { method: "vote", amount_per_tx: "500000" } }, { delegateMethods: ["act_proposal", "vote"] })).toMatch(/^[0-9a-f]{64}$/); // a DAO names its own method
+    const json = serializeOrder(delegate);
+    expect(json.indexOf('"proof"')).toBeLessThan(json.indexOf('"mandate_hash"'));
+    expect(json.indexOf('"mandate_hash"')).toBeLessThan(json.indexOf('"nonce"'));
+    expect(serializeOrder(base)).not.toContain("mandate_hash");
+    expect(serializeOrder({ ...base, mandate_hash: null })).toBe(serializeOrder(base));
+    expect(serializeOrder(keeper)).not.toContain("mandate_hash");
+  });
+
+  it("TC-SD-072-03 a delegate is paid once per proposal for a vote that is on the mandate: other actions, other contracts, other kinds, a second vote on the same proposal, and a stranger are not paid", () => {
+    const common = { order: delegate, epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, alreadyPaid: [], alreadySpent: "0", mandate, secretKey: key.secretKey };
+    const result = payForProofs({
+      ...common,
+      proofs: [
+        vote(1), // paid
+        vote(1, { txHash: "tx1again" }), // the same proposal again
+        vote(2, { action: "Finalize" }), // act_proposal is not only a vote
+        vote(3, { action: "VoteRemove" }),
+        vote(4, { receiver: "other.dao.near" }), // another contract
+        vote(5, { proposal_kind: "upgrade_self" }), // not in the mandate
+        vote(6, { signer: "stranger.x207-circle.near" }),
+        vote(7, { method: "vote" }),
+        vote(8, { action: "VoteReject", proposal_kind: "function_call" }), // paid
+      ],
+    });
+    expect(result.paid).toEqual([vote(1).txHash, vote(8).txHash]);
+    expect(result.keys).toEqual(["proposal:1", "proposal:8"]);
+    expect(Object.fromEntries(result.refused.map((r) => [r.txHash, r.reason]))).toEqual({
+      tx1again: "already_paid", [vote(2).txHash]: "not_a_vote", [vote(3).txHash]: "not_a_vote", [vote(4).txHash]: "wrong_receiver", [vote(5).txHash]: "kind_not_in_mandate",
+      [vote(6).txHash]: "wrong_signer", [vote(7).txHash]: "wrong_method",
+    });
+    expect(result.vouchers.map((v) => [v.seq, v.cumulativeAmount, v.resource])).toEqual([[1, "500000", `x207:order:${orderHash(delegate)}`], [2, "1000000", `x207:order:${orderHash(delegate)}`]]);
+    expect(DELEGATE_VOTE_ACTIONS).toEqual(["VoteApprove", "VoteReject"]);
+    // missing fields of the proof are refused, not paid
+    const bare = payForProofs({ ...common, proofs: [{ txHash: "bare0000", method: "act_proposal", signer: delegate.seller }] });
+    expect(bare.refused).toEqual([{ txHash: "bare0000", reason: "wrong_receiver" }]);
+    // the budget of the order (2 credit = 4 votes) stops the rest
+    const many = payForProofs({ ...common, proofs: [1, 2, 3, 4, 5, 6].map((i) => vote(i)) });
+    expect(many.paid).toHaveLength(4);
+    expect(many.refused.map((r) => r.reason)).toEqual(["over_budget", "over_budget"]);
+  });
+
+  it("TC-SD-072-04 the mandate is required and must be the one in the order; the ledger remembers proposals across a restart, so a vote is not paid twice", () => {
+    const base2 = { order: delegate, epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [vote(1)], alreadyPaid: [], alreadySpent: "0", secretKey: key.secretKey };
+    expect(code(() => payForProofs(base2))).toBe("order_mandate_required");
+    expect(code(() => payForProofs({ ...base2, mandate: { ...mandate, kinds: ["transfer"] } }))).toBe("order_bad_mandate");
+    expect(code(() => payForProofs({ ...base2, mandate: { ...mandate, circle: "other.near" } }))).toBe("order_bad_mandate");
+    const ledger = new OrderLedger(delegate);
+    expect(ledger.payProofs({ epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [vote(1)], mandate, secretKey: key.secretKey }).paid).toHaveLength(1);
+    const restored = OrderLedger.restore(delegate, ledger.snapshot());
+    const again = restored.payProofs({ epoch: 42, state: { seq: 1, cumulativeAmount: "500000" }, proofs: [vote(1, { txHash: "second00" })], mandate, secretKey: key.secretKey });
+    expect(again.paid).toEqual([]);
+    expect(again.refused).toEqual([{ txHash: "second00", reason: "already_paid" }]);
+    expect(restored.spent).toBe("500000");
+    // the milestone voucher and the budget work for a delegate order with the method of the DAO too
+    const custom: OrderDocument = { ...delegate, proof: { method: "vote", amount_per_tx: "500000" } };
+    expect(orderBudget(custom)).toBe("2000000");
+    expect(new OrderLedger(custom).payMilestone({ index: 1, epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, secretKey: key.secretKey }).resource).toBe(`x207:order:${orderHash(custom, { delegateMethods: ["vote"] })}`);
+  });
+
+  it("TC-SD-072-05 the claim notice of a delegate has the keys circle, order_hash, actor, action, at, tx_hash in that order, is signed with NEP-413 like the other notices, and bad fields are refused", () => {
+    const hash = orderHash(delegate);
+    const txHash = "8AXdP1c3JTqDyhsVSpfwLnPL1n9FnVZqkbtRMbLAA9ct";
+    const notice = orderClaimNotice({ circle: CIRCLE, orderHash: hash, actor: delegate.seller, at: 1_800_000_100, txHash });
+    expect(JSON.stringify(notice)).toBe(`{"circle":"${CIRCLE}","order_hash":"${hash}","actor":"${delegate.seller}","action":"claim","at":1800000100,"tx_hash":"${txHash}"}`);
+    const signature = signOrderClaim(notice, key.secretKey);
+    expect(signature).toMatch(/^ed25519:/);
+    expect(signOrderClaim(notice, key.secretKey)).toBe(signature); // deterministic
+    expect(signOrderClaim({ ...notice, tx_hash: "9AXdP1c3JTqDyhsVSpfwLnPL1n9FnVZqkbtRMbLAA9ct" }, key.secretKey)).not.toBe(signature);
+    expect(code(() => orderClaimNotice({ circle: CIRCLE, orderHash: "zz", actor: delegate.seller, at: 1, txHash }))).toBe("order_bad_hash");
+    expect(code(() => orderClaimNotice({ circle: CIRCLE, orderHash: hash, actor: delegate.seller, at: 1, txHash: "not a hash!" }))).toBe("order_bad_hash");
+    expect(code(() => orderClaimNotice({ circle: CIRCLE, orderHash: hash, actor: "BAD ACCOUNT", at: 1, txHash }))).toBe("order_bad_account");
+    expect(code(() => orderClaimNotice({ circle: CIRCLE, orderHash: hash, actor: delegate.seller, at: 0, txHash }))).toBe("order_bad_state");
   });
 });
