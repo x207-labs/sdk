@@ -11,11 +11,12 @@ An invoice is a claim of an issuer on a debtor outside x207. When the debtor sig
 | Plan of n installments in n epochs | `planInstallments` (1 to 24) |
 | All installment vouchers, signed once in advance | `signInstallments`, `installmentVoucher` |
 | State of the pair after an installment (to seed the voucher store) | `installmentState` |
-| Catch-up voucher for an installment that failed | `catchUpVoucher` |
+| Catch-up voucher for an installment that failed | `catchUpVoucherFromChain` (reads the state of the pair from the contract itself), or `catchUpVoucher` with a state that the signer read from the contract |
 
 The old format of the scenario `invoice:<hash>` is not an invoice resource any more: `parseInvoiceResource` returns `null` for it.
 
 ## Rules for installments
+- **The state in a catch-up voucher comes from the contract, read by the signer** (review BE-062, F9). `catchUpVoucher` signs on top of any state it is given, so a state that the issuer or the backend gave inflates what the debtor pays. `catchUpVoucherFromChain` takes a `viewObligation` function (the `obligation` view of the contract) and reads it itself.
 - Every installment voucher is signed by the debtor in advance: `seq` 1 of the pair in its epoch, cumulative equal to that installment.
 - An ordinary voucher from the debtor to the issuer in the same epoch starts at `seq` 2, and its cumulative already holds the installment (`installmentState` gives that state for the voucher store of the client).
 - There is **no spare voucher signed in advance**. A spare could be registered by the issuer although the real installment was paid, and the debtor would pay twice. If an installment fails to register (no headroom), the debtor signs a catch-up voucher **after** the failure (`catchUpVoucher`), once: it moves the installment to the next epoch on top of the state the pair has there. A second failure is `missed`; the SDK refuses a second catch-up (`installment_already_shifted`). There is no automatic fine.

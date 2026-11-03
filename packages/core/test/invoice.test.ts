@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
-  InvoiceError, MAX_INSTALLMENTS, catchUpVoucher, epochForTime, generateVoucherKeypair, installmentState, installmentVoucher, invoiceHash, invoiceResource, invoiceVoucher,
+  InvoiceError, MAX_INSTALLMENTS, catchUpVoucher, catchUpVoucherFromChain, epochForTime, generateVoucherKeypair, installmentState, installmentVoucher, invoiceHash, invoiceResource, invoiceVoucher,
   parseInvoiceResource, planInstallments, serializeInvoice, signInstallments, signInvoiceVoucher, validateUnsignedVoucher, verifyVoucher, type InvoiceDocument,
 } from "../src/index.js";
 
@@ -134,5 +134,16 @@ describe("SD-065 installments signed in advance (ADR-44)", () => {
     expect(code(() => planInstallments({ circle: CIRCLE, doc: { ...doc, amount: "2" }, firstEpoch: 1, count: 3 }))).toBe("installment_amount_too_small");
     expect(code(() => planInstallments({ circle: CIRCLE, doc, firstEpoch: 0, count: 2 }))).toBe("installment_bad_epoch");
     expect(code(() => planInstallments({ circle: CIRCLE, doc, firstEpoch: 1, count: 2.5 }))).toBe("installment_count");
+  });
+
+  it("TC-SD-065-11 [F9] catchUpVoucherFromChain reads the state of the pair from the contract itself: the epoch after the installment, the debtor and the issuer", async () => {
+    const asked: unknown[] = [];
+    const view = async (a: { epoch: number; debtor: string; creditor: string }) => (asked.push(a), a.epoch === 21 ? { cumulative: "33333333", last_seq: 1 } : null);
+    const v = await catchUpVoucherFromChain(plan, 1, view, false);
+    expect(asked).toEqual([{ epoch: 21, debtor: DEBTOR, creditor: ISSUER }]);
+    expect(v).toMatchObject({ epoch: 21, seq: 2, cumulativeAmount: "66666667" });
+    // a pair with no voucher yet in that epoch: seq 1
+    expect(await catchUpVoucherFromChain(plan, 3, view, false)).toMatchObject({ epoch: 23, seq: 1, cumulativeAmount: "33333333" });
+    await expect(catchUpVoucherFromChain(plan, 1, view, true)).rejects.toMatchObject({ code: "installment_already_shifted" });
   });
 });

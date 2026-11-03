@@ -162,6 +162,9 @@ export function installmentState(plan: InstallmentPlan, index: number): { epoch:
  * Voucher susulan untuk cicilan `index` yang gagal didaftarkan karena headroom habis: digeser SEKALI ke epoch berikutnya (`epoch` cicilan + 1), melanjutkan keadaan pasangan di epoch
  * itu (`state`, apa yang terdaftar sekarang, termasuk cicilan epoch itu sendiri bila ada). Panggil hanya setelah kegagalan terjadi; JANGAN menandatangani voucher ini di depan.
  * `alreadyShifted` true berarti cicilan ini sudah pernah digeser: gagal lagi menjadi `missed`, dan fungsi ini menolak.
+ *
+ * PERINGATAN (tinjauan BE-062, F9): fungsi ini menandatangani di atas `state` APA PUN yang diberikan. `state` harus dibaca dari KONTRAK oleh penandatangan sendiri (view `obligation`),
+ * tidak pernah dari penagih atau backend: keadaan yang digelembungkan membuat debtor membayar selisihnya kepada penagih. Pakai `catchUpVoucherFromChain` bila bisa, yang membaca keadaan itu sendiri.
  */
 export function catchUpVoucher(plan: InstallmentPlan, index: number, state: InvoicePairState, alreadyShifted: boolean): UnsignedVoucher {
   const item = installmentAt(plan, index);
@@ -171,4 +174,16 @@ export function catchUpVoucher(plan: InstallmentPlan, index: number, state: Invo
     circle: plan.circle, payer: plan.doc.debtor, payee: plan.doc.issuer, epoch: item.epoch + 1, seq: state.seq + 1,
     cumulativeAmount: (BigInt(state.cumulativeAmount) + BigInt(item.amount)).toString(), unit: CREDIT_UNIT, resource: plan.resource,
   };
+}
+
+/** View `obligation` kontrak untuk satu pasangan di satu epoch (hasil `ObligationView`, atau `null` bila pasangan belum punya voucher di epoch itu). */
+export type ViewObligationFn = (args: { epoch: number; debtor: AccountId; creditor: AccountId }) => Promise<{ cumulative: string; last_seq: number } | null>;
+
+/**
+ * Seperti `catchUpVoucher`, tetapi keadaan pasangan di epoch tujuan dibaca sendiri dari kontrak lewat `viewObligation` (F9): penandatangan tidak bisa diberi keadaan palsu oleh pihak lain.
+ */
+export async function catchUpVoucherFromChain(plan: InstallmentPlan, index: number, viewObligation: ViewObligationFn, alreadyShifted: boolean): Promise<UnsignedVoucher> {
+  const item = installmentAt(plan, index);
+  const row = await viewObligation({ epoch: item.epoch + 1, debtor: plan.doc.debtor, creditor: plan.doc.issuer });
+  return catchUpVoucher(plan, index, { seq: row?.last_seq ?? 0, cumulativeAmount: row?.cumulative ?? "0" }, alreadyShifted);
 }
