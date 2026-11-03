@@ -13,12 +13,12 @@ export type DemoStep = {
   note?: string;
   at: string;
 };
-export type DemoRecord = { network: "testnet"; accounts: Array<{ id: string; role: string }>; steps: DemoStep[] };
+export type DemoRecord = { network: "testnet" | "mainnet"; accounts: Array<{ id: string; role: string }>; steps: DemoStep[] };
 
 const SECRET_LIKE = /ed25519:[1-9A-HJ-NP-Za-km-z]{40,}|"private_key"|"secret_key"/;
 
 export function readDemoRecord(path: string): DemoRecord {
-  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as DemoRecord) : { network: "testnet", accounts: [], steps: [] };
+  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as DemoRecord) : { network: process.env.DEMO_NETWORK === "mainnet" ? "mainnet" : "testnet", accounts: [], steps: [] };
 }
 
 function write(path: string, record: DemoRecord): void {
