@@ -19,16 +19,20 @@ const member = (account: string, pubkey: string) => ({
   account_id: account, admitted: false, exit_requested_epoch: null, joined_at: "1", last_active_epoch: 42,
   limit: "1000000", pubkey_voucher: pubkey, settled_history: "0", stake: "1000000", status: "active", terms_hash: "0".repeat(64),
 });
+/** A view the mock does not know is an error that names it, not a TypeError (SD-074 follow-up). */
+const viewOf = (views: Record<string, (args: any) => unknown>, method: string): ((args: any) => unknown) =>
+  views[method] ?? (() => { throw new Error(`mock RPC has no view ${method}`); });
 const VIEWS: Record<string, (args: any) => unknown> = {
   get_epoch: () => ({ epoch: 42, cutoff_at: CUTOFF_NS, phase: "open" }),
   member: ({ account_id }) => (account_id === A ? member(A, keys.kA.publicKey) : account_id === B ? member(B, keys.kB.publicKey) : null),
+  is_frozen: () => false,
   headroom: () => "1000000",
   obligation: () => null,
   last_seq: () => 0,
 };
 
 function world() {
-  const rpc = { view: async (_c: string, method: string, args: any) => VIEWS[method]!(args) } as unknown as NearRpc;
+  const rpc = { view: async (_c: string, method: string, args: any) => viewOf(VIEWS, method)(args) } as unknown as NearRpc;
   const facilitator = createApp(
     createFacilitatorService({
       circles: [defineCircleConfig({ network: NETWORK, circleContract: "x207-circle.near" })], rpc, pending: new PendingStore(":memory:"),
@@ -55,7 +59,7 @@ function world() {
     if (hostname === "rpc.test") {
       const { params } = (await request.json()) as any;
       const args = JSON.parse(Buffer.from(params.args_base64, "base64").toString("utf8"));
-      return Response.json({ jsonrpc: "2.0", id: "x", result: { result: [...Buffer.from(JSON.stringify(VIEWS[params.method_name]!(args)))] } });
+      return Response.json({ jsonrpc: "2.0", id: "x", result: { result: [...Buffer.from(JSON.stringify(viewOf(VIEWS, params.method_name)(args)))] } });
     }
     return seller.fetch(request);
   }) as typeof fetch;

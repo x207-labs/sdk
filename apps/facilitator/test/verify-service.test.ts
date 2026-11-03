@@ -35,6 +35,9 @@ const member = (account: string, pubkey: string) => ({
   account_id: account, admitted: false, exit_requested_epoch: null, joined_at: "1", last_active_epoch: 42,
   limit: "1000000", pubkey_voucher: pubkey, settled_history: "0", stake: "1000000", status: "active", terms_hash: "0".repeat(64),
 });
+/** A view the mock does not know is an error that names it, not a TypeError (SD-074 follow-up). */
+const viewOf = (views: Record<string, (args: any) => unknown>, method: string): ((args: any) => unknown) =>
+  views[method] ?? (() => { throw new Error(`mock RPC has no view ${method}`); });
 const VIEWS: Record<string, (args: any) => unknown> = {
   get_epoch: () => ({ epoch: 42, cutoff_at: CUTOFF_NS, phase: "open" }),
   member: ({ account_id }) => member(account_id, account_id === A ? KA_PUB : "ed25519:9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"),
@@ -57,7 +60,7 @@ const chainNode = (req: IncomingMessage, res: ServerResponse) => {
   req.on("end", () => {
     const { params } = JSON.parse(raw);
     const args = JSON.parse(Buffer.from(params.args_base64, "base64").toString("utf8"));
-    const value = VIEWS[params.method_name]!(args);
+    const value = viewOf(VIEWS, params.method_name)(args);
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ jsonrpc: "2.0", id: "x207", result: { result: [...Buffer.from(JSON.stringify(value))] } }));
   });

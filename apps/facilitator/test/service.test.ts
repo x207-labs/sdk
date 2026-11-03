@@ -45,6 +45,9 @@ const member = (account: string, pubkey: string) => ({
 
 let epochNumber = 42;
 let obligationOf: (args: { debtor: string; creditor: string }) => unknown = () => null;
+/** A view the mock does not know is an error that names it, not a TypeError (SD-074 follow-up). */
+const viewOf = (views: Record<string, (args: any) => unknown>, method: string): ((args: any) => unknown) =>
+  views[method] ?? (() => { throw new Error(`mock RPC has no view ${method}`); });
 const VIEWS: Record<string, (args: any) => unknown> = {
   get_epoch: () => ({ epoch: epochNumber, cutoff_at: CUTOFF_NS, phase: "open" }),
   member: ({ account_id }) => member(account_id, account_id === A ? KA_PUB : "ed25519:9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"),
@@ -52,7 +55,7 @@ const VIEWS: Record<string, (args: any) => unknown> = {
   headroom: () => "1000000",
   obligation: (args) => obligationOf(args),
 };
-const rpc = { view: async (_c: string, method: string, args: any) => VIEWS[method]!(args) } as unknown as NearRpc;
+const rpc = { view: async (_c: string, method: string, args: any) => viewOf(VIEWS, method)(args) } as unknown as NearRpc;
 
 const RELAYER = "relayer.x207-circle.near";
 const exactSigner = (overrides: Partial<FacilitatorNearSigner> = {}): FacilitatorNearSigner => ({

@@ -21,9 +21,13 @@ const member = (account: string, pubkey: string) => ({
   account_id: account, admitted: false, exit_requested_epoch: null, joined_at: "1", last_active_epoch: 42,
   limit: "1000000", pubkey_voucher: pubkey, settled_history: "0", stake: "1000000", status: "active", terms_hash: "0".repeat(64),
 });
+/** A view the mock does not know is an error that names it, not a TypeError (SD-074 follow-up). */
+const viewOf = (views: Record<string, (args: any) => unknown>, method: string): ((args: any) => unknown) =>
+  views[method] ?? (() => { throw new Error(`mock RPC has no view ${method}`); });
 const VIEWS: Record<string, (args: any) => unknown> = {
   get_epoch: () => ({ epoch: 42, cutoff_at: CUTOFF_NS, phase: "open" }),
   member: ({ account_id }: { account_id: string }) => member(account_id, account_id === A ? keys.kA.publicKey : keys.kB.publicKey),
+  is_frozen: () => false,
   headroom: () => "1000000",
   obligation: () => null,
 };
@@ -31,7 +35,7 @@ const VIEWS: Record<string, (args: any) => unknown> = {
 /** Dunia lokal tanpa jaringan: RPC, facilitator, dan penjual dilayani satu fungsi fetch. */
 function world() {
   const pending = new PendingStore(":memory:");
-  const rpc = { view: async (_c: string, method: string, args: any) => VIEWS[method]!(args) } as unknown as NearRpc;
+  const rpc = { view: async (_c: string, method: string, args: any) => viewOf(VIEWS, method)(args) } as unknown as NearRpc;
   const circle = defineCircleConfig({ network: NETWORK, circleContract: CIRCLE });
   const facilitator = createApp({
     verify: createVerify([circle], rpc, pending),
@@ -52,7 +56,7 @@ function world() {
     if (hostname === "rpc.test") {
       const { params } = (await request.json()) as any;
       const args = JSON.parse(Buffer.from(params.args_base64, "base64").toString("utf8"));
-      const result = [...Buffer.from(JSON.stringify(VIEWS[params.method_name]!(args)))];
+      const result = [...Buffer.from(JSON.stringify(viewOf(VIEWS, params.method_name)(args)))];
       return Response.json({ jsonrpc: "2.0", id: "x207", result: { result } });
     }
     if (hostname === "facilitator.test") return facilitator.fetch(request);

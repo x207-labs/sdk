@@ -48,6 +48,9 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
           settled_history: "0", stake: "1000000", status: "active", terms_hash: "0".repeat(64),
         }
       : null;
+  /** A view the mock does not know is an error that names it, not a TypeError (SD-074 follow-up). */
+  const viewOf = (views: Record<string, (args: any) => unknown>, method: string): ((args: any) => unknown) =>
+    views[method] ?? (() => { throw new Error(`mock RPC has no view ${method}`); });
   const VIEWS: Record<string, (args: any) => unknown> = {
     get_epoch: () => ({ epoch: state.epoch, cutoff_at: String(BigInt(state.cutoffMs) * 1_000_000n), phase: "open" }),
     member: ({ account_id }) => member(account_id),
@@ -56,7 +59,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
     obligation: () => null,
     last_seq: () => 0,
   };
-  const rpc = { view: async (_c: string, method: string, args: any) => VIEWS[method]!(args) } as unknown as NearRpc;
+  const rpc = { view: async (_c: string, method: string, args: any) => viewOf(VIEWS, method)(args) } as unknown as NearRpc;
   const pending = new PendingStore(":memory:", () => clock.now);
   const circle = defineCircleConfig({ network: NETWORK, circleContract: CIRCLE });
   const service = createFacilitatorService({ circles: [circle], rpc, pending, now: () => clock.now, verify: { now: () => clock.now } });
@@ -75,7 +78,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
     if (hostname === "rpc.test") {
       const { params } = (await request.json()) as any;
       const args = JSON.parse(Buffer.from(params.args_base64, "base64").toString("utf8"));
-      return Response.json({ jsonrpc: "2.0", id: "x207", result: { result: [...Buffer.from(JSON.stringify(VIEWS[params.method_name]!(args)))] } });
+      return Response.json({ jsonrpc: "2.0", id: "x207", result: { result: [...Buffer.from(JSON.stringify(viewOf(VIEWS, params.method_name)(args)))] } });
     }
     if (hostname === "facilitator.test") {
       if (state.facilitatorDown) throw new TypeError("fetch failed");

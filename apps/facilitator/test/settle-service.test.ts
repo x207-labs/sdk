@@ -36,6 +36,9 @@ const member = (account: string, pubkey: string) => ({
   account_id: account, admitted: false, exit_requested_epoch: null, joined_at: "1", last_active_epoch: 42,
   limit: "1000000", pubkey_voucher: pubkey, settled_history: "0", stake: "1000000", status: "active", terms_hash: "0".repeat(64),
 });
+/** A view the mock does not know is an error that names it, not a TypeError (SD-074 follow-up). */
+const viewOf = (views: Record<string, (args: any) => unknown>, method: string): ((args: any) => unknown) =>
+  views[method] ?? (() => { throw new Error(`mock RPC has no view ${method}`); });
 const VIEWS: Record<string, (args: any) => unknown> = {
   get_epoch: () => ({ epoch: 42, cutoff_at: CUTOFF_NS, phase: "open" }),
   member: ({ account_id }) => member(account_id, account_id === A ? KA_PUB : "ed25519:9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"),
@@ -43,7 +46,7 @@ const VIEWS: Record<string, (args: any) => unknown> = {
   headroom: () => "1000000",
   obligation: () => null,
 };
-const rpc = { view: async (_c: string, method: string, args: any) => VIEWS[method]!(args) } as unknown as NearRpc;
+const rpc = { view: async (_c: string, method: string, args: any) => viewOf(VIEWS, method)(args) } as unknown as NearRpc;
 
 const post = (app: ReturnType<typeof createApp>, path: string, body: unknown) =>
   app.request(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
