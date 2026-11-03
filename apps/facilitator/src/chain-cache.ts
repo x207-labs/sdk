@@ -4,7 +4,7 @@
 //  - `get_epoch` (30 s): the epoch number and phase change only after `cutoff_at`, and `verify` already rejects by clock from
 //    `cutoff_at - flushLead`, so a stale epoch view cannot let a voucher in for a closed epoch. After `close_epoch` a voucher of the new
 //    epoch is refused `epoch_mismatch` for at most this long; the client then reads `/supported`.
-//  - `member` (15 s): status, voucher key, exit request. A member that was suspended or asked to leave in the last 15 s can still get
+//  - `member` (10 s, the same as `headroom`): status, voucher key, exit request. A member that was suspended or asked to leave in the last 10 s can still get
 //    vouchers accepted; registering them on chain fails (`ERR_PAYER_NOT_ACTIVE`, `ERR_EXITING`) and the row is dropped, so the loss is
 //    the unregistered vouchers of that window, the seller delay risk of ADR-23.
 //  - `headroom` and `obligation` (10 s): they move together when a registration lands or a bundle reserves headroom. Registrations made by
@@ -12,6 +12,16 @@
 //    that reserves headroom of the payer, a registration by another relayer) is seen after at most 10 s; until then the headroom check
 //    can pass a voucher that the contract will refuse (`ERR_INSUFFICIENT_CREDIT`), again a dropped row and not a debt.
 //  - `get_bundle` (30 s): the status and the legs of a committed bundle do not change inside an epoch.
+//
+// Loss per event: a payer that is suspended or defaults inside the window can still get vouchers accepted, but every accepted voucher lowers the
+// headroom that `verify` computes, so the total is at most the headroom that was cached (at most the limit of the member, which is at most its
+// stake); after 10 s the real `0` is read and the payer is refused. The registrations are refused on chain and the rows dropped.
+//
+// Assumption: one relayer registers the vouchers of a pair. With no pending row, the base of a voucher is the cached `obligation`; a registration
+// by another relayer is not seen for up to 10 s, so vouchers that the chain already counts can pass `/verify` once each inside that window
+// (at most the cumulative the other relayer registered for that pair, once; their registration fails on chain because `seq` is not above).
+// Own registrations are not affected: they drop the cache and the pending row is the base. With two relayers on one circle set
+// `obligationMs` to 0 or give each relayer its own set of pairs.
 //
 // The contract stays the final gate: nothing here lets a debt exist that the limit does not cover. A TTL of 0 turns an entry off.
 import type { AccountId, ContractAbi } from "@x207/core";
@@ -27,7 +37,7 @@ export type ChainCacheOptions = {
   now?: () => number;
 };
 
-export const CHAIN_CACHE_DEFAULTS = { epochMs: 30_000, memberMs: 15_000, headroomMs: 10_000, obligationMs: 10_000, bundleMs: 30_000 } as const;
+export const CHAIN_CACHE_DEFAULTS = { epochMs: 30_000, memberMs: 10_000, headroomMs: 10_000, obligationMs: 10_000, bundleMs: 30_000 } as const;
 
 type Entry<T> = { at: number; value: Promise<T> };
 
