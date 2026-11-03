@@ -1,9 +1,9 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.8";
+export const X207_CIRCLE_ABI_VERSION = "0.0.9";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "0eb272e2337d6c47a4ac3816643fb25efc71046b55ccc371ed56e0851bede5bf";
+export const X207_CIRCLE_ABI_SHA256 = "077516cc9fd609dc3f4dd494ab1e13c09fc55c34ec7ee4e76cc265c0b760f532";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };
@@ -41,6 +41,7 @@ export type PositionRole = "debtor" | "creditor";
 export type PositionStatus = "due" | "paid" | "defaulted" | "claimable" | "claimed";
 export type PositionView = { "account_id": string; "amount": string; "epoch": number; "net": string; "payment_deadline": string; "recovered": string; "role": PositionRole; "status": PositionStatus; "updated_at_block": number };
 export type Promise = unknown;
+export type PromiseOrValueArray_of_String = string[];
 export type PromiseOrValueBoolean = boolean;
 export type PromiseOrValueString = string;
 export type RevokeReason = "grantor" | "grantee" | "operator" | "expired" | "defaulted";
@@ -66,6 +67,7 @@ export type CircleViews = {
   "get_upgrade": { args: Record<string, never>; result: UpgradeView | null };
   "grants_of": { args: { "account_id": string; "role": GrantRole; "from_index": number; "limit": number }; result: AccessGrant[] };
   "headroom": { args: { "account_id": string }; result: string };
+  "intents_balance": { args: Record<string, never>; result: string };
   "interface_version": { args: Record<string, never>; result: string };
   "last_seq": { args: { "payer": string; "payee": string; "epoch": number }; result: number };
   "limit": { args: { "account_id": string }; result: string };
@@ -97,11 +99,13 @@ export type CircleCalls = {
   "ft_on_transfer": { args: { "sender_id": string; "amount": string; "msg": string }; result: PromiseOrValueString };
   "join": { args: { "circle_id": string; "pubkey_voucher": string; "terms_hash": string }; result: MemberView; payable: true };
   "migrate": { args: Record<string, never>; result: void; init: true; private: true };
+  "mt_on_transfer": { args: { "sender_id": string; "previous_owner_ids": string[]; "token_ids": string[]; "amounts": string[]; "msg": string }; result: PromiseOrValueArray_of_String };
   "new": { args: { "owner_id": string; "circle_id": string; "usdt_token_id": string; "intents_id": string; "params"?: Params | null }; result: void; init: true };
   "nft_on_transfer": { args: { "sender_id": string; "previous_owner_id": string; "token_id": string; "msg": string }; result: PromiseOrValueBoolean };
   "offer_grant": { args: { "input": GrantInput }; result: number };
   "on_claim_resolved": { args: { "epoch": number; "account_id": string; "amount": string; "destination": ClaimDestination }; result: string; private: true };
   "on_escrow_resolved": { args: { "grant_id": number; "step": EscrowStep }; result: void; private: true };
+  "on_intents_withdrawn": { args: { "amount": string }; result: string; private: true };
   "on_solver_fee_resolved": { args: { "account_id": string; "amount": string }; result: string; private: true };
   "on_withdraw_resolved": { args: { "account_id": string; "amount": string }; result: boolean; private: true };
   "post_intent": { args: { "intent_hash": string }; result: void };
@@ -116,11 +120,12 @@ export type CircleCalls = {
   "set_asset_class": { args: { "asset_type": string; "entry": AssetClassEntry }; result: void };
   "set_params": { args: { "params": Params }; result: void };
   "submit_clearing": { args: { "epoch": number; "edges": ClearingEdge[] }; result: string };
+  "withdraw_intents_balance": { args: Record<string, never>; result: Promise };
   "withdraw_stake": { args: Record<string, never>; result: PromiseOrValueBoolean; payable: true };
 };
 
-export const CIRCLE_VIEW_METHODS = ["get_asset_class","get_bundle","get_circle","get_clearing_proposal","get_epoch","get_escrow","get_grant","get_intent","get_owner","get_params","get_pending_params","get_pool","get_upgrade","grants_of","headroom","interface_version","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
-export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_upgrade","cancel_escrow","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","complete_escrow","finalize_epoch","ft_on_transfer","join","migrate","new","nft_on_transfer","offer_grant","on_claim_resolved","on_escrow_resolved","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","prune_epoch","register_cumulative","register_in_bundle","register_voucher","remove_intent","request_exit","revoke_grant","set_asset_class","set_params","submit_clearing","withdraw_stake"] as const;
+export const CIRCLE_VIEW_METHODS = ["get_asset_class","get_bundle","get_circle","get_clearing_proposal","get_epoch","get_escrow","get_grant","get_intent","get_owner","get_params","get_pending_params","get_pool","get_upgrade","grants_of","headroom","intents_balance","interface_version","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
+export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_upgrade","cancel_escrow","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","complete_escrow","finalize_epoch","ft_on_transfer","join","migrate","mt_on_transfer","new","nft_on_transfer","offer_grant","on_claim_resolved","on_escrow_resolved","on_intents_withdrawn","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_upgrade","prune_epoch","register_cumulative","register_in_bundle","register_voucher","remove_intent","request_exit","revoke_grant","set_asset_class","set_params","submit_clearing","withdraw_intents_balance","withdraw_stake"] as const;
 
 /** Nama event NEP-297 dan urutan field `data`-nya. */
 export const CIRCLE_EVENTS = {
@@ -155,6 +160,7 @@ export const CIRCLE_EVENTS = {
   "escrow_held": ["grant_id","nft_contract","token_id"],
   "escrow_failed": ["grant_id","step","epoch","payer","payee","delta","reverted"],
   "bundle_committed": ["bundle_id","terms_hash","epoch","legs","solver"],
+  "intents_withdrawn": ["amount"],
 } as const;
 
 export type CircleEventName = keyof typeof CIRCLE_EVENTS;

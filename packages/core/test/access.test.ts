@@ -120,7 +120,7 @@ describe("SD-050 event F8", () => {
     expect(() => parseEventLog(log("escrow_held", { grant_id: 1, nft_contract: "nft.near" }))).toThrow(/token_id/);
   });
 
-  it("TC-SD-050-08 tipe escrow cocok dengan ABI 0.0.8", () => {
+  it("TC-SD-050-08 tipe escrow cocok dengan ABI 0.0.9", () => {
     const states: EscrowState[] = ["held", "completing", "cancelling", "delivered", "cancelled", "stuck"];
     const steps: EscrowStep[] = ["complete", "cancel"];
     const view: EscrowView = { grant_id: 1, nft_contract: "nft.near", token_id: "t1", state: "held" };
