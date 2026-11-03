@@ -33,3 +33,19 @@ The buyer asks `?quantity=30`; the 402 announces `extra.meter = {unit, quantity,
 | `home-device` | `compute:home-device` | 90 | minute, day, job |
 
 Default ceiling per request: 1000 call, 1000 request, 1440 minute, 31 day, 1000 GB, 1 job. Override with `maxQuantity`. `proxy-bandwidth` and `home-device` carry a warning about local law, power and security.
+
+## Job escrow and the count of the buyer (SD-067, SD-068)
+
+**Job escrow** (`JobBudget`, `SellerJob`, `BuyerJob`): the budget of a long job is committed as a bundle, and the job is paid chunk by chunk with cumulative vouchers. The seller works chunk k only after the voucher of chunk k arrived; the buyer signs the voucher of chunk k only after chunk k-1 arrived. A buyer who stops costs the seller nothing; a seller who vanishes costs the buyer one chunk at most. The contract needs two legs in a bundle (`ERR_BAD_BUNDLE`), so the terms carry a counter leg of one smallest unit from the seller to the buyer. The voucher is cumulative for the pair (payer, payee, epoch), so a job starts from `baseCumulative` and `baseSeq` of the pair, and the budget is reserved only in the running epoch: the job must end inside it.
+
+**Count of the buyer** (`BuyerMeter`, option `meter` of `X207SchemeClient`): the buyer records what it really received (`recordBytes` for GB, `recordMillis` for minute and day, `recordCalls`) and signs no voucher above the price of that count plus what it asked for (`expect`). `authorize` checks a 402 with `extra.meter` before any voucher is signed; `checkVoucher` and `sign` check a cumulative voucher. A bill of 10 GB for 2 GB gets no voucher above 2 GB. Errors are `MeterOverbilledError` with a stable `code`:
+
+| code | When |
+| --- | --- |
+| `meter_missing` | the 402 has no `extra.meter`, so the unit and quantity of the bill are unknown |
+| `meter_bad_count` | a count that is negative, not an integer where one is needed, or has more than 6 decimals |
+| `meter_unit_mismatch` | the unit of the 402 is not the unit bought, or a count in bytes or time for a meter of another unit |
+| `meter_amount_mismatch` | `amount` is not `unit_price × quantity` of the announcement |
+| `meter_price_too_high` | the unit price of the 402 is above the price the buyer agreed |
+| `meter_quantity_over_expected` | the quantity of the 402 is above what the buyer asked for (or the ceiling per request) |
+| `meter_overbilled` | a cumulative voucher is above the price of what was received plus what was asked for |

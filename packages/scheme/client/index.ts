@@ -18,6 +18,8 @@ import {
   type VoucherSecretKey,
   type X207Payload,
 } from "@x207/core";
+import type { BuyerMeter } from "./buyer-meter.js";
+import type { MeterAnnouncement } from "../server/metering.js";
 import { X207_SCHEME } from "../shared/circle.js";
 import {
   MemoryVoucherStateStore,
@@ -79,6 +81,8 @@ export type X207ClientOptions = {
   bundleFor?: (payee: AccountId, epoch: number) => number | undefined;
   /** Batas belanja lokal (SD-020): voucher yang melampauinya tidak ditandatangani walau headroom kontrak cukup. */
   spendLimit?: SpendLimit;
+  /** Hitungan sendiri pembeli (SD-068): 402 yang mengumumkan `extra.meter` harus cocok dengan yang diminta pembeli, kalau tidak tidak ada voucher yang ditandatangani. */
+  meter?: BuyerMeter;
 };
 
 type InFlight = {
@@ -115,6 +119,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
   private readonly confirmTimeoutMs: number;
   private readonly bundleFor: ((payee: AccountId, epoch: number) => number | undefined) | undefined;
   private readonly spendLimit: SpendLimit | undefined;
+  private readonly meter: BuyerMeter | undefined;
   /** Belanja per epoch yang sudah dicadangkan: voucher yang ditandatangani dan belum ditolak server. */
   private readonly spent = new Map<number, bigint>();
   /** `createPaymentPayload` x402 tidak menerima `resource`; hook sebelum pembuatan menitipkannya. */
@@ -132,6 +137,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
     this.confirmTimeoutMs = options.confirmTimeoutMs ?? 60_000;
     this.bundleFor = options.bundleFor;
     this.spendLimit = options.spendLimit;
+    this.meter = options.meter;
   }
 
   /** Belanja epoch `epoch` yang terhitung terhadap `maxPerEpoch`. */
@@ -184,6 +190,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
       throw new Error("resource.url tidak diketahui: buat payload lewat x402Client agar hook terpasang");
     }
 
+    this.meter?.authorize((requirements.extra as { meter?: MeterAnnouncement } | undefined)?.meter, amount);
     // Batas belanja dicek dan dicadangkan secara sinkron, sebelum antrian pasangan dan sebelum signVoucher.
     this.reserve(extra.epoch, BigInt(amount));
     const key: VoucherPairKey = { payer: this.payer, payee: payTo, epoch: extra.epoch };
@@ -278,3 +285,4 @@ export class X207SchemeClient implements SchemeNetworkClient {
 }
 export * from "./select.js";
 export * from "./headroom-rpc.js";
+export * from "./buyer-meter.js";
