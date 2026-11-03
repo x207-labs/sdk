@@ -13,15 +13,17 @@ import { contentHash, createRelease, encryptContent, makeCheatProof, verifyDeliv
 import type { AccountId, U128String } from "./types.js";
 
 export const CODE_RESOURCE_PREFIX = "x207:code:";
-/** Batas nilai kode yang tidak bisa dicek penerbit (ADR-48): 20 credit, dalam unit terkecil (1 credit = 1_000_000). Di atasnya wajib jaminan CT-094 (`arbiter`). */
+/** Value cap of a code that the issuer cannot check (ADR-48): 20 credit in the smallest unit (1 credit = 1_000_000). No bond lifts it (B6-F2): a sale paid by one voucher locks no bond. */
 export const UNVERIFIABLE_CODE_LIMIT: U128String = "20000000";
+/** Value cap of a code that the issuer can check: 100 credit. The check before the release lowers the risk but does not remove it, so a cap holds here too. */
+export const VERIFIABLE_CODE_LIMIT: U128String = "100000000";
 export const MIN_CODE_BYTES = 8;
 export const MAX_CODE_BYTES = 1024;
 /** Jendela sengketa kode, detik (ADR-48): 1 jam. */
 export const CODE_DISPUTE_WINDOW_SECONDS = 3600;
 
 export type CodeErrorCode =
-  | "code_bad_account" | "code_bad_commitment" | "code_bad_salt" | "code_bad_value" | "code_bad_code" | "code_bad_nonce" | "code_bad_resource" | "code_bad_arbiter" | "code_bad_limit" | "code_over_limit_unbonded";
+  | "code_bad_account" | "code_bad_commitment" | "code_bad_salt" | "code_bad_value" | "code_bad_code" | "code_bad_nonce" | "code_bad_resource" | "code_bad_arbiter" | "code_arbiter_not_supported" | "code_bad_limit" | "code_over_limit_unbonded";
 
 export class CodeError extends Error {
   constructor(readonly code: CodeErrorCode, message: string) {
@@ -101,16 +103,25 @@ export function normalizeCode(doc: CodeDocument): Required<CodeDocument> {
   return { circle: doc.circle, seller: doc.seller, code_commitment: doc.code_commitment, issuer: doc.issuer, value: doc.value, verifiable: doc.verifiable, arbiter, nonce: doc.nonce };
 }
 
-/** Kode tanpa cek penerbit dengan nilai di atas `limit` (bawaan `UNVERIFIABLE_CODE_LIMIT`) dan tanpa arbiter wajib ditolak. */
-export function codeNeedsBond(doc: Pick<CodeDocument, "value" | "verifiable" | "arbiter">, limit: U128String = UNVERIFIABLE_CODE_LIMIT): boolean {
-  const max = parseAmount(limit, "limit", "code_bad_limit");
-  return !doc.verifiable && parseAmount(doc.value, "value", "code_bad_value") > max && (doc.arbiter ?? null) === null;
+/**
+ * Is the value of the code above its cap? `limit` is the cap of a code that cannot be checked (default `UNVERIFIABLE_CODE_LIMIT`, 20 credit), `verifiableLimit` the cap of a code that
+ * can be checked (default `VERIFIABLE_CODE_LIMIT`, 100 credit). The `arbiter` of the document changes nothing: no bond exists for a sale paid by one voucher (ADR-48 points 6 and 7).
+ */
+export function codeOverLimit(doc: Pick<CodeDocument, "value" | "verifiable">, limit: U128String = UNVERIFIABLE_CODE_LIMIT, verifiableLimit: U128String = VERIFIABLE_CODE_LIMIT): boolean {
+  const cap = parseAmount(doc.verifiable ? verifiableLimit : limit, "limit", "code_bad_limit");
+  return parseAmount(doc.value, "value", "code_bad_value") > cap;
 }
 
-/** Memeriksa dokumen dan batas nilai; melempar `code_over_limit_unbonded` bila kode tak bisa dicek, nilainya di atas batas, dan tanpa arbiter. Mengembalikan dokumen ternormalisasi. */
-export function checkCodeDocument(doc: CodeDocument, limit: U128String = UNVERIFIABLE_CODE_LIMIT): Required<CodeDocument> {
+/**
+ * Checks the document and the value cap: `code_arbiter_not_supported` when the document names an arbiter (nothing is bonded, so the name would only look like a guarantee) and
+ * `code_over_limit_unbonded` when the value is above the cap of its kind. Returns the normalised document.
+ */
+export function checkCodeDocument(doc: CodeDocument, limit: U128String = UNVERIFIABLE_CODE_LIMIT, verifiableLimit: U128String = VERIFIABLE_CODE_LIMIT): Required<CodeDocument> {
   const normal = normalizeCode(doc);
-  if (codeNeedsBond(normal, limit)) fail("code_over_limit_unbonded", `a code that cannot be checked is capped at ${limit} units; above that a bond (arbiter) is required`);
+  if (normal.arbiter !== null) fail("code_arbiter_not_supported", "no bond is locked for a code sale: the value cap applies without exception and an arbiter is not accepted");
+  if (codeOverLimit(normal, limit, verifiableLimit)) {
+    fail("code_over_limit_unbonded", `a code that ${normal.verifiable ? "can" : "cannot"} be checked is capped at ${normal.verifiable ? verifiableLimit : limit} units; no bond raises it`);
+  }
   return normal;
 }
 
@@ -135,22 +146,39 @@ export function encryptCode(code: string, options: Parameters<typeof encryptCont
 }
 
 /** Sisi penjual: rilis kunci untuk satu pembeli. Memeriksa batas nilai dan bahwa `salt` dan `code` cocok dengan `doc.code_commitment` (`code_bad_commitment` bila tidak). */
-export function createCodeRelease(args: Omit<Parameters<typeof createRelease>[0], "license_hash" | "content_hash" | "content_size" | "circle"> & { doc: CodeDocument; code: string; salt: Uint8Array; limit?: U128String }): ReturnType<typeof createRelease> {
-  const { doc, code, salt, limit, ...rest } = args;
-  const normal = checkCodeDocument(doc, limit);
+export function createCodeRelease(args: Omit<Parameters<typeof createRelease>[0], "license_hash" | "content_hash" | "content_size" | "circle"> & { doc: CodeDocument; code: string; salt: Uint8Array; limit?: U128String; verifiableLimit?: U128String }): ReturnType<typeof createRelease> {
+  const { doc, code, salt, limit, verifiableLimit, ...rest } = args;
+  const normal = checkCodeDocument(doc, limit, verifiableLimit);
   const payload = codePayload(code, salt);
   if (contentHash(payload) !== normal.code_commitment) fail("code_bad_commitment", "salt and code do not match the document code_commitment");
   return createRelease({ ...rest, circle: normal.circle, license_hash: codeDocumentHash(normal), content_hash: normal.code_commitment, content_size: payload.length });
 }
 
-/** Memecah payload hasil dekripsi menjadi salt (heks) dan kode; `null` bila bentuknya salah. */
+/**
+ * Splits the decrypted payload into the salt (hex) and the code. `null` when the payload is not a code of the format (B6-F5): over `32 + MAX_CODE_BYTES` bytes, a code under
+ * `MIN_CODE_BYTES`, text that is not valid UTF-8, a code with control characters or padded with spaces. A seller who does not use the SDK can commit to any payload; the buyer
+ * must not take it as a code.
+ */
 export function splitCodePayload(payload: Uint8Array): { salt: string; code: string } | null {
-  if (payload.length <= CODE_SALT_BYTES) return null;
-  return { salt: bytesToHex(payload.subarray(0, CODE_SALT_BYTES)), code: new TextDecoder().decode(payload.subarray(CODE_SALT_BYTES)) };
+  if (payload.length < CODE_SALT_BYTES + MIN_CODE_BYTES || payload.length > CODE_SALT_BYTES + MAX_CODE_BYTES) return null;
+  let code: string;
+  try {
+    code = new TextDecoder("utf-8", { fatal: true }).decode(payload.subarray(CODE_SALT_BYTES));
+  } catch {
+    return null;
+  }
+  if (code !== code.trim() || /[\u0000-\u001f\u007f]/.test(code)) return null;
+  return { salt: bytesToHex(payload.subarray(0, CODE_SALT_BYTES)), code };
 }
 
-/** Sisi pembeli: memeriksa kiriman kode. Hasil `ok` memuat `code` (teks) dan `salt` (heks) selain byte payload; `content_hash` rilis harus `code_commitment`. */
-export function verifyCodeDelivery(args: Parameters<typeof verifyDelivery>[0] & { doc?: CodeDocument }): DeliveryVerdict & { code?: string; salt?: string } {
+export type CodeDeliveryVerdict = DeliveryVerdict | { ok: false; reason: "bad_payload" };
+
+/**
+ * Buyer side: checks the delivery of a code. `ok` carries `code` (text) and `salt` (hex) besides the bytes of the payload. Pass `doc`, the code document of the listing that the
+ * buyer looked at (B6-F4): the release must be for that document, that commitment and that circle, otherwise `wrong_purchase`. A payload that matches the commitment but is not a
+ * code of the format is `bad_payload` (no proof of cheating exists for it: the seller committed to it).
+ */
+export function verifyCodeDelivery(args: Parameters<typeof verifyDelivery>[0] & { doc?: CodeDocument }): CodeDeliveryVerdict & { code?: string; salt?: string } {
   if (args.doc !== undefined) {
     const normal = normalizeCode(args.doc);
     const r = args.release;
@@ -159,7 +187,7 @@ export function verifyCodeDelivery(args: Parameters<typeof verifyDelivery>[0] & 
   const verdict = verifyDelivery(args);
   if (!verdict.ok) return verdict;
   const parts = splitCodePayload(verdict.content);
-  return parts === null ? { ok: false, reason: "wrong_purchase" } : { ...verdict, ...parts };
+  return parts === null ? { ok: false, reason: "bad_payload" } : { ...verdict, ...parts };
 }
 export const makeCodeCheatProof = (args: Parameters<typeof verifyDelivery>[0]): CheatProof => makeCheatProof(args);
 

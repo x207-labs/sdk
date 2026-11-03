@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CODE_RESOURCE_PREFIX, CodeError, codePayload, newCodeSalt, splitCodePayload, UNVERIFIABLE_CODE_LIMIT, checkCheatProof, checkCodeDocument, codeDocumentHash, codeCommitment, codeNeedsBond, codeResource, contentHash, createCodeRelease,
+  CODE_RESOURCE_PREFIX, CodeError, codePayload, newCodeSalt, splitCodePayload, UNVERIFIABLE_CODE_LIMIT, checkCheatProof, checkCodeDocument, codeDocumentHash, codeCommitment, codeOverLimit, VERIFIABLE_CODE_LIMIT, codeResource, contentHash, createCodeRelease,
   encryptCode, generateVoucherKeypair, licensePublicKey, makeCodeCheatProof, normalizeCode, parseCodeResource, serializeCode, verifyCodeDelivery, encryptContent, createRelease,
   type CodeDocument, type CodeIssuer,
 } from "../src/index.js";
@@ -95,18 +95,23 @@ describe("SD-076 code_commitment and document", () => {
 });
 
 describe("SD-076 limit of a code that cannot be checked", () => {
-  it("TC-SD-076-06 20 credit is the default limit; at the limit is allowed, above it is refused without a bond", () => {
+  it("TC-SD-076-06 20 credit is the limit of a code that cannot be checked: at the limit is allowed, above it is refused", () => {
     expect(UNVERIFIABLE_CODE_LIMIT).toBe("20000000");
     expect(() => checkCodeDocument(doc({ value: "20000000" }))).not.toThrow();
     expect(errCode(() => checkCodeDocument(doc({ value: "20000001" })))).toBe("code_over_limit_unbonded");
-    expect(codeNeedsBond(doc({ value: "20000001" }))).toBe(true);
-    expect(codeNeedsBond(doc({ value: "20000000" }))).toBe(false);
+    expect(codeOverLimit(doc({ value: "20000001" }))).toBe(true);
+    expect(codeOverLimit(doc({ value: "20000000" }))).toBe(false);
   });
 
-  it("TC-SD-076-07 above the limit it is allowed with an arbiter (bond) or with an issuer API (verifiable)", () => {
-    expect(() => checkCodeDocument(doc({ value: "500000000", arbiter: "arbiter.near" }))).not.toThrow();
-    expect(() => checkCodeDocument(doc({ value: "500000000", verifiable: true }))).not.toThrow();
-    expect(codeNeedsBond(doc({ value: "500000000", verifiable: true }))).toBe(false);
+  it("TC-SD-076-07 [B6-F2] 100 credit is the limit of a code that can be checked, and no arbiter lifts either limit: a document with an arbiter is refused", () => {
+    expect(VERIFIABLE_CODE_LIMIT).toBe("100000000");
+    expect(() => checkCodeDocument(doc({ value: "100000000", verifiable: true }))).not.toThrow();
+    expect(errCode(() => checkCodeDocument(doc({ value: "100000001", verifiable: true })))).toBe("code_over_limit_unbonded");
+    expect(codeOverLimit(doc({ value: "50000000", verifiable: true }))).toBe(false);
+    expect(codeOverLimit(doc({ value: "100000001", verifiable: true }))).toBe(true);
+    expect(errCode(() => checkCodeDocument(doc({ value: "30000000", arbiter: "arbiter.near" })))).toBe("code_arbiter_not_supported");
+    expect(errCode(() => checkCodeDocument(doc({ value: "5000000", arbiter: "arbiter.near" })))).toBe("code_arbiter_not_supported");
+    expect(codeOverLimit({ value: "30000000", verifiable: false, ...({ arbiter: "arbiter.near" } as object) })).toBe(true); // the arbiter changes nothing
   });
 
   it("TC-SD-076-08 the limit can be set, and a bad limit is refused", () => {
@@ -115,7 +120,7 @@ describe("SD-076 limit of a code that cannot be checked", () => {
     expect(errCode(() => checkCodeDocument(doc(), "-1"))).toBe("code_bad_limit");
   });
 
-  it("TC-SD-076-09 the seller cannot create a release for a code over the limit without a bond, nor for a code that is not the one in the document", () => {
+  it("TC-SD-076-09 the seller cannot create a release for a code over the limit, nor for a code that is not the one in the document", () => {
     const enc = encryptCode(CODE, { salt: SALT });
     const base = { salt: SALT, buyer: BUYER, buyerPublicKey: buyerPublic, purchase_id: "p1", ciphertext: enc.ciphertext, contentKey: enc.key, at: 1_700_000_000, sellerSecretKey: seller.secretKey };
     expect(errCode(() => createCodeRelease({ ...base, doc: doc({ value: "99000000" }), code: CODE }))).toBe("code_over_limit_unbonded");
@@ -178,5 +183,39 @@ describe("SD-076 vectors", () => {
     expect(await issuer.checkCode(CODE)).toBe("valid");
     expect(await issuer.checkCode("USED-CODE-0001")).toBe("used");
     expect(await issuer.checkCode("nope-nope-nope")).toBe("unknown");
+  });
+});
+
+describe("SD-076 the receiver refuses what is not a code (B6-F5) and checks the document (B6-F4)", () => {
+  const release = (payload: Uint8Array) => {
+    const d = doc({ code_commitment: contentHash(payload) });
+    const enc = encryptContent(payload);
+    const out = createRelease({ circle: CIRCLE, license_hash: codeDocumentHash(d), buyer: BUYER, buyerPublicKey: buyerPublic, content_hash: d.code_commitment, content_size: payload.length, purchase_id: "p1", ciphertext: enc.ciphertext, contentKey: enc.key, at: 1_700_000_000, sellerSecretKey: seller.secretKey });
+    return { d, enc, ...out };
+  };
+  const delivery = (payload: Uint8Array) => {
+    const { d, enc, release: r, signature } = release(payload);
+    return verifyCodeDelivery({ ciphertext: enc.ciphertext, release: r, signature, sellerPublicKey: sellerPublic, buyerSecretKey: buyer.secretKey, purchaseId: "p1", doc: d });
+  };
+  const withSalt = (bytes: Uint8Array) => new Uint8Array([...SALT, ...bytes]);
+
+  it("TC-SD-076-16 a payload over 32 + 1024 bytes, a code under 8 bytes, bad UTF-8, control characters and padding are bad_payload, even when the commitment matches", () => {
+    expect(delivery(withSalt(text(CODE)))).toMatchObject({ ok: true, code: CODE });
+    expect(delivery(withSalt(new Uint8Array(1025).fill(65)))).toEqual({ ok: false, reason: "bad_payload" });
+    expect(delivery(withSalt(new Uint8Array(1024).fill(65)))).toMatchObject({ ok: true });
+    expect(delivery(withSalt(text("SHORT")))).toEqual({ ok: false, reason: "bad_payload" });
+    expect(delivery(withSalt(Uint8Array.of(0xff, 0xfe, 0xfd, 0xfc, 0xfb, 0xfa, 0xf9, 0xf8)))).toEqual({ ok: false, reason: "bad_payload" });
+    expect(delivery(withSalt(text("GIFT-7QK2\n-M9XD")))).toEqual({ ok: false, reason: "bad_payload" });
+    expect(delivery(withSalt(text(" GIFT-7QK2-M9XD ")))).toEqual({ ok: false, reason: "bad_payload" });
+    expect(splitCodePayload(new Uint8Array(40))).toBeNull(); // the salt alone with a code of NUL bytes
+  });
+
+  it("TC-SD-076-17 the delivery is checked against the document that the buyer looked at: another document, another commitment or another circle is wrong_purchase", () => {
+    const { d, enc, release: r, signature } = release(withSalt(text(CODE)));
+    const args = { ciphertext: enc.ciphertext, release: r, signature, sellerPublicKey: sellerPublic, buyerSecretKey: buyer.secretKey };
+    expect(verifyCodeDelivery({ ...args, doc: d })).toMatchObject({ ok: true });
+    expect(verifyCodeDelivery({ ...args, doc: { ...d, nonce: "other" } })).toEqual({ ok: false, reason: "wrong_purchase" });
+    expect(verifyCodeDelivery({ ...args, doc: { ...d, value: "9000000" } })).toEqual({ ok: false, reason: "wrong_purchase" });
+    expect(verifyCodeDelivery({ ...args, doc: { ...d, circle: "other-circle.near" } })).toEqual({ ok: false, reason: "wrong_purchase" });
   });
 });
