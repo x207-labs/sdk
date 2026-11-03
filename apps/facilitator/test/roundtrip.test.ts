@@ -51,6 +51,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
   const VIEWS: Record<string, (args: any) => unknown> = {
     get_epoch: () => ({ epoch: state.epoch, cutoff_at: String(BigInt(state.cutoffMs) * 1_000_000n), phase: "open" }),
     member: ({ account_id }) => member(account_id),
+    is_frozen: () => false,
     headroom: ({ account_id }) => state.headroom.get(account_id) ?? "1000000",
     obligation: () => null,
     last_seq: () => 0,

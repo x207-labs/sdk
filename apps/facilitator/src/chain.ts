@@ -35,6 +35,10 @@ export class NearChain implements VerifyChain {
     return this.view<ContractAbi.BundleView | null>("get_bundle", { bundle_id: bundleId });
   }
 
+  isFrozen(account: AccountId) {
+    return this.view<boolean>("is_frozen", { account_id: account });
+  }
+
   headroom(account: AccountId) {
     return this.view<string>("headroom", { account_id: account });
   }

@@ -21,6 +21,8 @@ export interface VerifyChain extends HeadroomSources {
   getEpoch(): Promise<ContractAbi.EpochView | null>;
   /** View `get_bundle(bundle_id)` (interface 0.0.4); dibutuhkan hanya untuk voucher leg bundle (SD-048). */
   bundle?(bundleId: number): Promise<ContractAbi.BundleView | null>;
+  /** View `is_frozen(account_id)` (interface 0.0.12, CT-095, SD-074); tanpa fungsi ini pembekuan tidak diperiksa (kontrak 0.0.11 atau lebih lama). */
+  isFrozen?(account: AccountId): Promise<boolean>;
 }
 
 export type VerifyOptions = {
@@ -111,6 +113,11 @@ export async function verifyPayment(
   if (!payerMember) return reject("member_not_found", payer);
   if (payerMember.status !== "active") return reject("member_not_active", payer);
   if (!payeeMember || payeeMember.status !== "active") return reject("payee_not_active", payer);
+  // SD-074 (ADR-43): the contract still accepts old vouchers of a frozen account until the cutoff, but the facilitator takes no new voucher from or to a frozen account, also in the epoch of the freeze
+  if (chain.isFrozen) {
+    const [payerFrozen, payeeFrozen] = await Promise.all([chain.isFrozen(payer), chain.isFrozen(voucher.payee)]);
+    if (payerFrozen || payeeFrozen) return reject("account_frozen", payer);
+  }
   if (
     (payerMember.exit_requested_epoch ?? null) !== null ||
     (payeeMember.exit_requested_epoch ?? null) !== null

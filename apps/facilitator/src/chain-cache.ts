@@ -7,6 +7,8 @@
 //  - `member` (10 s, the same as `headroom`): status, voucher key, exit request. A member that was suspended or asked to leave in the last 10 s can still get
 //    vouchers accepted; registering them on chain fails (`ERR_PAYER_NOT_ACTIVE`, `ERR_EXITING`) and the row is dropped, so the loss is
 //    the unregistered vouchers of that window, the seller delay risk of ADR-23.
+//  - `is_frozen` (10 s, SD-074): a freeze that starts in the last 10 s is not seen yet, so a voucher can still be accepted in that window; the contract still takes it until the cutoff
+//    (it only stops registrations of a frozen account from the freeze epoch on), so the loss is the unregistered vouchers of the window, as for `member`.
 //  - `headroom` and `obligation` (10 s): they move together when a registration lands or a bundle reserves headroom. Registrations made by
 //    this facilitator call `invalidatePayer`, so its own registrations are never missed. A change made by someone else (a `commit_bundle`
 //    that reserves headroom of the payer, a registration by another relayer) is seen after at most 10 s; until then the headroom check
@@ -30,6 +32,7 @@ import type { VerifyChain } from "@x207/scheme";
 export type ChainCacheOptions = {
   epochMs?: number;
   memberMs?: number;
+  frozenMs?: number;
   headroomMs?: number;
   obligationMs?: number;
   bundleMs?: number;
@@ -37,7 +40,7 @@ export type ChainCacheOptions = {
   now?: () => number;
 };
 
-export const CHAIN_CACHE_DEFAULTS = { epochMs: 30_000, memberMs: 10_000, headroomMs: 10_000, obligationMs: 10_000, bundleMs: 30_000 } as const;
+export const CHAIN_CACHE_DEFAULTS = { epochMs: 30_000, memberMs: 10_000, frozenMs: 10_000, headroomMs: 10_000, obligationMs: 10_000, bundleMs: 30_000 } as const;
 
 type Entry<T> = { at: number; value: Promise<T> };
 
@@ -70,15 +73,17 @@ export class CachedVerifyChain implements VerifyChain {
   readonly stats: ChainCacheStats = { hits: 0, misses: 0 };
   readonly #epoch: Ttl<ContractAbi.EpochView | null>;
   readonly #member: Ttl<ContractAbi.MemberView | null>;
+  readonly #frozen: Ttl<boolean>;
   readonly #headroom: Ttl<string>;
   readonly #obligation: Ttl<Pick<ContractAbi.ObligationView, "cumulative" | "last_seq"> | null>;
   readonly #bundle: Ttl<ContractAbi.BundleView | null>;
 
-  constructor(private readonly inner: VerifyChain & { bundle(bundleId: number): Promise<ContractAbi.BundleView | null> }, options: ChainCacheOptions = {}) {
+  constructor(private readonly inner: VerifyChain & { bundle(bundleId: number): Promise<ContractAbi.BundleView | null>}, options: ChainCacheOptions = {}) {
     const now = options.now ?? Date.now;
     const ttl = { ...CHAIN_CACHE_DEFAULTS, ...options };
     this.#epoch = new Ttl(ttl.epochMs, now);
     this.#member = new Ttl(ttl.memberMs, now);
+    this.#frozen = new Ttl(ttl.frozenMs, now);
     this.#headroom = new Ttl(ttl.headroomMs, now);
     this.#obligation = new Ttl(ttl.obligationMs, now);
     this.#bundle = new Ttl(ttl.bundleMs, now);
@@ -101,6 +106,12 @@ export class CachedVerifyChain implements VerifyChain {
 
   member(account: AccountId) {
     return this.#count(this.#member, account, () => this.inner.member(account));
+  }
+
+  isFrozen(account: AccountId) {
+    const inner = this.inner.isFrozen?.bind(this.inner);
+    // an inner chain of an older contract has no `is_frozen`: nothing is frozen there
+    return inner ? this.#count(this.#frozen, account, () => inner(account)) : Promise.resolve(false);
   }
 
   headroom(account: AccountId) {

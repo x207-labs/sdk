@@ -42,6 +42,8 @@ type World = {
   epoch: ContractAbi.EpochView;
   now: number;
   fail?: boolean;
+  /** Accounts that `is_frozen` answers true for (SD-074); `undefined` = a chain of the older contract that has no such view. */
+  frozen?: string[];
 };
 
 const world = (): World => ({
@@ -68,6 +70,7 @@ function chainOf(w: World): VerifyChain {
     headroom: async (account) => { guard(); return w.headroom[account] ?? "0"; },
     obligation: async (epoch, debtor, creditor) => { guard(); return w.obligations[`${epoch}:${debtor}:${creditor}`] ?? null; },
     pendingByPayer: async (payer, epoch) => { guard(); return w.pending.filter((r) => r.payer === payer && r.epoch === epoch); },
+    ...(w.frozen === undefined ? {} : { isFrozen: async (account: string) => { guard(); return w.frozen!.includes(account); } }),
   };
 }
 
@@ -210,6 +213,20 @@ describe("SD-024 facilitator verify", () => {
         invalidReason: "payee_not_active",
       });
     }
+  });
+
+  it("TC-SD-074-01 a voucher from or to a frozen account is refused account_frozen, also a first voucher of the epoch of the freeze; others pass; no is_frozen view means no check", async () => {
+    const w = { ...world(), frozen: [A] };
+    expect(await verify(w, payloadOf({}, "kA"))).toMatchObject({ isValid: false, invalidReason: "account_frozen", payer: A });
+    const toFrozen = requirements(D);
+    expect(await verify({ ...world(), frozen: [D] }, payloadOf({ payee: D }, "kA", toFrozen), toFrozen)).toMatchObject({ invalidReason: "account_frozen" });
+    // another pair is not touched
+    const other = requirements(B);
+    expect(await verify({ ...world(), frozen: [D] }, payloadOf({ payer: C }, "kOther", other), other)).toMatchObject({ isValid: true });
+    expect(await verify({ ...world(), frozen: [] }, payloadOf({}, "kA"))).toMatchObject({ isValid: true });
+    expect(await verify(world(), payloadOf({}, "kA"))).toMatchObject({ isValid: true }); // a chain of contract 0.0.11 has no is_frozen
+    // a failing view is an error of the facilitator, not an accepted voucher
+    await expect(verify({ ...world(), frozen: [], fail: true }, payloadOf({}, "kA"))).rejects.toThrow();
   });
 
   it("TC-SD-024-18 dan 19 sedang keluar", async () => {

@@ -200,6 +200,7 @@ Facilitator MUST menjalankan 19 cek berikut berurutan dan berhenti di penolakan 
 | 11 | Status payer `active` | `member_not_active` |
 | 12 | Payee terdaftar dan `active` | `payee_not_active` |
 | 13 | Payer dan payee tidak sedang keluar | `member_exiting` |
+| 13a | Payer dan payee tidak dibekukan (view `is_frozen`, kontrak 0.0.12; dilewati bila facilitator tidak punya view itu). Berlaku juga untuk voucher baru di epoch pembekuan | `account_frozen` |
 | 14 | Tanda tangan valid terhadap `pubkey_voucher` payer | `invalid_signature` |
 | 15 | Payer tidak terkena aturan `registration_retry_pending` | `registration_retry_pending` |
 | 16 | `voucher.seq > base.seq` (on-chain dan pending) | `seq_not_increasing` |
@@ -250,6 +251,7 @@ Semua body `application/json`. Endpoint dipanggil resource server, bukan klien.
 | `registration_retry_pending` | Voucher payer gagal teregistrasi berulang | Pakai `exact` sampai pulih |
 | `seq_not_increasing` | `seq` <= `seq` terakhir (replay) | Selaraskan dengan `lastSeq` |
 | `member_exiting` | Payer atau payee sedang keluar | Pakai `exact` atau penjual lain |
+| `account_frozen` | Payer atau payee dibekukan oleh DAO (ADR-43) | Pakai penjual lain; pembekuan dicabut hanya oleh DAO |
 | `cumulative_decreased` | `cumulativeAmount` turun | Selaraskan state |
 | `amount_mismatch` | Kenaikan != harga yang diminta | Selaraskan state, coba sekali lagi |
 | `insufficient_credit` | Kenaikan > headroom setelah dikurangi pending | Jatuh ke `exact` `near:mainnet` |

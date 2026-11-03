@@ -218,6 +218,7 @@ The facilitator MUST run the following 19 checks in order and stop at the first 
 | 11 | The status of the payer is `active` | `member_not_active` |
 | 12 | The payee is registered and `active` | `payee_not_active` |
 | 13 | Neither payer nor payee is leaving | `member_exiting` |
+| 13a | Neither payer nor payee is frozen (view `is_frozen`, contract 0.0.12; skipped when the facilitator has no such view). Also for a new voucher in the epoch of the freeze | `account_frozen` |
 | 14 | The signature is valid against `pubkey_voucher` of the payer | `invalid_signature` |
 | 15 | The payer is not under the rule `registration_retry_pending` | `registration_retry_pending` |
 | 16 | `voucher.seq > base.seq` (on chain and pending) | `seq_not_increasing` |
@@ -270,6 +271,7 @@ All bodies are `application/json`. The endpoints are called by the resource serv
 | `registration_retry_pending` | Vouchers of the payer repeatedly failed to register | Use `exact` until it recovers |
 | `seq_not_increasing` | `seq` <= the last `seq` (replay) | Realign with `lastSeq` |
 | `member_exiting` | The payer or the payee is leaving | Use `exact` or another seller |
+| `account_frozen` | The payer or the payee is frozen by the DAO (ADR-43) | Use another seller; only the DAO lifts a freeze |
 | `cumulative_decreased` | `cumulativeAmount` went down | Realign the state |
 | `amount_mismatch` | The increment != the price that was asked | Realign the state, try once more |
 | `insufficient_credit` | The increment > the headroom after pending is subtracted | Fall back to `exact` `near:mainnet` |

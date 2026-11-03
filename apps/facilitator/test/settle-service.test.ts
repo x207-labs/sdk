@@ -39,6 +39,7 @@ const member = (account: string, pubkey: string) => ({
 const VIEWS: Record<string, (args: any) => unknown> = {
   get_epoch: () => ({ epoch: 42, cutoff_at: CUTOFF_NS, phase: "open" }),
   member: ({ account_id }) => member(account_id, account_id === A ? KA_PUB : "ed25519:9hSR6S7WPtxmTojgo6GG3k4yDPecgJY292j7xrsUGWBu"),
+  is_frozen: () => false,
   headroom: () => "1000000",
   obligation: () => null,
 };
