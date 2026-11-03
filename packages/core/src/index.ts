@@ -21,5 +21,6 @@ export * from "./metered-presets.js";
 export * from "./invoice.js";
 export * from "./order.js";
 export * from "./license.js";
+export * from "./code.js";
 export * from "./grantee-proof.js";
 export * from "./rent-check.js";
