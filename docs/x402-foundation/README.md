@@ -5,6 +5,7 @@ Status: **drafts, nothing sent.** Opening an issue or a pull request in `x402-fo
 | File | What it is |
 | --- | --- |
 | `issue-draft.md` | Discussion issue: what x207 binds, what it asks the maintainers |
+| `scheme_batch_settlement_x207.md` | English translation of the spec (`spec/scheme_batch_settlement_x207.md`, Indonesian) with the `bundleId` section added; the file for the pull request |
 | `pr-draft.md` | Pull request description for the spec `specs/schemes/batch-settlement/scheme_batch_settlement_x207.md` |
 
 Checked against `CONTRIBUTING.md` of the x402 repository on 2026-11-02:
@@ -14,6 +15,6 @@ Checked against `CONTRIBUTING.md` of the x402 repository on 2026-11-02:
 
 Before sending, a human must:
 
-1. Translate `spec/scheme_batch_settlement_x207.md` into English (it is written in Indonesian) and add the `bundleId` payload field described in `spec/barter-format.md`, section "Voucher leg bundle". The spec already holds the grant endpoint rule (`extra.grantId`, `grant_resource_mismatch`, SD-053). Checked against the spec and the suite on 2026-11-02: the drafts follow the current format (54 conformance cases; contract interface 0.0.7 adds escrow methods and events that the binding does not use). Keep the filename and folder the x402 repository expects.
+1. Read `scheme_batch_settlement_x207.md` (the English translation, written on 2026-11-03, with the `bundleId` section added from `spec/barter-format.md`) against the Indonesian original and the code; keep the filename and folder the x402 repository expects when it goes into the pull request. The spec already holds the grant endpoint rule (`extra.grantId`, `grant_resource_mismatch`, SD-053). Checked against the spec and the suite on 2026-11-02: the drafts follow the current format (54 conformance cases; contract interface 0.0.7 adds escrow methods and events that the binding does not use). Keep the filename and folder the x402 repository expects.
 2. Read `specs/CONTRIBUTING.md` and `specs/scheme_template.md` of the x402 repository again; this checklist was written from a summary.
 3. Decide the account and signed commits to use, review the text, and confirm the claims in the drafts still hold.
