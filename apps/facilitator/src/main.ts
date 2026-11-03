@@ -29,17 +29,22 @@ const schedulers = config.relayer
       (() => {
         // SD-031: dengan gas key, registrasi berjalan paralel di jalur nonce berbeda
         const chain = new NearRegistrationChain({ rpc, circleContract: circle.circleContract, relayer: config.relayer!, ...(config.gasKey ? { gasKey: config.gasKey } : {}) });
-        return new RegistrationScheduler({ circleContract: circle.circleContract, store: pending, chain, mode: config.registerMode, concurrency: chain.concurrency });
+        return new RegistrationScheduler({
+          circleContract: circle.circleContract, store: pending, chain, mode: config.registerMode, concurrency: chain.concurrency,
+          onRegistered: ({ payer }) => service.invalidatePayer?.(circle.circleContract, payer),
+        });
       })(),
     )
   : [];
 if (schedulers.length === 0) console.warn("X207_RELAYER_ACCOUNT_ID kosong: voucher tidak diregistrasi on-chain");
 schedulers.forEach((scheduler) => scheduler.start());
 const byContract = new Map(schedulers.map((scheduler, i) => [config.circles[i]!.circleContract, scheduler]));
+// Chain reads of /verify are cached for a few seconds (src/chain-cache.ts); X207_CHAIN_CACHE=off turns it off.
 const service = createFacilitatorService({
   circles: config.circles,
   rpc,
   pending,
+  ...(process.env.X207_CHAIN_CACHE === "off" ? {} : { chainCache: {} }),
   ...(config.relayer ? { signers: [config.relayer.accountId] } : {}),
   ...(exactSigner ? { exactSigner, exactNetwork } : {}),
   // Mode demo SD-029: `/settle` menunggu registrasi on-chain, atau menjawab `settlement_pending` setelah timeout (SD-030).

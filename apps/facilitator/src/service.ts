@@ -17,6 +17,7 @@ import type { RegisterOutcome } from "./scheduler.js";
 import { X207SchemeFacilitator, type CircleConfig, type VerifyOptions } from "@x207/scheme";
 import { InvalidRequestError, type FacilitatorService, type PairStateQuery, type PairStateResponse } from "./app.js";
 import { NearChain, PendingStoreWriter } from "./chain.js";
+import { CachedVerifyChain, type ChainCacheOptions } from "./chain-cache.js";
 import type { PendingStore } from "./pending-store.js";
 import type { NearRpc } from "./rpc.js";
 
@@ -35,6 +36,8 @@ export type FacilitatorServiceOptions = {
   /** Jaringan untuk `exactSigner`; bawaan `near:mainnet`. */
   exactNetwork?: ExactNearNetwork;
   verify?: Omit<VerifyOptions, "chain">;
+  /** Short-lived cache of the chain reads of `verify` (see `chain-cache.ts` for what may be stale). Off when absent. */
+  chainCache?: ChainCacheOptions;
   now?: () => number;
   /**
    * Mode demo `register_voucher` per request (SD-029, SD-030): setiap `/settle` yang berhasil menyimpan voucher langsung meminta
@@ -60,10 +63,13 @@ const invalidNetwork = (network: SettleResponse["network"]): SettleResponse => (
 export function createFacilitatorService(options: FacilitatorServiceOptions): FacilitatorService {
   const { circles, rpc, pending } = options;
   const facilitator = new x402Facilitator();
-  const byNetwork = new Map<string, { circle: CircleConfig; scheme: X207SchemeFacilitator; chain: NearChain }>();
+  const byNetwork = new Map<string, { circle: CircleConfig; scheme: X207SchemeFacilitator; chain: NearChain | CachedVerifyChain }>();
+  const caches = new Map<string, CachedVerifyChain>();
 
   for (const circle of circles) {
-    const chain = new NearChain(rpc, circle, pending);
+    const plain = new NearChain(rpc, circle, pending);
+    const chain = options.chainCache ? new CachedVerifyChain(plain, options.chainCache) : plain;
+    if (chain instanceof CachedVerifyChain) caches.set(circle.circleContract, chain);
     const scheme = new X207SchemeFacilitator({
       network: circle.network,
       circleContract: circle.circleContract,
@@ -88,6 +94,10 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
     facilitator.getSupported().kinds.some((k) => k.scheme === requirements.scheme && k.network === requirements.network);
 
   return {
+    invalidatePayer(circleContract: AccountId, payer: AccountId): void {
+      caches.get(circleContract)?.invalidatePayer(payer);
+    },
+
     async verify({ paymentPayload, paymentRequirements }: VerifyRequest): Promise<VerifyResponse> {
       if (!registered(paymentRequirements as PaymentRequirements)) return { isValid: false, invalidReason: "invalid_network" };
       return facilitator.verify(paymentPayload as PaymentPayload, paymentRequirements as PaymentRequirements);

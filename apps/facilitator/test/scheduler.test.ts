@@ -69,6 +69,20 @@ function setup(options: { path?: string } = {}) {
 const fail = (code: string) => new Error(`Smart contract panicked: ${code}: detail`);
 
 describe("SD-028 RegistrationScheduler", () => {
+  it("TC-SD-028-30 onRegistered is called once per registered row with its payer, and not for a failed one", async () => {
+    const { store, chain, clock } = setup();
+    const seen: Array<{ payer: string; payee: string; epoch: number }> = [];
+    const scheduler = new RegistrationScheduler({ circleContract: CIRCLE, store, chain, now: () => clock.now, log: () => {}, onRegistered: (row) => seen.push(row) });
+    store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
+    chain.failWith = fail("ERR_INSUFFICIENT_CREDIT");
+    await scheduler.tick();
+    expect(seen).toEqual([]);
+    chain.failWith = null;
+    clock.now += 10 * 60_000;
+    await scheduler.tick();
+    expect(seen).toEqual([{ payer: A, payee: B, epoch: EPOCH }]);
+  });
+
   it("TC-SD-028-01 ambang tercapai: satu register_cumulative dengan seq tertinggi", async () => {
     const { store, chain, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 10, "400000"), SIG);

@@ -60,6 +60,8 @@ export type SchedulerOptions = {
   mode?: RegisterMode;
   /** Baris yang boleh didaftarkan bersamaan (SD-031): jumlah jalur gas key relayer; 1 (bawaan) untuk kunci akses biasa. */
   concurrency?: number;
+  /** Called after a voucher of `payer` was registered on chain (also when the contract already held it), e.g. to drop cached reads. */
+  onRegistered?: (row: { payer: AccountId; payee: AccountId; epoch: number }) => void;
 };
 
 export type TickResult = {
@@ -217,6 +219,7 @@ export class RegistrationScheduler {
     }
     this.#opts.store.recordRegistered(key, row.seq, row.cumulativeAmount);
     this.#log("registered", row, {});
+    this.#opts.onRegistered?.({ payer: row.payer, payee: row.payee, epoch: row.epoch });
     result.registered += 1;
     return { status: "registered" };
   }
@@ -241,6 +244,7 @@ export class RegistrationScheduler {
       if (last >= row.seq) {
         this.#opts.store.recordRegistered(key, row.seq, row.cumulativeAmount);
         this.#log("registered", row, { code: "seq_not_increasing" });
+        this.#opts.onRegistered?.({ payer: row.payer, payee: row.payee, epoch: row.epoch });
         result.registered += 1;
         return { status: "registered" };
       }

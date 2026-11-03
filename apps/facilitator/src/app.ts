@@ -7,6 +7,7 @@ import type {
   VerifyRequest,
   VerifyResponse,
 } from "@x402/core/types";
+import type { AccountId } from "@x207/core";
 import { assertCircleId } from "@x207/scheme";
 import { ChainUnavailableError } from "./rpc.js";
 
@@ -25,6 +26,8 @@ export type FacilitatorService = {
   settle(request: SettleRequest): Promise<SettleResponse>;
   supported(): Promise<SupportedResponse>;
   pairState?(query: PairStateQuery): Promise<PairStateResponse>;
+  /** Forget the cached debt reads of `payer` after a registration (only when `chainCache` is on). */
+  invalidatePayer?(circleContract: AccountId, payer: AccountId): void;
 };
 
 export const RETRY_AFTER_SECONDS = 5;
