@@ -5,6 +5,7 @@ import type { PaymentRequirements } from "@x402/core/types";
 import type { AccountId, PairState } from "@x207/core";
 import { X207ExtraSource } from "./extra.js";
 import { buildPaymentRequirements } from "./index.js";
+import { MeterRejection, resolvePrice, type PriceFn } from "./metering.js";
 
 export const HEADER_PAYMENT_REQUIRED = "PAYMENT-REQUIRED";
 export const HEADER_PAYMENT_SIGNATURE = "PAYMENT-SIGNATURE";
@@ -21,7 +22,13 @@ const RESYNC_REASONS = new Set(["seq_not_increasing", "cumulative_decreased", "a
 export type X207GrantContext = { grantId: number; payTo: AccountId };
 
 export type X207RouteConfig = {
-  price: string | number;
+  /**
+   * Harga tetap (`"$0.02"` atau `0.02`), atau fungsi `(request) => { unit, quantity, unitPrice, maxQuantity? }` untuk harga terukur (SD-062): jumlah yang dibayar adalah
+   * `unitPrice × quantity`, dan `accepts[x207].extra.meter` mengumumkan satuan, jumlah, harga satuan, dan batas atas.
+   */
+  price: string | number | PriceFn;
+  /** Batas atas satuan per request untuk harga terukur; request di atas batas ditolak 413 sebelum 402 dan sebelum handler. */
+  maxQuantity?: number | string;
   description?: string;
   mimeType?: string;
   /**
@@ -181,10 +188,24 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       }
     }
 
+    // harga terukur (SD-062): dihitung dari request SEBELUM 402 dan sebelum handler; di atas batas ditolak di sini, jadi tidak ada yang membayar untuk kerja yang tidak berjalan
+    let priced: Awaited<ReturnType<typeof resolvePrice>>;
+    try {
+      priced = await resolvePrice(route.price, request, route.maxQuantity);
+    } catch (error) {
+      if (error instanceof MeterRejection) {
+        const code = error.status === 413 ? "quantity_over_limit" : "invalid_quantity";
+        return new Response(JSON.stringify({ error: code, message: error.message, ...error.detail }), { status: error.status, headers: { "content-type": "application/json" } });
+      }
+      if (typeof route.price !== "function") return unavailable((error as Error).message);
+      throw error;
+    }
+
     let accepts: PaymentRequirements[];
     try {
       accepts = await buildPaymentRequirements({
-        circleId: options.circleId, payTo: grant?.payTo ?? options.payTo, price: route.price, resource: request.url, extra,
+        circleId: options.circleId, payTo: grant?.payTo ?? options.payTo, price: typeof route.price === "function" ? "0.000001" : route.price, amount: priced.amount, resource: request.url, extra,
+        ...(priced.meter ? { meter: priced.meter } : {}),
         ...(grant ? { grantId: grant.grantId } : {}),
       });
     } catch (error) {

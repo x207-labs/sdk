@@ -10,12 +10,14 @@ import type {
 import { CREDIT_DECIMALS, CREDIT_UNIT, USDT_TOKEN_ID, type AccountId, type X207Extra } from "@x207/core";
 import { assertCircleId, X207_SCHEME } from "../shared/circle.js";
 import type { X207ExtraSource } from "./extra.js";
+import type { MeterAnnouncement } from "./metering.js";
 import { priceToAmount } from "./price.js";
 
 export * from "./extra.js";
 export * from "./middleware.js";
 export * from "./endpoint-adapter.js";
 export * from "./price.js";
+export * from "./metering.js";
 
 /** `maxTimeoutSeconds` x402 (ADR-25). */
 export const MAX_TIMEOUT_SECONDS = 60;
@@ -80,6 +82,10 @@ export type BuildPaymentRequirementsOptions = {
   /** URL resource; dipakai middleware untuk `PaymentRequired.resource`, bukan bagian requirements. */
   resource?: string;
   extra: X207ExtraSource;
+  /** Jumlah yang sudah dihitung (SD-062, harga terukur): dipakai sebagai ganti `price`. */
+  amount?: string;
+  /** Pengumuman harga terukur (SD-062): `extra.meter` di entri x207. */
+  meter?: MeterAnnouncement;
   /** Endpoint grant F8 (SD-053): `extra.grantId` di entri x207; `payTo` harus pemberi grant, bukan akun broker. */
   grantId?: number;
 };
@@ -90,7 +96,7 @@ export async function buildPaymentRequirements(
 ): Promise<PaymentRequirements[]> {
   const network = `x207:${options.circleId}`;
   assertCircleId(network);
-  const amount = priceToAmount(options.price);
+  const amount = options.amount ?? priceToAmount(options.price);
   const extra = await options.extra.get(network);
   return [
     {
@@ -103,6 +109,7 @@ export async function buildPaymentRequirements(
       extra: {
         circleContract: extra.circleContract, unit: extra.unit, decimals: extra.decimals, epoch: extra.epoch,
         ...(options.grantId === undefined ? {} : { grantId: options.grantId }),
+        ...(options.meter === undefined ? {} : { meter: options.meter }),
       },
     },
     {
