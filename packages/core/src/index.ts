@@ -19,3 +19,4 @@ export * from "./access-key.js";
 export * from "./metered-presets.js";
 export * from "./invoice.js";
 export * from "./order.js";
+export * from "./license.js";
