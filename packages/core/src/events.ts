@@ -6,7 +6,7 @@ import type { AccountId, U128String } from "./types.js";
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.9";
+export const KNOWN_EVENT_VERSION = "0.0.10";
 
 export class EventParseError extends Error {
   constructor(message: string) {

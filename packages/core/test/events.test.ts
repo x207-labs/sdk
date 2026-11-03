@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { EventParseError, isKnownX207Event, parseEventLog, type X207Event } from "@x207/core";
+import { EventParseError, KNOWN_EVENT_VERSION, isKnownX207Event, parseEventLog, type X207Event } from "@x207/core";
 
 const abi = JSON.parse(
   readFileSync(fileURLToPath(new URL("../abi/x207-circle.abi.json", import.meta.url)), "utf8"),
@@ -121,6 +121,16 @@ describe("SD-011 parseEventLog", () => {
     expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, "0.0.2"))).not.toThrow();
   });
 
+  it("TC-SD-060-04 version 0.0.10 (two digit patch) is read by number, not by text: accepted, and the check ignores the patch of a higher version", () => {
+    expect(KNOWN_EVENT_VERSION).toBe("0.0.10");
+    for (const version of ["0.0.9", "0.0.10", "0.0.11", "0.0.100"]) {
+      expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, version)), version).not.toThrow();
+    }
+    expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, "0.1.0"))).toThrow(EventParseError);
+    // ft_escrow_held is in the schema table and is parsed under the version of the contract that emits it
+    expect(one(log("ft_escrow_held", { grant_id: 1, ft_contract: "rwa.near", amount: "10" }, "0.0.10"))).toMatchObject({ event: "ft_escrow_held", amount: "10" });
+  });
+
   it("TC-SD-011-15 field tak dikenal diabaikan", () => {
     const event = one(log("stake_added", { ...(SAMPLES.stake_added as object), extra_field: "x" }));
     expect(event).toEqual({ event: "stake_added", ...(SAMPLES.stake_added as object) });
@@ -146,7 +156,7 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.9 untuk setiap event yang dikenal", () => {
+  it("skema parser cocok dengan abi.json 0.0.10 untuk setiap event yang dikenal", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);

@@ -1,9 +1,9 @@
 // GENERATED oleh scripts/generate-contract-types.mjs dari abi/x207-circle.abi.json. Jangan diedit.
 // Ubah ABI lewat contracts (CT-068), lalu: node scripts/generate-contract-types.mjs --pin <abi.json>
 
-export const X207_CIRCLE_ABI_VERSION = "0.0.9";
+export const X207_CIRCLE_ABI_VERSION = "0.0.10";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "0cdf9a24c35addb6525d71d612dae57841f5c45069dcddf3bd0240bc85baa847";
+export const X207_CIRCLE_ABI_SHA256 = "5b691de65d1f50f3b1426781fa6fa83f3e9a78e1dd6dd8189b417d637b391e87";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };

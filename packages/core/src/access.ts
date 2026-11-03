@@ -42,7 +42,7 @@ export type EscrowView = Abi.EscrowView;
 export const escrowGrantScope = (nftContract: AccountId, tokenId: string): string => JSON.stringify({ nft_contract: nftContract, token_id: tokenId });
 
 /**
- * Escrow kelas A untuk token fungible NEP-141 (interface 0.0.9, CT-090): jumlah persis yang dipegang kontrak lingkaran. Hasil view `get_ft_escrow`; `null`
+ * Escrow kelas A untuk token fungible NEP-141 (interface 0.0.10, CT-090): jumlah persis yang dipegang kontrak lingkaran. Hasil view `get_ft_escrow`; `null`
  * bila grant tidak punya escrow token. Token dengan biaya transfer tidak didukung: kontrak memegang jumlah yang benar-benar tiba, dan jumlah itu harus
  * sama dengan `amount` di `limits.scope`, jadi titipan dari token berbiaya ditolak.
  */

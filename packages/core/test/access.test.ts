@@ -121,7 +121,7 @@ describe("SD-050 event F8", () => {
     expect(() => parseEventLog(log("escrow_held", { grant_id: 1, nft_contract: "nft.near" }))).toThrow(/token_id/);
   });
 
-  it("TC-SD-050-08 tipe escrow cocok dengan ABI 0.0.9", () => {
+  it("TC-SD-050-08 tipe escrow cocok dengan ABI 0.0.10", () => {
     const states: EscrowState[] = ["held", "completing", "cancelling", "delivered", "cancelled", "stuck"];
     const steps: EscrowStep[] = ["complete", "cancel"];
     const view: EscrowView = { grant_id: 1, nft_contract: "nft.near", token_id: "t1", state: "held" };
@@ -178,8 +178,8 @@ describe("SD-050 event F8", () => {
     await expect(assertBuyerRegisteredAtToken(async () => { throw new Error("method not found"); }, "rwa.near", "buyer.near")).rejects.toThrow(/storage_balance_of.*gagal/);
   });
 
-  it("TC-SD-060-03 ft_escrow_held (0.0.9) is parsed, a wrong field is refused, and FtEscrowView matches the ABI", () => {
-    const log = (data: unknown) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.9", event: "ft_escrow_held", data: [data] })}`;
+  it("TC-SD-060-03 ft_escrow_held (0.0.10) is parsed, a wrong field is refused, and FtEscrowView matches the ABI", () => {
+    const log = (data: unknown) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.10", event: "ft_escrow_held", data: [data] })}`;
     const held = parseEventLog(log({ grant_id: 3, ft_contract: "rwa.near", amount: "2500000" }))![0]!;
     expect(isKnownX207Event(held)).toBe(true);
     expect(held).toMatchObject({ event: "ft_escrow_held", grant_id: 3, ft_contract: "rwa.near", amount: "2500000" });
