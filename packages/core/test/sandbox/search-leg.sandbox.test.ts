@@ -2,7 +2,7 @@
 // jadi `get_bundle.terms_hash` sama dengan `termsHash(terms)` dari SDK membuktikan byte JSON kanoniknya sama. Lewati bila binary near-sandbox
 // atau wasm kontrak 0.0.5 tidak ada.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createCircleViewFn, onboardMember, signBundle, termsHash, type BundleTerms, type ContractAbi, type ContractCall } from "../../src/index.js";
+import { ContractAbi, createCircleViewFn, onboardMember, signBundle, termsHash, type BundleTerms, type ContractCall } from "../../src/index.js";
 import { TERMS_HASH, deployCircle, type CircleFixture } from "../../../../test-support/circle.js";
 import { sandboxAvailable } from "../../../../test-support/sandbox.js";
 
@@ -18,7 +18,7 @@ describe.skipIf(!sandboxAvailable)("SD-047 search_leg di near-sandbox", () => {
   });
 
   it("TC-SD-047-20 terms_hash kontrak sama dengan SDK dengan dan tanpa search_leg; batas bagian pencari dan tanda tangan atas search_leg ditegakkan", async () => {
-    expect(await fx.sandbox.view<string>(fx.circle.accountId, "interface_version", {})).toBe("0.0.7");
+    expect(await fx.sandbox.view<string>(fx.circle.accountId, "interface_version", {})).toBe(ContractAbi.X207_CIRCLE_ABI_VERSION);
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {
       const account = await fx.member(name);
