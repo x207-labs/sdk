@@ -3,7 +3,7 @@
 
 export const X207_CIRCLE_ABI_VERSION = "0.0.9";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "077516cc9fd609dc3f4dd494ab1e13c09fc55c34ec7ee4e76cc265c0b760f532";
+export const X207_CIRCLE_ABI_SHA256 = "ea01ea62526240e5ada570912cc66a343974c2fc86ef16d86e6ecff7c371afe4";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };
@@ -161,6 +161,7 @@ export const CIRCLE_EVENTS = {
   "escrow_failed": ["grant_id","step","epoch","payer","payee","delta","reverted"],
   "bundle_committed": ["bundle_id","terms_hash","epoch","legs","solver"],
   "intents_withdrawn": ["amount"],
+  "intent_removed": ["intent_hash","account_id"],
 } as const;
 
 export type CircleEventName = keyof typeof CIRCLE_EVENTS;
