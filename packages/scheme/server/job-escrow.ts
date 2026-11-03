@@ -153,12 +153,14 @@ export class SellerJob {
    * Terima voucher (yang sudah lolos `/verify`): pasangan, epoch, dan unit harus sama dengan job, `seq` naik, jumlah kumulatif tidak turun (`cumulative_decreased`),
    * tidak melebihi anggaran (`over_budget`), dan tidak lebih dari satu potongan di depan potongan yang selesai (`prepaid_too_far`). Jumlah yang sama diterima tanpa efek.
    */
-  accept(voucher: Pick<Voucher, "circle" | "payer" | "payee" | "epoch" | "seq" | "cumulativeAmount" | "unit">): SellerJobSummary {
+  accept(voucher: Pick<Voucher, "circle" | "payer" | "payee" | "epoch" | "seq" | "cumulativeAmount" | "unit" | "resource">): SellerJobSummary {
     const b = this.budget;
     if (this.#aborted) throw new MeterRejection("job sudah dihentikan");
     if (voucher.circle !== b.circle || voucher.payer !== b.buyer || voucher.payee !== b.seller || voucher.epoch !== b.epoch || voucher.unit !== CREDIT_UNIT) {
       throw new MeterRejection("wrong_leg: voucher bukan untuk leg pembeli ke penjual di epoch job ini");
     }
+    // F7 (review BE-062): a voucher of the same pair for another purpose is not the payment of a chunk of this job
+    if (voucher.resource !== `job:${b.jobId}`) throw new MeterRejection(`wrong_resource: resource voucher harus job:${b.jobId}, dapat ${JSON.stringify(voucher.resource)}`);
     if (!/^(0|[1-9]\d*)$/.test(voucher.cumulativeAmount)) throw new MeterRejection(`cumulativeAmount harus bilangan bulat desimal, dapat ${JSON.stringify(voucher.cumulativeAmount)}`);
     const amount = BigInt(voucher.cumulativeAmount);
     if (amount < this.#cumulative) throw new MeterRejection("cumulative_decreased: voucher lebih kecil dari yang sudah diterima");

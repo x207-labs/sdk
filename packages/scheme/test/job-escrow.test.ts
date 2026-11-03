@@ -157,4 +157,13 @@ describe("SD-067 escrow of job credit with a bundle", () => {
     expect(fails(() => budget({ baseCumulative: "-1" }))).toMatch(/baseCumulative/);
     expect(fails(() => budget({ baseSeq: -1 }))).toMatch(/baseSeq/);
   });
+
+  it("TC-SD-067-10 [F7] a voucher of the same pair for another resource is not the payment of a chunk of this job", () => {
+    const b = budget();
+    const seller = new SellerJob(b);
+    const v = new BuyerJob(b).signNext(keys.secretKey).voucher;
+    expect(fails(() => seller.accept({ ...v, resource: "x207:grant:7" }))).toMatch(/wrong_resource/);
+    expect(fails(() => seller.accept({ ...v, resource: "job:other" }))).toMatch(/wrong_resource/);
+    expect(seller.accept(v).paidChunks).toBe(1);
+  });
 });
