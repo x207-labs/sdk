@@ -1,5 +1,5 @@
 // Fixture lingkaran di near-sandbox: kontrak `x207-circle`, mock NEP-141 sebagai USDT, dan akun anggota.
-import { CIRCLE_WASM, MOCK_FT_WASM, Sandbox, SandboxAccount, startSandbox } from "./sandbox.js";
+import { CIRCLE_WASM, MOCK_FT_WASM, MOCK_INTENTS_WASM, Sandbox, SandboxAccount, startSandbox } from "./sandbox.js";
 
 /** Jendela pendek di dalam rentang sah (Spec Antarmuka Kontrak 3.4), sama dengan `short_params` di contracts. */
 export const SHORT_PARAMS = {
@@ -16,6 +16,8 @@ export type CircleFixture = {
   circleId: string;
   circle: SandboxAccount;
   usdt: SandboxAccount;
+  /** Hanya dengan `deployCircle(params, { mockIntents: true })`: kontrak `mock_intents` yang menjadi `intents_id` kontrak lingkaran. */
+  intents?: SandboxAccount;
   /** Akun anggota yang dibuat `member()`, dengan 1.000 USDT mock. */
   members: Map<string, SandboxAccount>;
   member(name: string): Promise<SandboxAccount>;
@@ -23,12 +25,29 @@ export type CircleFixture = {
 };
 
 /** Sandbox baru dengan kontrak ter-deploy dan di-`new`. */
-export async function deployCircle(params: object = SHORT_PARAMS): Promise<CircleFixture> {
+export type DeployCircleOptions = {
+  /**
+   * `intents_id` kontrak lingkaran diisi akun dengan wasm `mock_intents` (method `new`, `mt_transfer_call`, `ft_withdraw`, `balance_of`),
+   * untuk test residual lewat Intents (`mt_on_transfer`, `withdraw_intents_balance`, interface 0.0.9). Butuh
+   * `cargo near build non-reproducible-wasm --manifest-path probes/mock_intents/Cargo.toml` di `contracts`. Bawaan: akun kosong.
+   */
+  mockIntents?: boolean;
+};
+
+export async function deployCircle(params: object = SHORT_PARAMS, options: DeployCircleOptions = {}): Promise<CircleFixture> {
   const sandbox = await startSandbox();
   try {
     const usdt = await sandbox.createAccount("usdt", "10");
     await sandbox.deploy(usdt, MOCK_FT_WASM);
     await usdt.call({ receiverId: usdt.accountId, methodName: "new", args: {}, deposit: 0n });
+
+    let intents: SandboxAccount | undefined;
+    if (options.mockIntents) {
+      intents = await sandbox.createAccount("intents", "10");
+      await sandbox.deploy(intents, MOCK_INTENTS_WASM);
+      const initialized = await intents.call({ receiverId: intents.accountId, methodName: "new", args: {}, deposit: 0n });
+      if (initialized.failures.length > 0) throw new Error(`mock_intents new gagal: ${initialized.failures.join("; ")}`);
+    }
 
     const circle = await sandbox.createAccount("x207-circle", "100");
     await sandbox.deploy(circle, CIRCLE_WASM);
@@ -37,7 +56,7 @@ export async function deployCircle(params: object = SHORT_PARAMS): Promise<Circl
       methodName: "new",
       args: {
         owner_id: `dao.${sandbox.rootAccountId}`, circle_id: "agents-main", usdt_token_id: usdt.accountId,
-        intents_id: `intents.${sandbox.rootAccountId}`, params,
+        intents_id: intents?.accountId ?? `intents.${sandbox.rootAccountId}`, params,
       },
       deposit: 0n,
     });
@@ -45,7 +64,7 @@ export async function deployCircle(params: object = SHORT_PARAMS): Promise<Circl
 
     const members = new Map<string, SandboxAccount>();
     return {
-      sandbox, circleId: "agents-main", circle, usdt, members,
+      sandbox, circleId: "agents-main", circle, usdt, ...(intents ? { intents } : {}), members,
       async member(name) {
         const existing = members.get(name);
         if (existing) return existing;

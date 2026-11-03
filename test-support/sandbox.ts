@@ -13,6 +13,7 @@ import type { ContractCall } from "@x207/core";
 // Tanpa `new URL(..., import.meta.url)`: Vite menulis ulang pola itu menjadi URL http saat test frontend (jsdom) memuat harness ini.
 const contractsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../contracts");
 export const CIRCLE_WASM = join(contractsDir, "target/near/x207_circle.wasm");
+export const MOCK_INTENTS_WASM = join(contractsDir, "target/near/mock_intents/mock_intents.wasm");
 export const MOCK_NFT_WASM = join(contractsDir, "target/near/mock_nft/mock_nft.wasm");
 export const MOCK_FT_WASM = join(contractsDir, "target/near/mock_ft/mock_ft.wasm");
 
