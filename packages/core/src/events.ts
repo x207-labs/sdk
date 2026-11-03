@@ -1,12 +1,12 @@
 // Parser event NEP-297 kontrak `x207-circle` (SD-011, Spec Antarmuka Kontrak bagian 6).
-// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.8","event":"<nama>","data":[{…}]}`.
+// Log: `EVENT_JSON:{"standard":"x207","version":"0.0.9","event":"<nama>","data":[{…}]}`.
 import type { Params } from "./contract/types.generated.js";
 import type { AccountId, U128String } from "./types.js";
 
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.8";
+export const KNOWN_EVENT_VERSION = "0.0.9";
 
 export class EventParseError extends Error {
   constructor(message: string) {
@@ -89,6 +89,7 @@ export type X207EventMap = {
   grant_revoked: { grant_id: number; reason: "grantor" | "grantee" | "operator" | "expired" | "defaulted" };
   escrow_held: { grant_id: number; nft_contract: AccountId; token_id: string };
   escrow_failed: { grant_id: number; step: EscrowStepValue; epoch: number; payer: AccountId; payee: AccountId; delta: U128String; reverted: boolean };
+  intents_withdrawn: { amount: U128String };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
 };
 
@@ -175,6 +176,7 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   escrow_failed: {
     grant_id: "int", step: { enum: ["complete", "cancel"] }, epoch: "int", payer: "str", payee: "str", delta: "str", reverted: "bool",
   },
+  intents_withdrawn: { amount: "str" },
   bundle_committed: {
     bundle_id: "bundleid", terms_hash: "str", epoch: "int",
     legs: { list: { payer: "str", payee: "str", max_amount: "str" } }, solver: "str",
