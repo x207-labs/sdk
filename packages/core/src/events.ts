@@ -6,7 +6,7 @@ import type { AccountId, U128String } from "./types.js";
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
 /** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
-export const KNOWN_EVENT_VERSION = "0.0.12";
+export const KNOWN_EVENT_VERSION = "0.0.13";
 
 export class EventParseError extends Error {
   constructor(message: string) {
@@ -49,13 +49,22 @@ export type X207EventMap = {
     epoch: number; solver: AccountId; cleared_total: U128String; edge_count: number;
     replaced_solver: AccountId | null; replaced_cleared_total: U128String | null;
   };
+  /**
+   * Interface 0.0.13 (CT-099): `edge_count` and `edges_hash` (`edgesHash`), no edges in the event. Read the edges of a proposal that is not committed yet with the view
+   * `get_proposal` and after the commit from `list_obligations`. Interface 0.0.12 and older (the version of the envelope): `edges`, `chunk` and `chunks` instead, and no
+   * `edge_count` or `edges_hash`.
+   */
   clearing_applied: {
-    epoch: number; solver: AccountId | null; cleared_total: U128String; edges: ClearingAppliedEdge[];
-    clearing_fee: U128String; solver_fee: U128String; chunk: number; chunks: number;
+    epoch: number; solver: AccountId | null; cleared_total: U128String; clearing_fee: U128String; solver_fee: U128String;
+    edge_count?: number; edges_hash?: string; edges?: ClearingAppliedEdge[]; chunk?: number; chunks?: number;
   };
+  /**
+   * Interface 0.0.13: the complete `positions` (at most `MAX_MEMBERS`), `position_count` and `positions_hash` (`positionsHash`), no `chunk`. Older: `positions` in chunks and no
+   * `position_count` or `positions_hash`.
+   */
   epoch_committed: {
     epoch: number; committed_at: Ns; payment_deadline: Ns; total_due: U128String; total_claimable: U128String;
-    positions: EpochCommittedPosition[]; chunk: number; chunks: number;
+    positions: EpochCommittedPosition[]; position_count?: number; positions_hash?: string; chunk?: number; chunks?: number;
   };
   residual_paid: {
     epoch: number; account_id: AccountId; sender_id: AccountId; amount: U128String; refunded: U128String;
@@ -123,7 +132,24 @@ type Schema = Record<string, Kind>;
 
 const MEMBER_STATUS = { enum: ["pending", "active", "suspended", "exited"] } as const;
 const POSITION_STATUS = { enum: ["due", "paid", "defaulted", "claimable", "claimed", null] } as const;
+const POSITION_FIELDS: Schema = {
+  account_id: "str", net: "str", role: { enum: ["debtor", "creditor", "none"] }, status: POSITION_STATUS, amount: "str", outstanding_debt: "str",
+};
 const DESTINATION = { enum: ["near", "intents"] } as const;
+
+/** The shapes of interface 0.0.12 and older (chunks, edges in the event), read when the envelope says a version below 0.0.13. */
+const LEGACY_SCHEMAS: Partial<Record<X207EventName, Schema>> = {
+  clearing_applied: {
+    epoch: "int", solver: "strnull", cleared_total: "str", edges: { list: { debtor: "str", creditor: "str", cleared: "str" } }, clearing_fee: "str", solver_fee: "str", chunk: "int", chunks: "int",
+  },
+  epoch_committed: {
+    epoch: "int", committed_at: "str", payment_deadline: "str", total_due: "str", total_claimable: "str", positions: { list: POSITION_FIELDS }, chunk: "int", chunks: "int",
+  },
+};
+const isLegacyVersion = (version: string): boolean => {
+  const [major, minor] = version.split(".").map(Number) as [number, number, number];
+  return major === 0 && minor === 0 && Number(version.split(".")[2]) < 13;
+};
 
 const SCHEMAS: { [K in X207EventName]: Schema } = {
   member_joined: { account_id: "str", pubkey_voucher: "str", terms_hash: "str", status: { enum: ["pending"] }, joined_at: "str" },
@@ -156,20 +182,11 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
     epoch: "int", solver: "str", cleared_total: "str", edge_count: "int", replaced_solver: "strnull",
     replaced_cleared_total: "strnull",
   },
-  clearing_applied: {
-    epoch: "int", solver: "strnull", cleared_total: "str",
-    edges: { list: { debtor: "str", creditor: "str", cleared: "str" } },
-    clearing_fee: "str", solver_fee: "str", chunk: "int", chunks: "int",
-  },
+  // the interface 0.0.13 shape; `LEGACY_SCHEMAS` below has the shape of 0.0.12 and older, chosen by the version of the envelope
+  clearing_applied: { epoch: "int", solver: "strnull", cleared_total: "str", edge_count: "int", edges_hash: "str", clearing_fee: "str", solver_fee: "str" },
   epoch_committed: {
-    epoch: "int", committed_at: "str", payment_deadline: "str", total_due: "str", total_claimable: "str",
-    positions: {
-      list: {
-        account_id: "str", net: "str", role: { enum: ["debtor", "creditor", "none"] }, status: POSITION_STATUS,
-        amount: "str", outstanding_debt: "str",
-      },
-    },
-    chunk: "int", chunks: "int",
+    epoch: "int", committed_at: "str", payment_deadline: "str", total_due: "str", total_claimable: "str", position_count: "int", positions_hash: "str",
+    positions: { list: POSITION_FIELDS },
   },
   residual_paid: { epoch: "int", account_id: "str", sender_id: "str", amount: "str", refunded: "str", settled_history: "str" },
   member_defaulted: {
@@ -280,6 +297,7 @@ export function parseEventLog(log: string): (X207Event | UnknownX207Event)[] | n
   if (!isRecord(envelope)) throw new EventParseError("event must be a JSON object");
   if (envelope.standard !== EVENT_STANDARD) return null;
   checkVersion(envelope.version);
+  const version = envelope.version as string;
   const name = envelope.event;
   if (typeof name !== "string") throw new EventParseError("field event hilang");
   if (!Array.isArray(envelope.data) || envelope.data.length === 0) {
@@ -290,6 +308,7 @@ export function parseEventLog(log: string): (X207Event | UnknownX207Event)[] | n
       if (!isRecord(item)) throw new EventParseError(`data[${i}] must be an object`);
       return { event: name, data: item };
     }
-    return { event: name, ...readObject(item, SCHEMAS[name], `data[${i}]`) } as X207Event;
+    const schema = (isLegacyVersion(version) ? LEGACY_SCHEMAS[name] : undefined) ?? SCHEMAS[name];
+    return { event: name, ...readObject(item, schema, `data[${i}]`) } as X207Event;
   });
 }

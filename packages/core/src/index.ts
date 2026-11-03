@@ -24,3 +24,5 @@ export * from "./license.js";
 export * from "./code.js";
 export * from "./grantee-proof.js";
 export * from "./rent-check.js";
+export * from "./clearing-hash.js";
+export * from "./contract/proposal.js";

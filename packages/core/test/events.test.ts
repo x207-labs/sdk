@@ -105,7 +105,7 @@ describe("SD-011 parseEventLog", () => {
     expect(first).toMatchObject({ chunk: 0, chunks: 2 });
     expect(second).toMatchObject({ chunk: 1, chunks: 2 });
     const edges = (first as Extract<X207Event, { event: "clearing_applied" }>).edges;
-    expect(edges.every((e) => BigInt(e.cleared) > 0n)).toBe(true);
+    expect(edges!.every((e) => BigInt(e.cleared) > 0n)).toBe(true);
   });
 
   it("epoch_committed contains participants with net 0, role none, and status null (K-35)", () => {
@@ -135,8 +135,8 @@ describe("SD-011 parseEventLog", () => {
   });
 
   it("TC-SD-060-04 version 0.0.10 (two digit patch) is read by number, not by text: accepted, and the check ignores the patch of a higher version", () => {
-    expect(KNOWN_EVENT_VERSION).toBe("0.0.12");
-    for (const version of ["0.0.9", "0.0.10", "0.0.11", "0.0.12", "0.0.100"]) {
+    expect(KNOWN_EVENT_VERSION).toBe("0.0.13");
+    for (const version of ["0.0.9", "0.0.10", "0.0.11", "0.0.12", "0.0.13", "0.0.100"]) {
       expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, version)), version).not.toThrow();
     }
     expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, "0.1.0"))).toThrow(EventParseError);
