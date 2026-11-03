@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  AccessGrantError, GRANT_UNITS, buildRemoveIntentCall, escrowGrantScope, grantResource, isKnownX207Event, listGrantsOf, meterGrant, parseEventLog, parseGrantResource, priceOfGrant,
+  AccessGrantError, GRANT_UNITS, buildRemoveIntentCall, buildWithdrawIntentsBalanceCall, escrowGrantScope, grantResource, isKnownX207Event, listGrantsOf, meterGrant, parseEventLog, parseGrantResource, priceOfGrant,
   type AccessAssetAdapter, type AccessGrant, type EscrowState, type EscrowStep, type EscrowView, type AssetClassEntry, type ContractAbi, type GrantStatus, type MeterCharge, type ProofResult, type RegisteredAssetClass, type RevokeReason,
 } from "@x207/core";
 
@@ -151,6 +151,7 @@ describe("SD-050 event F8", () => {
     expect(calls).toHaveLength(3);
     expect(calls[0]).toEqual(["grants_of", { account_id: A, role: "grantor", from_index: 0, limit: 3 }]);
     expect((await listGrantsOf(view, A, "grantor", 7)).length).toBe(7); // a full last page costs one more, empty, request
+    expect(buildWithdrawIntentsBalanceCall("circle.near")).toEqual({ receiverId: "circle.near", methodName: "withdraw_intents_balance", args: {}, deposit: 0n, gas: 150_000_000_000_000n });
     expect(buildRemoveIntentCall("circle.near", "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ")).toEqual({
       receiverId: "circle.near", methodName: "remove_intent", args: { intent_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ" }, deposit: 0n,
     });

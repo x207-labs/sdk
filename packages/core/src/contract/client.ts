@@ -100,6 +100,15 @@ export function buildRemoveIntentCall(circleContract: AccountId, intentHashBase5
   return { receiverId: circleContract, methodName: "remove_intent", args: { intent_hash: intentHashBase58 }, deposit: 0n };
 }
 
+/**
+ * `withdraw_intents_balance()` (interface 0.0.9): permissionless; memindahkan USDT yang dicatat `mt_on_transfer` (residual yang dibayar lewat
+ * Intents) dari `intents.near` ke kontrak USDT. Butuh minimal 130 Tgas (`ERR_GAS_TOO_LOW`), jadi 150 Tgas; jawaban lain:
+ * `ERR_WITHDRAW_IN_FLIGHT`, `ERR_NOTHING_TO_WITHDRAW`. Tidak payable.
+ */
+export function buildWithdrawIntentsBalanceCall(circleContract: AccountId): ContractCall {
+  return { receiverId: circleContract, methodName: "withdraw_intents_balance", args: {}, deposit: 0n, gas: 150_000_000_000_000n };
+}
+
 /** `withdraw_stake()` tanpa argumen, deposit 1 yoctoNEAR (ADR-29); kontrak bisa menjawab `ERR_EXIT_NOT_READY` atau `ERR_HAS_DUE`. */
 export function buildWithdrawStakeCall(circleContract: AccountId): ContractCall {
   return { receiverId: circleContract, methodName: "withdraw_stake", args: {}, deposit: 1n, gas: 100_000_000_000_000n };
