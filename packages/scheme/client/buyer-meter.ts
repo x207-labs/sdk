@@ -9,7 +9,7 @@ import { priceToAmount } from "../server/price.js";
 
 /** Kode galat yang stabil. */
 export type MeterOverbilledCode =
-  | "meter_missing" | "meter_unit_mismatch" | "meter_price_too_high" | "meter_quantity_over_expected" | "meter_amount_mismatch" | "meter_overbilled" | "meter_bad_count";
+  | "meter_missing" | "meter_unit_mismatch" | "meter_price_too_high" | "meter_quantity_over_expected" | "meter_amount_mismatch" | "meter_overbilled" | "meter_bad_count" | "meter_wrong_epoch";
 
 export class MeterOverbilledError extends Error {
   constructor(readonly code: MeterOverbilledCode, message: string, readonly detail: Record<string, string> = {}) {
@@ -25,6 +25,12 @@ export type BuyerMeterOptions = {
   unitPrice: string | number;
   /** Batas jumlah per request bila pembeli tidak menyebut harapan per request. */
   maxQuantityPerRequest?: number | string;
+  /**
+   * Epoch yang berjalan dan keadaan pasangan (pembeli, penjual) di epoch itu: jumlah kumulatif voucher yang sudah terdaftar (`"0"` bila belum ada). Voucher kumulatif dimulai lagi
+   * dari 0 di tiap epoch (ADR-17), jadi batasnya dihitung per epoch: `baseCumulative` ditambah harga yang diterima di epoch ini (tinjauan BE-062, F3).
+   */
+  epoch: number;
+  baseCumulative?: U128String;
 };
 
 const SCALE = 10n ** BigInt(CREDIT_DECIMALS);
@@ -48,15 +54,41 @@ export class BuyerMeter {
   readonly unitPrice: bigint;
   #maxPerRequest: bigint | undefined;
   #received = 0n;
+  #epoch: number;
+  #base: bigint;
   #pending = 0n;
 
   constructor(options: BuyerMeterOptions) {
     this.unit = options.unit;
     this.unitPrice = BigInt(priceToAmount(options.unitPrice));
     this.#maxPerRequest = options.maxQuantityPerRequest === undefined ? undefined : micro(options.maxQuantityPerRequest, "maxQuantityPerRequest");
+    this.#epoch = BuyerMeter.#checkEpoch(options.epoch);
+    this.#base = BuyerMeter.#checkBase(options.baseCumulative ?? "0");
   }
 
-  /** Yang benar-benar diterima sampai sekarang, dalam satuan (teks). */
+  static #checkEpoch(epoch: number): number {
+    if (!Number.isSafeInteger(epoch) || epoch < 1) throw new MeterOverbilledError("meter_wrong_epoch", `epoch harus bilangan bulat >= 1, dapat ${epoch}`);
+    return epoch;
+  }
+  static #checkBase(base: string): bigint {
+    if (!/^(0|[1-9]\d*)$/.test(base)) throw new MeterOverbilledError("meter_bad_count", `baseCumulative harus bilangan bulat desimal, dapat ${JSON.stringify(base)}`);
+    return BigInt(base);
+  }
+
+  get epoch(): number {
+    return this.#epoch;
+  }
+
+  /** Pindah ke epoch berikutnya dengan keadaan pasangan di sana; yang diterima dan yang diharapkan dihitung dari 0 lagi. */
+  startEpoch(epoch: number, baseCumulative: U128String = "0"): void {
+    if (epoch <= this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `epoch ${epoch} bukan setelah epoch ${this.#epoch}`);
+    this.#epoch = BuyerMeter.#checkEpoch(epoch);
+    this.#base = BuyerMeter.#checkBase(baseCumulative);
+    this.#received = 0n;
+    this.#pending = 0n;
+  }
+
+  /** Yang benar-benar diterima di epoch ini, dalam satuan (teks). */
   get received(): string {
     return plain(this.#received);
   }
@@ -103,7 +135,7 @@ export class BuyerMeter {
   /** Harga (diterima + diharapkan) satuan pada harga yang disetujui: batas atas jumlah kumulatif yang boleh ditandatangani, satuan credit terkecil. */
   ceiling(): bigint {
     const total = this.#received + this.#pending;
-    return total === 0n ? 0n : (this.unitPrice * total + SCALE - 1n) / SCALE;
+    return this.#base + (total === 0n ? 0n : (this.unitPrice * total + SCALE - 1n) / SCALE);
   }
 
   /**
@@ -130,7 +162,8 @@ export class BuyerMeter {
   }
 
   /** Voucher kumulatif di atas `ceiling()` ditolak. */
-  checkVoucher(cumulativeAmount: U128String): void {
+  checkVoucher(cumulativeAmount: U128String, epoch: number): void {
+    if (epoch !== this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `voucher untuk epoch ${epoch}, meter ini untuk epoch ${this.#epoch}: panggil startEpoch`, { epoch: String(epoch) });
     const cap = this.ceiling();
     if (BigInt(cumulativeAmount) > cap) {
       throw new MeterOverbilledError(
@@ -143,7 +176,7 @@ export class BuyerMeter {
 
   /** Tandatangani voucher hanya bila lolos `checkVoucher`. */
   sign(voucher: UnsignedVoucher, secretKey: VoucherSecretKey): Voucher {
-    this.checkVoucher(voucher.cumulativeAmount);
+    this.checkVoucher(voucher.cumulativeAmount, voucher.epoch);
     return signVoucher(voucher, secretKey);
   }
 }
