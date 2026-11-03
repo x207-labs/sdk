@@ -89,6 +89,7 @@ export type X207EventMap = {
   grant_revoked: { grant_id: number; reason: "grantor" | "grantee" | "operator" | "expired" | "defaulted" };
   escrow_held: { grant_id: number; nft_contract: AccountId; token_id: string };
   escrow_failed: { grant_id: number; step: EscrowStepValue; epoch: number; payer: AccountId; payee: AccountId; delta: U128String; reverted: boolean };
+  intent_removed: { intent_hash: string; account_id: AccountId };
   intents_withdrawn: { amount: U128String };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
 };
@@ -176,6 +177,7 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   escrow_failed: {
     grant_id: "int", step: { enum: ["complete", "cancel"] }, epoch: "int", payer: "str", payee: "str", delta: "str", reverted: "bool",
   },
+  intent_removed: { intent_hash: "str", account_id: "str" },
   intents_withdrawn: { amount: "str" },
   bundle_committed: {
     bundle_id: "bundleid", terms_hash: "str", epoch: "int",

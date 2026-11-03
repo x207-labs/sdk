@@ -37,6 +37,7 @@ const SAMPLES: Record<string, unknown> = {
   grant_offered: { grant_id: 1, asset_type: "near-rpc:access", grantor: A, class: "B", unit: "call", unit_price: "10000", expires_at: "1793600000000000000" },
   grant_activated: { grant_id: 1, grantee: B, delivery_pubkey: null },
   grant_revoked: { grant_id: 1, reason: "defaulted" },
+  intent_removed: { intent_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ", account_id: A },
   intents_withdrawn: { amount: "1500000" },
   escrow_held: { grant_id: 1, nft_contract: "nft.test.near", token_id: "t1" },
   escrow_failed: { grant_id: 1, step: "complete", epoch: 42, payer: B, payee: A, delta: "10000000", reverted: true },
