@@ -20,6 +20,10 @@ export const NEAR_AI_CLOUD_URL = "https://cloud-api.near.ai/v1";
 
 /** Batas leg satu bundle di kontrak (interface 0.0.8, `ERR_BAD_BUNDLE`): lebih dari ini log `bundle_committed` melewati 16 KiB. */
 export const MAX_BUNDLE_LEGS = 64;
+/** Limits of interface 0.0.8 (ADR-40): open intents of one member, bundles of one participant per epoch, items one `prune_epoch` call removes at most. */
+export const MAX_OPEN_INTENTS_PER_MEMBER = 64;
+export const MAX_BUNDLES_PER_MEMBER_PER_EPOCH = 16;
+export const PRUNE_MAX_ITEMS_PER_CALL = 200;
 
 /**
  * Least deposit of `join`, in yoctoNEAR: `JOIN_STORAGE_DEPOSIT` of the contract (Spec Antarmuka Kontrak, `join`). The only place in this repository that
