@@ -1,9 +1,26 @@
 {
   "name": "@x207/core",
   "version": "0.0.1",
-  "description": "x207 core: tipe voucher, tanda tangan, client kontrak x207-circle, parser event NEP-297",
+  "description": "x207 core: signed credit vouchers, client of the x207-circle contract, NEP-297 event parser, and the formats of barter, invoices, orders, licenses and access rent",
+  "keywords": [
+    "x402",
+    "x207",
+    "near",
+    "mutual-credit",
+    "agent-payments"
+  ],
+  "homepage": "https://github.com/x207-labs/x207#readme",
+  "bugs": {
+    "url": "https://github.com/x207-labs/x207/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/x207-labs/sdk.git",
+    "directory": "packages/core"
+  },
   "license": "Apache-2.0",
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -18,10 +35,17 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map",
+    "!dist/**/*.tsbuildinfo",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22.22.2"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc -b",
