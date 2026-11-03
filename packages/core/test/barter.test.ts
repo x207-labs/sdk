@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  BarterFormatError, base58Encode, bundleInput, contractErrorCode, bundleFullySigned, bundleParticipants, intentHash, intentHashBase58, serializeBundleTerms, serializeIntent,
+  BarterFormatError, MAX_BUNDLE_LEGS, base58Encode, bundleInput, contractErrorCode, bundleFullySigned, bundleParticipants, intentHash, intentHashBase58, serializeBundleTerms, serializeIntent,
   signBundle, signIntent, termsHash, verifyBundleSignature, verifyIntentSignature, voucherPublicKey,
   type BarterIntent, type BundleTerms,
 } from "@x207/core";
@@ -138,5 +138,14 @@ describe("SD-047 intent barter dan bundle", () => {
     const terms = bundleVector.terms as BundleTerms;
     expect(termsHash({ ...terms })).toBe(termsHash(terms));
     expect(termsHash({ ...terms, epoch: terms.epoch + 1 })).not.toBe(termsHash(terms));
+  });
+
+  it("TC-SD-047-30 interface 0.0.8: a bundle of 64 legs is valid, 65 fails early with a clear message (ERR_BAD_BUNDLE on chain)", () => {
+    const legs = (n: number) => Array.from({ length: n }, (_, i) => ({ payer: `p${i}.x207-circle.near`, payee: `p${(i + 1) % n}.x207-circle.near`, max_amount: "1000" }));
+    const terms = (n: number): BundleTerms => ({ circle: "x207-circle.near", epoch: 1, legs: legs(n) });
+    expect(MAX_BUNDLE_LEGS).toBe(64);
+    expect(() => termsHash(terms(64))).not.toThrow();
+    expect(() => termsHash(terms(65))).toThrow(/65 leg.*64.*ERR_BAD_BUNDLE/);
+    expect(() => signBundle(terms(65), "p0.x207-circle.near", seed("kA"))).toThrow(/ERR_BAD_BUNDLE/);
   });
 });

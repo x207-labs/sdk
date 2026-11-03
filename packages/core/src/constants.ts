@@ -17,3 +17,6 @@ export const RPC_URLS = [
 
 export const ONE_CLICK_API_URL = "https://1click.chaindefuser.com";
 export const NEAR_AI_CLOUD_URL = "https://cloud-api.near.ai/v1";
+
+/** Batas leg satu bundle di kontrak (interface 0.0.8, `ERR_BAD_BUNDLE`): lebih dari ini log `bundle_committed` melewati 16 KiB. */
+export const MAX_BUNDLE_LEGS = 64;

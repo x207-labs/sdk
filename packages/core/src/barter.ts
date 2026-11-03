@@ -2,6 +2,7 @@
 // Format byte dan alasannya: spec/barter-format.md. Kontrak Rust (commit_bundle, post_intent) membangun byte yang sama.
 import { createHash } from "node:crypto";
 import { base58Encode } from "./base58.js";
+import { MAX_BUNDLE_LEGS } from "./constants.js";
 import type { BundleLeg } from "./events.js";
 import { nep413SigningHash, signHash, verifyHash, type VoucherSecretKey } from "./voucher.js";
 import type { AccountId, Ed25519Signature, U128String } from "./types.js";
@@ -72,6 +73,7 @@ export function validateBundleTerms(terms: BundleTerms): void {
   if (!isAccount(terms.circle)) throw new BarterFormatError("circle bukan akun NEAR");
   if (!isPositiveInt(terms.epoch)) throw new BarterFormatError("epoch harus integer >= 1");
   if (!Array.isArray(terms.legs) || terms.legs.length < 2) throw new BarterFormatError("bundle butuh minimal dua leg");
+  if (terms.legs.length > MAX_BUNDLE_LEGS) throw new BarterFormatError(`bundle punya ${terms.legs.length} leg, batas kontrak ${MAX_BUNDLE_LEGS} (ERR_BAD_BUNDLE); pecah menjadi beberapa bundle`);
   const seen = new Set<string>();
   for (const leg of terms.legs) {
     if (!isAccount(leg.payer) || !isAccount(leg.payee)) throw new BarterFormatError("payer dan payee harus akun NEAR");
