@@ -102,7 +102,7 @@ export function buildRemoveIntentCall(circleContract: AccountId, intentHashBase5
 
 /**
  * `withdraw_intents_balance()` (interface 0.0.9): permissionless; memindahkan USDT yang dicatat `mt_on_transfer` (residual yang dibayar lewat
- * Intents) dari `intents.near` ke kontrak USDT. Butuh minimal 130 Tgas (`ERR_GAS_TOO_LOW`), jadi 150 Tgas; jawaban lain:
+ * Intents) dari kontrak Intents ke kontrak USDT. Butuh minimal 130 Tgas (`ERR_GAS_TOO_LOW`), jadi 150 Tgas; jawaban lain:
  * `ERR_WITHDRAW_IN_FLIGHT`, `ERR_NOTHING_TO_WITHDRAW`. Tidak payable.
  */
 export function buildWithdrawIntentsBalanceCall(circleContract: AccountId): ContractCall {
