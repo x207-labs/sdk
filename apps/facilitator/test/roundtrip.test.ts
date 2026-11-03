@@ -55,6 +55,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
     get_epoch: () => ({ epoch: state.epoch, cutoff_at: String(BigInt(state.cutoffMs) * 1_000_000n), phase: "open" }),
     member: ({ account_id }) => member(account_id),
     is_frozen: () => false,
+    interface_version: () => "0.0.12",
     headroom: ({ account_id }) => state.headroom.get(account_id) ?? "1000000",
     obligation: () => null,
     last_seq: () => 0,

@@ -26,6 +26,7 @@ const VIEWS: Record<string, (args: any) => unknown> = {
   get_epoch: () => ({ epoch: 42, cutoff_at: CUTOFF_NS, phase: "open" }),
   member: ({ account_id }) => (account_id === A ? member(A, keys.kA.publicKey) : account_id === B ? member(B, keys.kB.publicKey) : null),
   is_frozen: () => false,
+  interface_version: () => "0.0.12",
   headroom: () => "1000000",
   obligation: () => null,
   last_seq: () => 0,
