@@ -45,6 +45,21 @@ const SECRET_PARAM = /^(api[-_]?key|key|token|access[-_]?token|secret|password|p
 
 const MAX_URL = 512;
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+/** Layanan yang namanya menjawab dengan alamat yang tertulis di nama: cara memberi alamat privat nama yang tampak publik. */
+export const WILDCARD_DNS: readonly string[] = ["nip.io", "sslip.io", "xip.io", "localtest.me", "lvh.me", "traefik.me", "localhost.run", "vcap.me", "lacolhost.com"];
+
+/**
+ * Alasan nama host ditolak sebagai tujuan, atau `null` bila tampak publik (tinjauan BE-062, F6): satu titik di ujung nama dibuang sebelum pemeriksaan (`localhost.` sama dengan `localhost`),
+ * alamat IP, `localhost`, `.local`, `.internal`, nama tanpa titik, nama yang membawa alamat IP (`127.0.0.1.nip.io`) dan layanan DNS wildcard ditolak. Ini pemeriksaan teks: yang menyambung
+ * harus tetap me-resolve nama dan menolak alamat non-publik saat tersambung.
+ */
+export function publicHostProblem(hostname: string): string | null {
+  const host = hostname.toLowerCase().replace(/\.+$/, "");
+  if (host.startsWith("[") || IPV4.test(host)) return "endpoint harus memakai nama host, bukan alamat IP";
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || !host.includes(".")) return "endpoint harus nama host publik";
+  if (/(^|\.)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\.|$)/.test(host) || WILDCARD_DNS.some((d) => host === d || host.endsWith(`.${d}`))) return "endpoint tidak boleh memakai nama yang membawa alamat IP atau DNS wildcard";
+  return null;
+}
 
 /** Alasan endpoint ditolak sebagai alamat listing sumber daya, atau `null` bila https tanpa kredensial. Aturan yang sama dengan backend (BE-050, `endpointProblem`). */
 export function endpointProblem(endpoint: unknown): string | null {
@@ -59,9 +74,8 @@ export function endpointProblem(endpoint: unknown): string | null {
   if (url.protocol !== "https:") return "endpoint harus https";
   if (url.username !== "" || url.password !== "") return "endpoint tidak boleh memuat nama pengguna atau kata sandi";
   if (url.hash !== "") return "endpoint tidak boleh memuat fragmen";
-  const host = url.hostname.toLowerCase();
-  if (host.startsWith("[") || IPV4.test(host)) return "endpoint harus memakai nama host, bukan alamat IP";
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || !host.includes(".")) return "endpoint harus nama host publik";
+  const hostProblem = publicHostProblem(url.hostname);
+  if (hostProblem !== null) return hostProblem;
   for (const name of url.searchParams.keys()) if (SECRET_PARAM.test(name)) return `endpoint tidak boleh memuat kredensial di query (${name})`;
   return null;
 }
