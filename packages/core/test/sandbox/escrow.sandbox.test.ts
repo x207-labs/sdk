@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
-import { createCircleViewFn, onboardMember, parseEventLog, signVoucher, type AccessGrant, type ContractAbi, type EscrowView } from "@x207/core";
+import { createCircleViewFn, escrowGrantScope, onboardMember, parseEventLog, signVoucher, type AccessGrant, type ContractAbi, type EscrowView } from "@x207/core";
 import { TERMS_HASH, deployCircle, type CircleFixture } from "../../../../test-support/circle.js";
 import { MOCK_NFT_WASM, sandboxAvailable } from "../../../../test-support/sandbox.js";
 
@@ -60,7 +60,7 @@ describe.skipIf(!sandboxAvailable)("SD-050 escrow kelas A di near-sandbox", () =
     const expiresAt = BigInt(await fx.sandbox.blockTimestampMs()) * 1_000_000n + 3_600_000_000_000n;
     await ok(await seller.account.call({
       receiverId: fx.circle.accountId, methodName: "offer_grant", deposit: 0n,
-      args: { input: { asset_type: entry.asset_type, delivery_method: "escrow_nft", limits: { scope: "{}", quota: null, expires_at: expiresAt.toString() }, unit: "once", unit_price: PRICE, operator: null, proof_hash: null, proof_kind: null } },
+      args: { input: { asset_type: entry.asset_type, delivery_method: "escrow_nft", limits: { scope: escrowGrantScope(nft.accountId, "t1"), quota: null, expires_at: expiresAt.toString() }, unit: "once", unit_price: PRICE, operator: null, proof_hash: null, proof_kind: null } },
     }), "offer_grant");
     await ok(await seller.account.call({
       receiverId: nft.accountId, methodName: "nft_transfer_call", deposit: 1n, gas: 150_000_000_000_000n,

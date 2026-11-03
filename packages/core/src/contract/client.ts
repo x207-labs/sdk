@@ -95,6 +95,11 @@ export function buildRequestExitCall(circleContract: AccountId): ContractCall {
   return { receiverId: circleContract, methodName: "request_exit", args: {}, deposit: 1n };
 }
 
+/** `remove_intent(intent_hash)` (interface 0.0.8): pemilik intent menariknya dan mendapat slotnya kembali; bukan payable. */
+export function buildRemoveIntentCall(circleContract: AccountId, intentHashBase58: string): ContractCall {
+  return { receiverId: circleContract, methodName: "remove_intent", args: { intent_hash: intentHashBase58 }, deposit: 0n };
+}
+
 /** `withdraw_stake()` tanpa argumen, deposit 1 yoctoNEAR (ADR-29); kontrak bisa menjawab `ERR_EXIT_NOT_READY` atau `ERR_HAS_DUE`. */
 export function buildWithdrawStakeCall(circleContract: AccountId): ContractCall {
   return { receiverId: circleContract, methodName: "withdraw_stake", args: {}, deposit: 1n, gas: 100_000_000_000_000n };

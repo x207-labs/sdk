@@ -1,4 +1,4 @@
-// F8 Adaptor Aset Akses (SD-050, interface 0.0.7): tipe D10/D11 dari `abi.json` yang dipin dan antarmuka `AccessAssetAdapter` dengan lima fungsi
+// F8 Adaptor Aset Akses (SD-050, interface 0.0.8): tipe D10/D11 dari `abi.json` yang dipin dan antarmuka `AccessAssetAdapter` dengan lima fungsi
 // `price`, `prove`, `deliver`, `meter`, `revoke` (Spec Antarmuka Kontrak 15, note Fitur F8). Prinsip: serahkan akses, bukan rahasia. `meter`
 // selalu menghasilkan voucher ADR-17 biasa, dengan `payee` = pemberi grant (bukan akun broker), jadi inti x207 tidak berubah.
 import type * as Abi from "./contract/types.generated.js";
@@ -33,6 +33,25 @@ export type EscrowState = Abi.EscrowState;
 export type EscrowStep = Abi.EscrowStep;
 /** Hasil view `get_escrow`; `null` bila grant tidak punya escrow. */
 export type EscrowView = Abi.EscrowView;
+
+/**
+ * `limits.scope` wajib untuk grant kelas A (interface 0.0.8): JSON dengan `nft_contract` dan `token_id`, tanpa itu `offer_grant` menjawab
+ * `ERR_BAD_GRANT` dan `nft_on_transfer` menolak NFT lain dengan `ERR_ESCROW_NFT_MISMATCH`.
+ */
+export const escrowGrantScope = (nftContract: AccountId, tokenId: string): string => JSON.stringify({ nft_contract: nftContract, token_id: tokenId });
+
+/**
+ * Semua grant `offered` dan `active` milik satu akun dalam satu peran. `grants_of` berhalaman sejak interface 0.0.8 dan tidak lagi memuat
+ * grant yang sudah berakhir (`get_grant` tetap menjawabnya), jadi halaman dibaca sampai halaman yang tidak penuh.
+ */
+export async function listGrantsOf(view: (methodName: string, args: object) => Promise<unknown>, accountId: AccountId, role: GrantRole, pageSize = 50): Promise<AccessGrant[]> {
+  const all: AccessGrant[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const page = (await view("grants_of", { account_id: accountId, role, from_index: from, limit: pageSize })) as AccessGrant[];
+    all.push(...page);
+    if (page.length < pageSize) return all;
+  }
+}
 
 /** Unit harga yang dikenal kontrak (`GrantInput.unit`). */
 export const GRANT_UNITS = ["call", "minute", "day", "once"] as const;
