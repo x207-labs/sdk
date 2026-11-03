@@ -149,18 +149,18 @@ describe("SD-070 release signed by the seller", () => {
   const make = (overrides: Partial<Parameters<typeof createRelease>[0]> = {}, data = plain, claimed = content_hash, size = data.length) => {
     const { ciphertext, key } = encryptContent(data);
     const { release, signature } = createRelease({
-      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: claimed, content_size: size, ciphertext, contentKey: key, at: 1_800_000_000, sellerSecretKey: seller.secretKey, ...overrides,
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: claimed, content_size: size, purchase_id: "p1", ciphertext, contentKey: key, at: 1_800_000_000, sellerSecretKey: seller.secretKey, ...overrides,
     });
     return { ciphertext, key, release, signature };
   };
 
   it("TC-SD-070-09 the signing hash equals the NEP-413 hash of core, a signature verifies for the seller only, and any changed field breaks it", () => {
     const { release, signature } = make();
-    const message = JSON.stringify({ circle: release.circle, license_hash: release.license_hash, buyer: release.buyer, content_hash: release.content_hash, cipher_hash: release.cipher_hash, sealed_key: release.sealed_key, at: release.at, content_size: release.content_size, cipher_size: release.cipher_size });
+    const message = JSON.stringify({ circle: release.circle, license_hash: release.license_hash, buyer: release.buyer, content_hash: release.content_hash, cipher_hash: release.cipher_hash, sealed_key: release.sealed_key, at: release.at, content_size: release.content_size, cipher_size: release.cipher_size, key_commitment: release.key_commitment, purchase_id: release.purchase_id });
     expect(hex(releaseSigningHash(release))).toBe(hex(nep413SigningHash(message, sha(Buffer.from(message)), CIRCLE)));
     expect(verifyRelease(release, signature, seller.publicKey)).toBe(true);
     expect(verifyRelease(release, signature, stranger.publicKey)).toBe(false);
-    for (const change of [{ buyer: "other.x207-circle.near" }, { content_hash: "d".repeat(64) }, { cipher_hash: "d".repeat(64) }, { at: 1 }, { content_size: 1 }, { cipher_size: 1 }] as Array<Partial<LicenseRelease>>) {
+    for (const change of [{ buyer: "other.x207-circle.near" }, { content_hash: "d".repeat(64) }, { cipher_hash: "d".repeat(64) }, { at: 1 }, { content_size: 1 }, { cipher_size: 1 }, { purchase_id: "p2" }, { key_commitment: "e".repeat(64) }] as Array<Partial<LicenseRelease>>) {
       expect(verifyRelease({ ...release, ...change }, signature, seller.publicKey), JSON.stringify(change)).toBe(false);
     }
     expect(verifyRelease(release, "ed25519:xx", seller.publicKey)).toBe(false);
@@ -196,7 +196,7 @@ describe("SD-070 release signed by the seller", () => {
     const first = make();
     const second = make({}, plain);
     // release of the second ciphertext's hash with the key of the first: sign a release that mixes them
-    const mixed = createRelease({ circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash, content_size: plain.length, ciphertext: second.ciphertext, contentKey: first.key, at: 1_800_000_000, sellerSecretKey: seller.secretKey });
+    const mixed = createRelease({ circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash, content_size: plain.length, purchase_id: "p1", ciphertext: second.ciphertext, contentKey: first.key, at: 1_800_000_000, sellerSecretKey: seller.secretKey });
     const proof = makeCheatProof({ ciphertext: second.ciphertext, release: mixed.release, signature: mixed.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
     expect(checkCheatProof(proof, seller.publicKey)).toEqual({ valid: true, reason: "decrypt_failed" });
   });
@@ -225,7 +225,7 @@ describe("SD-070 review BE-062 F1 and F2: no forged proof, no substituted file",
     const plain = new Uint8Array(CONTENT_CHUNK * 2).fill(7);
     const { ciphertext, key } = encryptContent(plain);
     const { release, signature } = createRelease({
-      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(plain), content_size: plain.length, ciphertext, contentKey: key,
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(plain), content_size: plain.length, purchase_id: "p1", ciphertext, contentKey: key,
       at: 1_800_000_000, sellerSecretKey: seller.secretKey,
     });
     const chunks: Uint8Array[] = [];
@@ -245,7 +245,7 @@ describe("SD-070 review BE-062 F1 and F2: no forged proof, no substituted file",
     const forgedPlain = Buffer.concat([Buffer.from([1]), leaf(big.subarray(0, CONTENT_CHUNK)), leaf(big.subarray(CONTENT_CHUNK))]);
     const { ciphertext, key } = encryptContent(forgedPlain);
     const { release, signature } = createRelease({
-      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(big), content_size: big.length, ciphertext, contentKey: key,
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(big), content_size: big.length, purchase_id: "p1", ciphertext, contentKey: key,
       at: 1_800_000_000, sellerSecretKey: seller.secretKey,
     });
     const verdict = verifyDelivery({ ciphertext, release, signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
@@ -253,7 +253,7 @@ describe("SD-070 review BE-062 F1 and F2: no forged proof, no substituted file",
     expect(verdict.ok === false && "proof" in verdict && verdict.reason).toBe("content_mismatch"); // the buyer gets a true proof against the seller
     // a size in the release that matches the 65 bytes does not help: the hash does not
     const lying = createRelease({
-      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(big), content_size: forgedPlain.length, ciphertext, contentKey: key,
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(big), content_size: forgedPlain.length, purchase_id: "p1", ciphertext, contentKey: key,
       at: 1_800_000_000, sellerSecretKey: seller.secretKey,
     });
     expect(verifyDelivery({ ciphertext, release: lying.release, signature: lying.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey }).ok).toBe(false);
@@ -263,7 +263,7 @@ describe("SD-070 review BE-062 F1 and F2: no forged proof, no substituted file",
     const plain = text("rows,of,data\n1,2,3\n");
     const { ciphertext, key } = encryptContent(plain);
     const make = (content_size: number) => createRelease({
-      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(plain), content_size, ciphertext, contentKey: key,
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(plain), content_size, purchase_id: "p1", ciphertext, contentKey: key,
       at: 1_800_000_000, sellerSecretKey: seller.secretKey,
     });
     const good = make(plain.length);
@@ -274,6 +274,48 @@ describe("SD-070 review BE-062 F1 and F2: no forged proof, no substituted file",
     expect(checkCheatProof({ ciphertext, release: wrongSize.release, signature: wrongSize.signature, box_key: hex(deriveBoxKey(Buffer.from(wrongSize.release.sealed_key, "hex"), buyer.secretKey)) }, seller.publicKey)).toEqual({ valid: true, reason: "content_mismatch" });
     expect(code(() => make(-1))).toBe("license_bad_hash");
     expect(code(() => make(1.5))).toBe("license_bad_hash");
+  });
+});
+
+describe("SD-070 review BE-062 F11 and F12: the key is committed, the release is for one purchase", () => {
+  const plain = text("id,name\n1,alpha\n");
+  const base = () => {
+    const { ciphertext, key } = encryptContent(plain);
+    return { ciphertext, key };
+  };
+  const release = (ciphertext: Uint8Array, key: Uint8Array, over: Partial<Parameters<typeof createRelease>[0]> = {}) =>
+    createRelease({
+      circle: CIRCLE, license_hash: "c".repeat(64), buyer: BUYER, buyerPublicKey: buyer.publicKey, content_hash: contentHash(plain), content_size: plain.length, purchase_id: "p1", ciphertext,
+      contentKey: key, at: 1_800_000_000, sellerSecretKey: seller.secretKey, ...over,
+    });
+
+  it("TC-SD-070-23 [F11] the release holds sha256 of the key of the file; a sealed key that opens to another key is cheating that the checker accepts", () => {
+    const { ciphertext, key } = base();
+    const good = release(ciphertext, key);
+    expect(good.release.key_commitment).toBe(hex(sha(Buffer.from(key))));
+    expect(verifyDelivery({ ciphertext, release: good.release, signature: good.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey }).ok).toBe(true);
+    // the seller commits to the key of the file but seals another key (one that opens the ciphertext as well, as a non-committing AEAD could allow): the commitment catches it
+    const other = release(ciphertext, key);
+    const forged = { ...other.release, sealed_key: hex(sealKey(new Uint8Array(32).fill(9), buyer.publicKey)) };
+    const signature = signRelease(forged, seller.secretKey);
+    const verdict = verifyDelivery({ ciphertext, release: forged, signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
+    expect(verdict.ok === false && verdict.reason).toBe("key_mismatch");
+    const proof = makeCheatProof({ ciphertext, release: forged, signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
+    expect(checkCheatProof(proof, seller.publicKey)).toEqual({ valid: true, reason: "key_mismatch" });
+  });
+
+  it("TC-SD-070-24 [F12] the release names the purchase: a release of another purchase is refused by the buyer and by the checker; the id is checked as text", () => {
+    const { ciphertext, key } = base();
+    const r = release(ciphertext, key, { purchase_id: "p7" });
+    const args = { ciphertext, release: r.release, signature: r.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey };
+    expect(verifyDelivery({ ...args, purchaseId: "p7" }).ok).toBe(true);
+    expect(verifyDelivery({ ...args, purchaseId: "p8" })).toEqual({ ok: false, reason: "wrong_purchase" });
+    expect(verifyDelivery(args).ok).toBe(true); // the id is optional for the caller who checks it elsewhere
+    const proofRelease = release(ciphertext, key, { content_hash: "e".repeat(64), purchase_id: "p7" });
+    const proof = makeCheatProof({ ciphertext, release: proofRelease.release, signature: proofRelease.signature, sellerPublicKey: seller.publicKey, buyerSecretKey: buyer.secretKey });
+    expect(checkCheatProof(proof, seller.publicKey, "p7")).toEqual({ valid: true, reason: "content_mismatch" });
+    expect(checkCheatProof(proof, seller.publicKey, "p8")).toEqual({ valid: false, reason: "wrong_purchase" });
+    for (const bad of ["", "a b", "x".repeat(65), "p/1"]) expect(code(() => release(ciphertext, key, { purchase_id: bad })), bad).toBe("license_bad_nonce");
   });
 });
 

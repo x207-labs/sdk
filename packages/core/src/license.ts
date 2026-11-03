@@ -242,10 +242,14 @@ export type LicenseRelease = {
   circle: AccountId; license_hash: string; buyer: AccountId; content_hash: string; cipher_hash: string; sealed_key: string; at: number
   /** Ukuran berkas asli dan ciphertext dalam byte, ikut ditandatangani: pemeriksa menolak isi yang ukurannya lain (tinjauan BE-062, F1 dan F2). */
   content_size: number; cipher_size: number
+  /** `sha256` kunci berkas (F11): kunci yang dibuka dari kotak harus cocok, jadi kunci tidak bisa diganti belakangan. */
+  key_commitment: string
+  /** Pembelian yang dilayani rilis ini (F12): rilis satu pembelian tidak bisa dipakai ulang untuk pembelian lain dari pembeli yang sama. */
+  purchase_id: string
 };
 const serializeRelease = (r: LicenseRelease): string =>
   JSON.stringify({
-    circle: r.circle, license_hash: r.license_hash, buyer: r.buyer, content_hash: r.content_hash, cipher_hash: r.cipher_hash, sealed_key: r.sealed_key, at: r.at, content_size: r.content_size, cipher_size: r.cipher_size,
+    circle: r.circle, license_hash: r.license_hash, buyer: r.buyer, content_hash: r.content_hash, cipher_hash: r.cipher_hash, sealed_key: r.sealed_key, at: r.at, content_size: r.content_size, cipher_size: r.cipher_size, key_commitment: r.key_commitment, purchase_id: r.purchase_id,
   });
 
 function checkRelease(r: LicenseRelease): void {
@@ -253,6 +257,8 @@ function checkRelease(r: LicenseRelease): void {
   for (const h of [r.license_hash, r.content_hash, r.cipher_hash]) if (!HASH.test(h)) fail("license_bad_hash", "hash rilis harus 64 heksadesimal huruf kecil");
   if (!/^(?:[0-9a-f]{2}){80}$/.test(r.sealed_key)) fail("release_bad_key", "sealed_key harus 80 byte heks");
   if (!Number.isSafeInteger(r.at) || r.at <= 0) fail("license_bad_nonce", "at harus detik unix");
+  if (!HASH.test(r.key_commitment)) fail("license_bad_hash", "key_commitment harus 64 heksadesimal huruf kecil");
+  if (typeof r.purchase_id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(r.purchase_id)) fail("license_bad_nonce", "purchase_id harus 1 sampai 64 karakter [A-Za-z0-9_-]");
   for (const n of [r.content_size, r.cipher_size]) if (!Number.isSafeInteger(n) || n < 0) fail("license_bad_hash", "content_size dan cipher_size harus bilangan bulat >= 0");
 }
 const NEP413_TAG = 2147484061;
@@ -286,31 +292,33 @@ export function verifyRelease(release: LicenseRelease, signature: string, seller
 
 /** Sisi penjual: membuat rilis (menyegel kunci ke pembeli) dan menandatanganinya. */
 export function createRelease(args: {
-  circle: AccountId; license_hash: string; buyer: AccountId; buyerPublicKey: string; content_hash: string; content_size: number; ciphertext: Uint8Array; contentKey: Uint8Array; at: number; sellerSecretKey: string; ephemeralSecret?: Uint8Array
+  circle: AccountId; license_hash: string; buyer: AccountId; buyerPublicKey: string; content_hash: string; content_size: number; purchase_id: string; ciphertext: Uint8Array; contentKey: Uint8Array; at: number; sellerSecretKey: string; ephemeralSecret?: Uint8Array
 }): { release: LicenseRelease; signature: string } {
   const release: LicenseRelease = {
     circle: args.circle, license_hash: args.license_hash, buyer: args.buyer, content_hash: args.content_hash, cipher_hash: contentHash(args.ciphertext),
     sealed_key: bytesToHex(sealKey(args.contentKey, args.buyerPublicKey, args.ephemeralSecret)), at: args.at, content_size: args.content_size, cipher_size: args.ciphertext.length,
+    key_commitment: bytesToHex(sha256(args.contentKey)), purchase_id: args.purchase_id,
   };
   return { release, signature: signRelease(release, args.sellerSecretKey) };
 }
 
 // ---- the buyer: check the delivery, or make the proof of cheating ------------------------------------------------------------------------------------------------------
 
-export type CheatReason = "content_mismatch" | "decrypt_failed";
+export type CheatReason = "content_mismatch" | "decrypt_failed" | "key_mismatch";
 /** Bukti curang: ciphertext, rilis bertanda tangan penjual (memuat `cipher_hash` dan kunci tersegel), dan kunci kotak yang membuka kunci tersegel itu. */
 export type CheatProof = { ciphertext: Uint8Array; release: LicenseRelease; signature: string; box_key: string };
 export type DeliveryVerdict =
   | { ok: true; content: Uint8Array }
-  | { ok: false; reason: "cipher_hash_mismatch" | "bad_signature" | "sealed_key_unopenable" }
+  | { ok: false; reason: "cipher_hash_mismatch" | "bad_signature" | "sealed_key_unopenable" | "wrong_purchase" }
   | { ok: false; reason: CheatReason; proof: CheatProof };
 
 /**
  * Sisi pembeli: memeriksa kiriman. Urutan: `cipher_hash` (salah = salah sumber, bukan kecurangan penjual), tanda tangan rilis, pembukaan kunci tersegel, dekripsi, `content_hash`.
  * Bila dekripsi gagal atau isinya berbeda dari `content_hash`, hasilnya memuat bukti curang yang lolos `checkCheatProof`. Berkas yang benar tidak pernah menghasilkan bukti.
  */
-export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseRelease; signature: string; sellerPublicKey: string; buyerSecretKey: string }): DeliveryVerdict {
+export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseRelease; signature: string; sellerPublicKey: string; buyerSecretKey: string; purchaseId?: string }): DeliveryVerdict {
   const { ciphertext, release, signature } = args;
+  if (args.purchaseId !== undefined && release.purchase_id !== args.purchaseId) return { ok: false, reason: "wrong_purchase" };
   if (ciphertext.length !== release.cipher_size || contentHash(ciphertext) !== release.cipher_hash) return { ok: false, reason: "cipher_hash_mismatch" };
   if (!verifyRelease(release, signature, args.sellerPublicKey)) return { ok: false, reason: "bad_signature" };
   const sealed = hexToBytes(release.sealed_key);
@@ -323,6 +331,7 @@ export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseR
     return { ok: false, reason: "sealed_key_unopenable" };
   }
   const proof = (reason: CheatReason): DeliveryVerdict => ({ ok: false, reason, proof: { ciphertext, release, signature, box_key: bytesToHex(boxKey) } });
+  if (bytesToHex(sha256(key)) !== release.key_commitment) return proof("key_mismatch");
   let content: Uint8Array;
   try {
     content = decryptContent(ciphertext, key);
@@ -340,10 +349,11 @@ export function makeCheatProof(args: Parameters<typeof verifyDelivery>[0]): Chea
   return verdict.proof;
 }
 
-export type ProofVerdict = { valid: true; reason: CheatReason } | { valid: false; reason: "bad_signature" | "cipher_hash_mismatch" | "box_key_invalid" | "file_is_correct" };
+export type ProofVerdict = { valid: true; reason: CheatReason } | { valid: false; reason: "bad_signature" | "cipher_hash_mismatch" | "box_key_invalid" | "file_is_correct" | "wrong_purchase" };
 /** Pemeriksa bukti curang, bisa dijalankan siapa saja dengan kunci publik penjual: bukti untuk berkas yang benar ditolak (`file_is_correct`). */
-export function checkCheatProof(proof: CheatProof, sellerPublicKey: string): ProofVerdict {
+export function checkCheatProof(proof: CheatProof, sellerPublicKey: string, purchaseId?: string): ProofVerdict {
   const { ciphertext, release, signature } = proof;
+  if (purchaseId !== undefined && release.purchase_id !== purchaseId) return { valid: false, reason: "wrong_purchase" };
   if (!verifyRelease(release, signature, sellerPublicKey)) return { valid: false, reason: "bad_signature" };
   if (ciphertext.length !== release.cipher_size || contentHash(ciphertext) !== release.cipher_hash) return { valid: false, reason: "cipher_hash_mismatch" };
   let key: Uint8Array;
@@ -352,6 +362,7 @@ export function checkCheatProof(proof: CheatProof, sellerPublicKey: string): Pro
   } catch {
     return { valid: false, reason: "box_key_invalid" };
   }
+  if (bytesToHex(sha256(key)) !== release.key_commitment) return { valid: true, reason: "key_mismatch" };
   let content: Uint8Array;
   try {
     content = decryptContent(ciphertext, key);
