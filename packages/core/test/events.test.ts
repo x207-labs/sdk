@@ -169,14 +169,23 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("the parser schema matches abi.json 0.0.12 for every known event", () => {
+  // the two events whose shape changed in 0.0.13 (CT-099); SAMPLES keeps the shape of 0.0.12 for the tests of the legacy parse
+const SAMPLES_0_0_13: Record<string, unknown> = {
+  clearing_applied: { epoch: 42, solver: B, cleared_total: "180000000", edge_count: 1, edges_hash: "a".repeat(64), clearing_fee: "0", solver_fee: "0" },
+  epoch_committed: {
+    epoch: 42, committed_at: "1", payment_deadline: "2", total_due: "45000000", total_claimable: "45000000", position_count: 1, positions_hash: "b".repeat(64),
+    positions: [{ account_id: A, net: "-35000000", role: "debtor", status: "due", amount: "35000000", outstanding_debt: "35000000" }],
+  },
+};
+
+it("the parser schema matches abi.json 0.0.13 for every known event", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);
     for (const spec of inAbi) {
-      const sample = SAMPLES[spec.name] as Record<string, unknown>;
+      const sample = (SAMPLES_0_0_13[spec.name] ?? SAMPLES[spec.name]) as Record<string, unknown>;
       expect(Object.keys(sample).sort(), spec.name).toEqual([...spec.fields].sort());
-      for (const field of Object.keys(sample)) expect(parseEventLog(log(spec.name, sample))![0], spec.name).toHaveProperty(field);
+      for (const field of Object.keys(sample)) expect(parseEventLog(log(spec.name, sample, "0.0.13"))![0], spec.name).toHaveProperty(field);
       if (spec.list_item_fields) {
         const list = Object.values(sample).find((v) => Array.isArray(v)) as Record<string, unknown>[];
         expect(Object.keys(list[0]!).sort(), spec.name).toEqual([...spec.list_item_fields].sort());

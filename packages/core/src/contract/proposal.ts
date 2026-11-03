@@ -2,12 +2,11 @@
 // has no edges any more (only `edge_count` and `edges_hash`), so a solver or an indexer that needs them reads this view; after the commit the edges are read from `list_obligations`
 // (the field `cleared` does not change after the commit).
 import { edgesHash } from "../clearing-hash.js";
-import type { ClearingAppliedEdge } from "../events.js";
-import type { AccountId, U128String } from "../types.js";
 import type { CircleViewFn } from "./client.js";
+import type { ProposalView } from "./types.generated.js";
 
-/** One page of the view `get_proposal`. `edges` are in the order of the contract; `edge_count` is the count of the whole proposal. */
-export type ProposalPage = { solver: AccountId; cleared_total: U128String; edge_count: number; edges: ClearingAppliedEdge[] };
+/** One page of the view `get_proposal` (`ProposalView` of the ABI 0.0.13). `edges` are in the order of the contract; `edge_count` is the count of the whole proposal; `committed` says that the epoch is already committed. */
+export type ProposalPage = ProposalView;
 
 export const PROPOSAL_PAGE_LIMIT = 50;
 
