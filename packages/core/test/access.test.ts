@@ -3,8 +3,9 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import type { FtEscrowView } from "../src/access.js";
 import {
-  AccessGrantError, GRANT_UNITS, buildRemoveIntentCall, buildWithdrawIntentsBalanceCall, escrowGrantScope, grantResource, isKnownX207Event, listGrantsOf, meterGrant, parseEventLog, parseGrantResource, priceOfGrant,
+  AccessGrantError, GRANT_UNITS, assertBuyerRegisteredAtToken, buildFtEscrowDepositCall, buildFtEscrowMsg, buildRemoveIntentCall, ftEscrowGrantScope, buildWithdrawIntentsBalanceCall, escrowGrantScope, grantResource, isKnownX207Event, listGrantsOf, meterGrant, parseEventLog, parseGrantResource, priceOfGrant,
   type AccessAssetAdapter, type AccessGrant, type EscrowState, type EscrowStep, type EscrowView, type AssetClassEntry, type ContractAbi, type GrantStatus, type MeterCharge, type ProofResult, type RegisteredAssetClass, type RevokeReason,
 } from "@x207/core";
 
@@ -155,5 +156,35 @@ describe("SD-050 event F8", () => {
     expect(buildRemoveIntentCall("circle.near", "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ")).toEqual({
       receiverId: "circle.near", methodName: "remove_intent", args: { intent_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ" }, deposit: 0n,
     });
+  });
+
+  it("TC-SD-060-01 scope of a token escrow, the deposit message and the builder of the deposit", () => {
+    expect(JSON.parse(ftEscrowGrantScope("rwa.near", "2500000"))).toEqual({ ft_contract: "rwa.near", amount: "2500000" });
+    expect(() => ftEscrowGrantScope("rwa.near", "0")).toThrow(AccessGrantError);
+    expect(() => ftEscrowGrantScope("rwa.near", "1.5")).toThrow(AccessGrantError);
+    expect(buildFtEscrowMsg(7)).toBe('{"action":"escrow","grant_id":7}');
+    expect(() => buildFtEscrowMsg(0)).toThrow(AccessGrantError);
+    expect(buildFtEscrowDepositCall({ circleContract: "circle.near", ftContract: "rwa.near", amount: "2500000", grantId: 7 })).toEqual({
+      receiverId: "rwa.near", methodName: "ft_transfer_call", args: { receiver_id: "circle.near", amount: "2500000", msg: '{"action":"escrow","grant_id":7}' }, deposit: 1n,
+    });
+  });
+
+  it("TC-SD-060-02 the buyer must be registered at the token contract before the purchase", async () => {
+    const calls: Array<[string, string, object]> = [];
+    const registered = async (c: string, m: string, a: object) => (calls.push([c, m, a]), { total: "1250000000000000000000", available: "0" });
+    await expect(assertBuyerRegisteredAtToken(registered, "rwa.near", "buyer.near")).resolves.toBeUndefined();
+    expect(calls).toEqual([["rwa.near", "storage_balance_of", { account_id: "buyer.near" }]]);
+    await expect(assertBuyerRegisteredAtToken(async () => null, "rwa.near", "buyer.near")).rejects.toThrow(/belum terdaftar.*storage_deposit/);
+    await expect(assertBuyerRegisteredAtToken(async () => { throw new Error("method not found"); }, "rwa.near", "buyer.near")).rejects.toThrow(/storage_balance_of.*gagal/);
+  });
+
+  it("TC-SD-060-03 ft_escrow_held (0.0.9) is parsed, a wrong field is refused, and FtEscrowView matches the ABI", () => {
+    const log = (data: unknown) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.9", event: "ft_escrow_held", data: [data] })}`;
+    const held = parseEventLog(log({ grant_id: 3, ft_contract: "rwa.near", amount: "2500000" }))![0]!;
+    expect(isKnownX207Event(held)).toBe(true);
+    expect(held).toMatchObject({ event: "ft_escrow_held", grant_id: 3, ft_contract: "rwa.near", amount: "2500000" });
+    expect(() => parseEventLog(log({ grant_id: 3, ft_contract: "rwa.near" }))).toThrow(/amount/);
+    const view: FtEscrowView = { grant_id: 3, ft_contract: "rwa.near", amount: "2500000", state: "held", buyer: null };
+    expect(view.state).toBe("held");
   });
 });

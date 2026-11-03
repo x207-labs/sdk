@@ -88,6 +88,7 @@ export type X207EventMap = {
   grant_activated: { grant_id: number; grantee: AccountId; delivery_pubkey: string | null };
   grant_revoked: { grant_id: number; reason: "grantor" | "grantee" | "operator" | "expired" | "defaulted" };
   escrow_held: { grant_id: number; nft_contract: AccountId; token_id: string };
+  ft_escrow_held: { grant_id: number; ft_contract: AccountId; amount: U128String };
   escrow_failed: { grant_id: number; step: EscrowStepValue; epoch: number; payer: AccountId; payee: AccountId; delta: U128String; reverted: boolean };
   intent_removed: { intent_hash: string; account_id: AccountId };
   intents_withdrawn: { amount: U128String };
@@ -174,6 +175,7 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   residual_claim_failed: { epoch: "int", account_id: "str", amount: "str", destination: DESTINATION, status: { enum: ["claimable"] } },
   params_updated: { old: "params", new: "params", changed: "strarr", effective_epoch: "int" },
   escrow_held: { grant_id: "int", nft_contract: "str", token_id: "str" },
+  ft_escrow_held: { grant_id: "int", ft_contract: "str", amount: "str" },
   escrow_failed: {
     grant_id: "int", step: { enum: ["complete", "cancel"] }, epoch: "int", payer: "str", payee: "str", delta: "str", reverted: "bool",
   },

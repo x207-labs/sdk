@@ -40,6 +40,7 @@ const SAMPLES: Record<string, unknown> = {
   intent_removed: { intent_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ", account_id: A },
   intents_withdrawn: { amount: "1500000" },
   escrow_held: { grant_id: 1, nft_contract: "nft.test.near", token_id: "t1" },
+  ft_escrow_held: { grant_id: 3, ft_contract: "rwa.near", amount: "2500000" },
   escrow_failed: { grant_id: 1, step: "complete", epoch: 42, payer: B, payee: A, delta: "10000000", reverted: true },
   exit_requested: { account_id: A, epoch: 42 },
   stake_withdrawn: { account_id: A, amount: "50000000" },

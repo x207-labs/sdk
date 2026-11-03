@@ -3,6 +3,7 @@
 // selalu menghasilkan voucher ADR-17 biasa, dengan `payee` = pemberi grant (bukan akun broker), jadi inti x207 tidak berubah.
 import type * as Abi from "./contract/types.generated.js";
 import type { AccountId, U128String } from "./types.js";
+import type { ContractCall } from "./contract/settlement.js";
 
 import type { AssetClass } from "./marketplace.js";
 
@@ -39,6 +40,63 @@ export type EscrowView = Abi.EscrowView;
  * `ERR_BAD_GRANT` dan `nft_on_transfer` menolak NFT lain dengan `ERR_ESCROW_NFT_MISMATCH`.
  */
 export const escrowGrantScope = (nftContract: AccountId, tokenId: string): string => JSON.stringify({ nft_contract: nftContract, token_id: tokenId });
+
+/**
+ * Escrow kelas A untuk token fungible NEP-141 (interface 0.0.9, CT-090): jumlah persis yang dipegang kontrak lingkaran. Hasil view `get_ft_escrow`; `null`
+ * bila grant tidak punya escrow token. Token dengan biaya transfer tidak didukung: kontrak memegang jumlah yang benar-benar tiba, dan jumlah itu harus
+ * sama dengan `amount` di `limits.scope`, jadi titipan dari token berbiaya ditolak.
+ */
+export type FtEscrowView = Abi.FtEscrowView;
+
+/**
+ * `limits.scope` grant kelas A untuk token NEP-141: JSON dengan `ft_contract` dan `amount` (satuan terkecil token, teks). Titipan harus sama persis dengan
+ * jumlah ini; kontrak token lain atau jumlah lain ditolak saat titip.
+ */
+export const ftEscrowGrantScope = (ftContract: AccountId, amount: U128String): string => {
+  if (!/^[1-9]\d*$/.test(amount)) throw new AccessGrantError(`amount harus string bilangan bulat > 0, dapat ${JSON.stringify(amount)}`);
+  return JSON.stringify({ ft_contract: ftContract, amount });
+};
+
+/** `msg` titipan token: `{"action":"escrow","grant_id":N}` (diterima `ft_on_transfer` dari token mana pun selain USDT lingkaran). */
+export function buildFtEscrowMsg(grantId: GrantId): string {
+  if (!Number.isSafeInteger(grantId) || grantId < 1) throw new AccessGrantError(`grantId harus bilangan bulat >= 1, dapat ${grantId}`);
+  return JSON.stringify({ action: "escrow", grant_id: grantId });
+}
+
+/**
+ * Titipan pemberi grant: `ft_transfer_call` di kontrak token ke kontrak lingkaran dengan `msg` escrow dan jumlah persis dari scope. Deposit 1 yoctoNEAR
+ * (standar NEP-141). Pemberi harus sudah menawarkan grant (`offer_grant`) dengan scope yang sama, dan harus anggota aktif.
+ */
+export function buildFtEscrowDepositCall(input: { circleContract: AccountId; ftContract: AccountId; amount: U128String; grantId: GrantId }): ContractCall {
+  ftEscrowGrantScope(input.ftContract, input.amount);
+  return {
+    receiverId: input.ftContract,
+    methodName: "ft_transfer_call",
+    args: { receiver_id: input.circleContract, amount: input.amount, msg: buildFtEscrowMsg(input.grantId) },
+    deposit: 1n,
+  };
+}
+
+/**
+ * Pembeli harus terdaftar di kontrak token (NEP-145 `storage_balance_of` tidak `null`) sebelum `complete_escrow`: kalau tidak, `ft_transfer` ke pembeli
+ * gagal dan pembayaran dibatalkan. Helper ini membaca view di kontrak token dan menolak sebelum transaksi dikirim.
+ * @param view membaca view di kontrak mana pun: `(contractId, method, args) => hasil JSON`
+ */
+export async function assertBuyerRegisteredAtToken(
+  view: (contractId: AccountId, methodName: string, args: object) => Promise<unknown>,
+  ftContract: AccountId,
+  buyer: AccountId,
+): Promise<void> {
+  let balance: unknown;
+  try {
+    balance = await view(ftContract, "storage_balance_of", { account_id: buyer });
+  } catch (error) {
+    throw new AccessGrantError(`storage_balance_of di ${ftContract} gagal untuk ${buyer}: ${(error as Error).message}`);
+  }
+  if (balance === null || balance === undefined) {
+    throw new AccessGrantError(`${buyer} belum terdaftar di ${ftContract} (storage_deposit): pembayaran token akan gagal dan dibatalkan`);
+  }
+}
 
 /**
  * Semua grant `offered` dan `active` milik satu akun dalam satu peran. `grants_of` berhalaman sejak interface 0.0.8 dan tidak lagi memuat
