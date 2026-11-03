@@ -18,6 +18,7 @@ export * from "./middleware.js";
 export * from "./endpoint-adapter.js";
 export * from "./price.js";
 export * from "./metering.js";
+export * from "./metered-job.js";
 
 /** `maxTimeoutSeconds` x402 (ADR-25). */
 export const MAX_TIMEOUT_SECONDS = 60;
