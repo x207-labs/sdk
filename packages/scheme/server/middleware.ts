@@ -11,6 +11,8 @@ export const HEADER_PAYMENT_SIGNATURE = "PAYMENT-SIGNATURE";
 export const HEADER_PAYMENT_RESPONSE = "PAYMENT-RESPONSE";
 /** Timeout panggilan facilitator (ADR-25). */
 export const FACILITATOR_TIMEOUT_MS = 10_000;
+/** Longest time one voucher is held while its request runs (security review 3, G2). */
+export const IN_FLIGHT_MAX_HOLD_MS = 120_000;
 export const RETRY_AFTER_SECONDS = 5;
 
 const RESYNC_REASONS = new Set(["seq_not_increasing", "cumulative_decreased", "amount_mismatch"]);
@@ -32,8 +34,16 @@ export type X207RouteConfig = {
 /**
  * One voucher pays one request at a time (security review 2, finding R1). `/verify` reserves nothing and `/settle` answers success again to a
  * payload it already holds, so n parallel requests with one voucher would all pass `/verify`, run the handler n times and settle. The middleware
- * therefore takes the commitment id (`payer:payee:epoch:seq`) before `/verify` and gives it back after `/settle`; a second request with the same
- * id gets 409 `voucher_in_flight` and the handler does not run. After `/settle` the facilitator refuses the voucher itself (`seq_not_increasing`).
+ * therefore takes the commitment id (`payer:payee:epoch:seq`) after `/verify` answered valid and gives it back after `/settle`; a second request
+ * with the same id gets 409 `voucher_in_flight` and the handler does not run. After `/settle` the facilitator refuses the voucher itself
+ * (`seq_not_increasing`).
+ *
+ * The id is taken only after `/verify` (security review 3, G1): the four parts of the id are public, so a request with a forged signature must not
+ * be able to hold the id of a real voucher. Valid replays stay serialised, because the handler runs only after the id is taken.
+ *
+ * The id is given back when the request ends, when the client aborts (`request.signal`), and after `maxHoldMs` (security review 3, G2). The last
+ * two can free the id while a handler still runs, so a replay of the same voucher may then run the handler a second time; the facilitator still
+ * settles one voucher once, so the seller is paid once for it.
  *
  * The default guard lives in the memory of one process. With several seller processes the guard must be shared (a store with an atomic
  * set-if-absent), or requests with one payer must go to one process; otherwise a replay across processes is still possible inside the time
@@ -65,6 +75,8 @@ export type X207MiddlewareOptions = {
   extra?: X207ExtraSource;
   /** Guard of vouchers in flight; bawaan: in memory, one process (see `InFlightGuard`). */
   inFlight?: InFlightGuard;
+  /** Longest time a voucher stays held by one request (default `IN_FLIGHT_MAX_HOLD_MS`). */
+  maxHoldMs?: number;
 };
 
 export type NextHandler = (request: Request) => Response | Promise<Response>;
@@ -109,6 +121,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
   const base = options.facilitatorUrl.replace(/\/+$/, "");
   const extra = options.extra ?? new X207ExtraSource({ facilitatorUrl: base, fetch: fetchFn });
   const inFlight = options.inFlight ?? memoryInFlightGuard();
+  const maxHoldMs = options.maxHoldMs ?? IN_FLIGHT_MAX_HOLD_MS;
 
   async function call(path: string, init?: RequestInit): Promise<any> {
     let response: Response;
@@ -197,19 +210,35 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       voucher !== undefined && ["payer", "payee"].every((k) => typeof voucher[k] === "string") && ["epoch", "seq"].every((k) => Number.isSafeInteger(voucher[k]))
         ? `${voucher.payer}:${voucher.payee}:${voucher.epoch}:${voucher.seq}`
         : undefined;
-    if (commitment !== undefined && !(await inFlight.acquire(commitment))) {
-      return new Response(JSON.stringify({ error: "voucher_in_flight", message: `voucher ${commitment} is already paying a request` }), {
-        status: 409,
-        headers: { "content-type": "application/json" },
-      });
-    }
-
+    let giveBack: (() => Promise<void>) | undefined;
     try {
       const verdict = await post("/verify", body);
       if (!verdict?.isValid) {
         const reason = String(verdict?.invalidReason ?? "invalid_payload");
         const resync = RESYNC_REASONS.has(reason) ? await resyncResponse(reason, payload, requirements.network) : undefined;
         return paymentRequiredResponse(resource, accepts, reason, resync);
+      }
+
+      if (commitment !== undefined) {
+        if (!(await inFlight.acquire(commitment))) {
+          return new Response(JSON.stringify({ error: "voucher_in_flight", message: `voucher ${commitment} is already paying a request` }), {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        // one give-back per acquisition: the timer, the abort and the end of the request may all call it, only the first one counts
+        let given = false;
+        const timer = setTimeout(() => void giveBack?.(), maxHoldMs);
+        timer.unref?.();
+        const onAbort = () => void giveBack?.();
+        request.signal?.addEventListener("abort", onAbort, { once: true });
+        giveBack = async () => {
+          if (given) return;
+          given = true;
+          clearTimeout(timer);
+          request.signal?.removeEventListener("abort", onAbort);
+          await inFlight.release(commitment);
+        };
       }
 
       const response = await next(request);
@@ -227,7 +256,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       if (error instanceof FacilitatorUnavailable) return unavailable(error.message);
       throw error;
     } finally {
-      if (commitment !== undefined) await inFlight.release(commitment);
+      await giveBack?.();
     }
   };
 }
