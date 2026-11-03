@@ -28,7 +28,7 @@ const allFiles = [...voucherFiles, ...walk("payload/"), "keys.json"];
 const TAMPERED_FIELDS = ["circle", "payer", "payee", "epoch", "seq", "cumulativeAmount", "unit", "resource"];
 
 describe("SD-006 test vector voucher", () => {
-  it("TC-SD-006-01 semua berkas lolos schema.json", () => {
+  it("TC-SD-006-01 all files pass schema.json", () => {
     const validate = new Ajv().compile(read("schema.json"));
     const vectors = [...voucherFiles, ...walk("payload/")];
     expect(vectors.length).toBeGreaterThanOrEqual(13);
@@ -37,7 +37,7 @@ describe("SD-006 test vector voucher", () => {
     }
   });
 
-  it("TC-SD-006-02 voucher sah: verifikasi dan byte kanonik", () => {
+  it("TC-SD-006-02 a valid voucher: verification and canonical bytes", () => {
     const { input, expected } = read("voucher/valid.json");
     const { signature: _signature, ...unsigned } = input.voucher as Voucher;
     expect(verifyVoucher(input.voucher, input.publicKey)).toBe(expected.valid);
@@ -50,7 +50,7 @@ describe("SD-006 test vector voucher", () => {
     );
   });
 
-  it("TC-SD-006-02 pubkey dan signature vector sama dengan seed di keys.json", () => {
+  it("TC-SD-006-02 the vector pubkey and signature equal the seed in keys.json", () => {
     const keys = read("keys.json").keys;
     const { input } = read("voucher/valid.json");
     const seed = Buffer.from(keys.kA.seed, "hex");
@@ -60,7 +60,7 @@ describe("SD-006 test vector voucher", () => {
     expect(signVoucher(unsigned, seed).signature).toBe(input.voucher.signature);
   });
 
-  it("TC-SD-006-03 delapan berkas field diubah ditolak", () => {
+  it("TC-SD-006-03 eight field-changed files are rejected", () => {
     for (const field of TAMPERED_FIELDS) {
       const { input, expected } = read(`voucher/tampered_${field}.json`);
       expect(verifyVoucher(input.voucher, input.publicKey), field).toBe(false);
@@ -75,7 +75,7 @@ describe("SD-006 test vector voucher", () => {
     expect(expected.facilitatorReason).toBe("invalid_signature");
   });
 
-  it("TC-SD-006-05 seq lama (konteks last_seq 137, seq 137)", () => {
+  it("TC-SD-006-05 old seq (context last_seq 137, seq 137)", () => {
     const { input, expected } = read("voucher/seq_stale.json");
     expect(verifyVoucher(input.voucher, input.publicKey)).toBe(true);
     expect(input.context.lastSeq).toBe(137);
@@ -97,7 +97,7 @@ describe("SD-006 test vector voucher", () => {
     expect(expected.facilitatorReason).toBe("seq_not_increasing");
   });
 
-  it("TC-SD-006-07 setelah cutoff: epoch_closing / ERR_PAST_CUTOFF", () => {
+  it("TC-SD-006-07 after the cutoff: epoch_closing / ERR_PAST_CUTOFF", () => {
     const { input, expected } = read("voucher/past_cutoff.json");
     expect(verifyVoucher(input.voucher, input.publicKey)).toBe(true);
     expect(input.context.nowMs).toBe(input.context.cutoffAtMs + 1000);
@@ -109,7 +109,7 @@ describe("SD-006 test vector voucher", () => {
     });
   });
 
-  it("TC-SD-006-08 PaymentPayload dan header PAYMENT-SIGNATURE", () => {
+  it("TC-SD-006-08 PaymentPayload and the PAYMENT-SIGNATURE header", () => {
     const { input, expected } = read("payload/payment_signature_agents_main.json");
     const payload = input.paymentPayload;
     expect(payload.accepted.network).toBe("x207:agents-main");
@@ -123,7 +123,7 @@ describe("SD-006 test vector voucher", () => {
     )).toBe(true);
   });
 
-  it("TC-SD-006-09 hanya JSON standar yang bisa dibaca Rust", () => {
+  it("TC-SD-006-09 only standard JSON can be read by Rust", () => {
     const check = (value: unknown, path: string) => {
       if (typeof value === "number") expect(Number.isSafeInteger(value), path).toBe(true);
       else if (typeof value === "string") {

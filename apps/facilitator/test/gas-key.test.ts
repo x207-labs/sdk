@@ -19,7 +19,7 @@ const tx = {
 };
 
 describe("SD-031 gas key Transaction::V1", () => {
-  it("TC-SD-031-01 byte dan tanda tangan sama dengan referensi near-api-js 7.4.0", () => {
+  it("TC-SD-031-01 bytes and signature equal the near-api-js 7.4.0 reference", () => {
     const publicKey = base58Decode(KeyPair.fromString(SECRET as never).getPublicKey().toString().replace(/^ed25519:/, ""));
     const body = encodeGasKeyTransaction(tx, publicKey).toString("hex");
     expect(body.startsWith(REFERENCE.txHex)).toBe(true);
@@ -27,14 +27,14 @@ describe("SD-031 gas key Transaction::V1", () => {
     expect(signed.bytes.toString("hex")).toBe(REFERENCE.txHex + "00" + REFERENCE.signatureHex);
   });
 
-  it("TC-SD-031-02 jalur di luar 0..1023 ditolak", () => {
+  it("TC-SD-031-02 a lane outside 0..1023 is rejected", () => {
     expect(() => signGasKeyTransaction({ ...tx, nonceIndex: 1024 }, SECRET)).toThrow(/0..1023/);
     expect(() => signGasKeyTransaction({ ...tx, nonceIndex: -1 }, SECRET)).toThrow(/0..1023/);
   });
 });
 
 describe("SD-031 GasKeyLanes", () => {
-  it("TC-SD-031-03 transaksi paralel memakai jalur berbeda dan nonce tiap jalur naik satu per transaksi", async () => {
+  it("TC-SD-031-03 parallel transactions use different lanes and each lane's nonce rises by one per transaction", async () => {
     const lanes = new GasKeyLanes(3);
     const chainNonce = [10n, 20n, 30n];
     const used: Array<[number, bigint]> = [];
@@ -57,7 +57,7 @@ describe("SD-031 GasKeyLanes", () => {
     expect(new Set(used.map(([l, n]) => `${l}:${n}`)).size).toBe(used.length);
   });
 
-  it("TC-SD-031-04 kegagalan membuat jalur itu membaca ulang nonce dari chain; jalur lain tidak terganggu", async () => {
+  it("TC-SD-031-04 a failure makes that lane re-read the nonce from the chain; other lanes are not disturbed", async () => {
     const lanes = new GasKeyLanes(1);
     let reads = 0;
     const read = async () => {
@@ -72,25 +72,25 @@ describe("SD-031 GasKeyLanes", () => {
     expect(reads).toBe(2);
   });
 
-  it("TC-SD-031-05 jumlah jalur harus 1..1024", () => {
+  it("TC-SD-031-05 lane count must be 1..1024", () => {
     expect(() => new GasKeyLanes(0)).toThrow();
     expect(() => new GasKeyLanes(1025)).toThrow();
     expect(new GasKeyLanes(1024).count).toBe(1024);
   });
 });
 
-describe("SD-031 konfigurasi dan penjadwal", () => {
+describe("SD-031 configuration and scheduler", () => {
   const base = { X207_CIRCLES: "agents-main=x207-circle.near", X207_RELAYER_ACCOUNT_ID: "r.near", X207_RELAYER_PRIVATE_KEY: "ed25519:x" };
-  it("TC-SD-031-06 gas key dan jumlah jalur diisi bersama, butuh akun relayer, 1..1024", () => {
+  it("TC-SD-031-06 gas key and lane count are set together, need a relayer account, 1..1024", () => {
     expect(loadConfig(base).gasKey).toBeUndefined();
     expect(loadConfig({ ...base, X207_GAS_KEY_PRIVATE_KEY: "ed25519:g", X207_GAS_KEY_LANES: "4" }).gasKey).toEqual({ privateKey: "ed25519:g", lanes: 4 });
-    expect(() => loadConfig({ ...base, X207_GAS_KEY_PRIVATE_KEY: "ed25519:g" })).toThrow(/diisi bersama/);
-    expect(() => loadConfig({ ...base, X207_GAS_KEY_LANES: "4" })).toThrow(/diisi bersama/);
+    expect(() => loadConfig({ ...base, X207_GAS_KEY_PRIVATE_KEY: "ed25519:g" })).toThrow(/set together/);
+    expect(() => loadConfig({ ...base, X207_GAS_KEY_LANES: "4" })).toThrow(/set together/);
     expect(() => loadConfig({ ...base, X207_GAS_KEY_PRIVATE_KEY: "ed25519:g", X207_GAS_KEY_LANES: "2000" })).toThrow(/1..1024/);
     expect(() => loadConfig({ X207_CIRCLES: base.X207_CIRCLES, X207_GAS_KEY_PRIVATE_KEY: "ed25519:g", X207_GAS_KEY_LANES: "4" })).toThrow(/X207_RELAYER_ACCOUNT_ID/);
   });
 
-  it("TC-SD-031-07 penjadwal dengan concurrency N mendaftarkan beberapa pasangan bersamaan, tidak lebih dari N", async () => {
+  it("TC-SD-031-07 a scheduler with concurrency N registers several pairs at once, never more than N", async () => {
     const store = new PendingStore(":memory:");
     const circle = "x207-circle.near";
     const now = Date.now();

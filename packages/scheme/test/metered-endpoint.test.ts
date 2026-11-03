@@ -32,18 +32,18 @@ describe("SD-064 createMeteredEndpoint", () => {
       seen.add(e.assetType);
     }
     expect(seen.size).toBe(12);
-    expect(METERED_PRESETS["proxy-bandwidth"].warnings.join(" ")).toMatch(/hukum setempat/);
-    expect(METERED_PRESETS["home-device"].warnings.join(" ")).toMatch(/Listrik/);
+    expect(METERED_PRESETS["proxy-bandwidth"].warnings.join(" ")).toMatch(/local law/);
+    expect(METERED_PRESETS["home-device"].warnings.join(" ")).toMatch(/Electricity/);
   });
 
   it("TC-SD-064-02 a kind accepts only units that fit it; an unknown kind, a unit of another kind and a bad price are refused", () => {
     const ok = (kind: MeteredKind, unit: (typeof METERED_UNITS)[number]) => reject(() => createMeteredEndpoint({ kind, unit, unitPrice: 1, handler: () => new Response() }));
     expect(ok("cpu", "job")).toBe("no error");
     expect(ok("storage", "GB")).toBe("no error");
-    expect(ok("cpu", "GB")).toMatch(/tidak cocok untuk cpu/);
-    expect(ok("fine-tuning", "minute")).toMatch(/tidak cocok/);
-    expect(reject(() => createMeteredEndpoint({ kind: "nuclear" as MeteredKind, unitPrice: 1, handler: () => new Response() }))).toMatch(/jenis tidak dikenal/);
-    expect(reject(() => createMeteredEndpoint({ kind: "cpu", unitPrice: "abc", handler: () => new Response() }))).toMatch(/harga tidak sah/);
+    expect(ok("cpu", "GB")).toMatch(/does not fit cpu/);
+    expect(ok("fine-tuning", "minute")).toMatch(/does not fit/);
+    expect(reject(() => createMeteredEndpoint({ kind: "nuclear" as MeteredKind, unitPrice: 1, handler: () => new Response() }))).toMatch(/unknown kind/);
+    expect(reject(() => createMeteredEndpoint({ kind: "cpu", unitPrice: "abc", handler: () => new Response() }))).toMatch(/price not valid/);
     expect(reject(() => createMeteredEndpoint({ kind: "cpu", unitPrice: 0, handler: () => new Response() }))).toMatch(/menghasilkan 0/);
   });
 

@@ -20,7 +20,7 @@ export const VERSION_TTL_MS = 60_000;
 export function versionAtLeast(a: string, b: string): boolean {
   const parse = (v: string): number[] => {
     const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v);
-    if (!m) throw new Error(`interface_version tidak sah: ${JSON.stringify(v)}`);
+    if (!m) throw new Error(`interface_version not valid: ${JSON.stringify(v)}`);
     return [Number(m[1]), Number(m[2]), Number(m[3])];
   };
   const [x, y] = [parse(a), parse(b)];

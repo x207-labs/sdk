@@ -54,8 +54,8 @@ export class X207SchemeServer implements SchemeNetworkServer {
   async parsePrice(price: Price, network: Network): Promise<AssetAmount> {
     assertCircleId(network);
     if (typeof price === "object") {
-      if (price.asset !== "USD") throw new Error(`asset harus "USD", dapat ${JSON.stringify(price.asset)}`);
-      if (!/^[1-9]\d*$/.test(price.amount)) throw new Error(`amount harus bilangan bulat > 0, dapat ${JSON.stringify(price.amount)}`);
+      if (price.asset !== "USD") throw new Error(`asset must be "USD", got ${JSON.stringify(price.asset)}`);
+      if (!/^[1-9]\d*$/.test(price.amount)) throw new Error(`amount must be an integer > 0, got ${JSON.stringify(price.amount)}`);
       return { amount: price.amount, asset: "USD", extra: price.extra ?? (await this.extra?.get(network)) ?? staticExtra() };
     }
     const amount = priceToAmount(price);

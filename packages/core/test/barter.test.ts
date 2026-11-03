@@ -22,11 +22,11 @@ function nep413(message: string, nonce: Buffer, recipient: string): Buffer {
   return sha256(Buffer.concat([Buffer.from([0x9d, 0x01, 0x00, 0x80]), str(message), nonce, str(recipient), Buffer.from([0])]));
 }
 
-describe("SD-047 intent barter dan bundle", () => {
+describe("SD-047 barter intent and bundle", () => {
   const intentVector = vector("intent");
   const bundleVector = vector("bundle_abca");
 
-  it("intent: JSON kanonik, hash heks dan base58, tanda tangan cocok dengan vector", () => {
+  it("intent: canonical JSON, hex and base58 hash, signature matches the vector", () => {
     const intent = intentVector.intent as BarterIntent;
     expect(serializeIntent(intent)).toBe(intentVector.message);
     expect(intentVector.message).toBe(
@@ -40,7 +40,7 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(verifyIntentSignature({ ...intent, nonce: "n2" }, intentVector.signature, intentVector.pubkey)).toBe(false);
   });
 
-  it("bundle A->B->C->A: terms_hash deterministik dan tidak bergantung urutan leg", () => {
+  it("bundle A->B->C->A: terms_hash is deterministic and does not depend on the leg order", () => {
     const terms = bundleVector.terms as BundleTerms;
     expect(serializeBundleTerms(terms)).toBe(bundleVector.message);
     expect(termsHash(terms)).toBe(bundleVector.termsHash);
@@ -50,7 +50,7 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(legs.map((l) => l.payer)).toEqual([C, A, B].sort());
   });
 
-  it("tanda tangan ketiga peserta cocok dengan vector dan hash penandatanganan NEP-413 independen", () => {
+  it("the signatures of the three participants match the vector and the independent NEP-413 signing hash", () => {
     const terms = bundleVector.terms as BundleTerms;
     expect(bundleVector.signingHash).toBe(nep413(bundleVector.message, sha256(bundleVector.message), terms.circle).toString("hex"));
     for (const [account, k] of [[A, "kA"], [B, "kB"], [C, "kC"]] as const) {
@@ -61,7 +61,7 @@ describe("SD-047 intent barter dan bundle", () => {
     }
   });
 
-  it("bundle sah hanya bila semua peserta menandatangani; ubah satu leg membatalkan tanda tangan", () => {
+  it("a bundle is valid only when every participant signs; changing one leg voids the signature", () => {
     const terms = bundleVector.terms as BundleTerms;
     const pubkeys = bundleVector.participants as Record<string, string>;
     expect(bundleParticipants(terms)).toEqual([C, B, A].sort());
@@ -72,7 +72,7 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(bundleFullySigned(changed, bundleVector.signatures, pubkeys)).toBe(false);
   });
 
-  it("search_leg (interface 0.0.5): kunci terakhir di JSON kanonik, hash cocok dengan vector, bundle tanpa search_leg tidak berubah", () => {
+  it("search_leg (interface 0.0.5): last key in the canonical JSON, hash matches the vector, a bundle without search_leg is unchanged", () => {
     const searchVector = vector("bundle_search");
     const terms = searchVector.terms as BundleTerms;
     expect(serializeBundleTerms(terms)).toBe(searchVector.message);
@@ -97,7 +97,7 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(termsHash({ ...old, search_leg: null })).toBe(bundleVector.termsHash);
   });
 
-  it("SD-073 syarat jaminan (interface 0.0.12): arbiter, agreement_hash, confirm_by datang setelah search_leg, confirm_by string, hash cocok dengan vector, bundle tanpa arbiter tidak berubah", () => {
+  it("SD-073 bond terms (interface 0.0.12): arbiter, agreement_hash, confirm_by come after search_leg, confirm_by is a string, hash matches the vector, a bundle without arbiter is unchanged", () => {
     for (const name of ["bundle_deal", "bundle_deal_no_agreement"]) {
       const v = vector(name);
       const terms = v.terms as BundleTerms;
@@ -129,42 +129,42 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(serializeBundleTerms({ ...old, arbiter: null, agreement_hash: null, confirm_by: null })).toBe(bundleVector.message);
   });
 
-  it("SD-073 syarat jaminan yang salah ditolak seperti kontrak: arbiter tanpa confirm_by, agreement_hash tanpa arbiter, hash buruk, confirm_by bukan string desimal, arbiter peserta, lebih dari dua peserta", () => {
+  it("SD-073 invalid bond terms are rejected like the contract: arbiter without confirm_by, agreement_hash without arbiter, bad hash, confirm_by not a decimal string, arbiter is a participant, more than two participants", () => {
     const deal = vector("bundle_deal").terms as BundleTerms;
     const bad = (over: Partial<BundleTerms>) => () => serializeBundleTerms({ ...deal, ...over });
-    expect(bad({ confirm_by: undefined })).toThrow(/datang bersama/);
-    expect(bad({ arbiter: undefined })).toThrow(/datang bersama/);
-    expect(bad({ arbiter: undefined, confirm_by: undefined })).toThrow(/datang bersama/); // agreement_hash alone
+    expect(bad({ confirm_by: undefined })).toThrow(/come together/);
+    expect(bad({ arbiter: undefined })).toThrow(/come together/);
+    expect(bad({ arbiter: undefined, confirm_by: undefined })).toThrow(/come together/); // agreement_hash alone
     expect(bad({ agreement_hash: "AB".repeat(32) })).toThrow(/agreement_hash/);
     expect(bad({ confirm_by: "0" })).toThrow(/confirm_by/);
     expect(bad({ confirm_by: "18446744073709551616" })).toThrow(/confirm_by/);
     expect(bad({ confirm_by: 1793900000 as unknown as string })).toThrow(/confirm_by/);
-    expect(bad({ arbiter: "NOT AN ACCOUNT" })).toThrow(/arbiter bukan akun/);
+    expect(bad({ arbiter: "NOT AN ACCOUNT" })).toThrow(/arbiter is not a NEAR account/);
     expect(bad({ arbiter: A })).toThrow(/ERR_ARBITER_INVALID/);
-    expect(() => serializeBundleTerms({ ...(vector("bundle_abca").terms as BundleTerms), arbiter: "arbiter.x207-circle.near", confirm_by: "1793900000000000000" })).toThrow(/dua peserta/);
+    expect(() => serializeBundleTerms({ ...(vector("bundle_abca").terms as BundleTerms), arbiter: "arbiter.x207-circle.near", confirm_by: "1793900000000000000" })).toThrow(/two-participant/);
   });
 
-  it("bundleInput: argumen commit_bundle memuat search_leg hanya bila ada", () => {
+  it("bundleInput: the commit_bundle argument contains search_leg only when present", () => {
     const searched = vector("bundle_search").terms as BundleTerms;
     expect(bundleInput(searched)).toEqual({ epoch: 42, legs: searched.legs, search_leg: searched.search_leg });
     const old = bundleVector.terms as BundleTerms;
     expect(Object.keys(bundleInput({ ...old, search_leg: null }))).toEqual(["epoch", "legs"]);
   });
 
-  it("search_leg harus salah satu leg dan berisi akun sah", () => {
+  it("search_leg must be one of the legs and hold valid accounts", () => {
     const terms = bundleVector.terms as BundleTerms;
     expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: A, payee: C } })).toThrow(BarterFormatError); // A -> C bukan leg
-    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: "BUKAN AKUN", payee: A } })).toThrow(/search_leg/);
+    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: "NOT AN ACCOUNT", payee: A } })).toThrow(/search_leg/);
     expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: C } as never })).toThrow(/search_leg/);
     expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: C, payee: A } })).not.toThrow();
   });
 
-  it("menolak bentuk tidak sah", () => {
+  it("rejects an invalid shape", () => {
     const terms = bundleVector.terms as BundleTerms;
     const intent = intentVector.intent as BarterIntent;
     expect(() => serializeBundleTerms({ ...terms, legs: [terms.legs[0]!] })).toThrow(BarterFormatError);
-    expect(() => serializeBundleTerms({ ...terms, legs: [terms.legs[0]!, { ...terms.legs[0]! }] })).toThrow(/dua kali/);
-    expect(() => serializeBundleTerms({ ...terms, legs: [{ payer: A, payee: A, max_amount: "1" }, terms.legs[1]!] })).toThrow(/diri sendiri/);
+    expect(() => serializeBundleTerms({ ...terms, legs: [terms.legs[0]!, { ...terms.legs[0]! }] })).toThrow(/appears twice/);
+    expect(() => serializeBundleTerms({ ...terms, legs: [{ payer: A, payee: A, max_amount: "1" }, terms.legs[1]!] })).toThrow(/pay itself/);
     expect(() => serializeBundleTerms({ ...terms, legs: terms.legs.map((l) => ({ ...l, max_amount: "007" })) })).toThrow(/max_amount/);
     expect(() => serializeBundleTerms({ ...terms, epoch: 0 })).toThrow(/epoch/);
     expect(() => serializeIntent({ ...intent, offer: { ...intent.offer, calls: 0 } })).toThrow(/calls/);
@@ -173,7 +173,7 @@ describe("SD-047 intent barter dan bundle", () => {
     expect(() => serializeIntent({ ...intent, nonce: "bad nonce" })).toThrow(/nonce/);
   });
 
-  it("kode error bundle dari kontrak sampai apa adanya ke pemanggil", () => {
+  it("the bundle error code from the contract reaches the caller unchanged", () => {
     for (const code of ["ERR_BUNDLE_EXISTS", "ERR_BUNDLE_SIGNATURES", "ERR_BUNDLE_HEADROOM"]) {
       const error = new Error(`Smart contract panicked: ${code}: terms_hash ${bundleVector.termsHash}`);
       expect(contractErrorCode(error)).toBe(code);
@@ -181,7 +181,7 @@ describe("SD-047 intent barter dan bundle", () => {
     }
   });
 
-  it("syarat identik menghasilkan terms_hash sama (kontrak menolak yang kedua dengan ERR_BUNDLE_EXISTS); ganti epoch mengubah hash", () => {
+  it("identical terms give the same terms_hash (the contract rejects the second with ERR_BUNDLE_EXISTS); changing the epoch changes the hash", () => {
     const terms = bundleVector.terms as BundleTerms;
     expect(termsHash({ ...terms })).toBe(termsHash(terms));
     expect(termsHash({ ...terms, epoch: terms.epoch + 1 })).not.toBe(termsHash(terms));

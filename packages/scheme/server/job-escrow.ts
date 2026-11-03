@@ -52,8 +52,8 @@ export class JobBudget {
   #bundleId: number | null = null;
 
   constructor(options: JobEscrowOptions) {
-    if (options.buyer === options.seller) throw new MeterRejection("pembeli dan penjual harus akun yang berbeda");
-    if (!Number.isSafeInteger(options.epoch) || options.epoch < 1) throw new MeterRejection(`epoch harus bilangan bulat >= 1, dapat ${options.epoch}`);
+    if (options.buyer === options.seller) throw new MeterRejection("buyer and seller must be different accounts");
+    if (!Number.isSafeInteger(options.epoch) || options.epoch < 1) throw new MeterRejection(`epoch must be an integer >= 1, got ${options.epoch}`);
     const math = new MeteredJob(options); // validates chunks, quantity and price once, and gives the price of one chunk
     this.jobId = options.jobId;
     this.circle = options.circle;
@@ -65,10 +65,10 @@ export class JobBudget {
     this.chunkAmount = math.chunkAmount;
     this.budget = math.chunkAmount * BigInt(math.totalChunks);
     const base = options.baseCumulative ?? "0";
-    if (!/^(0|[1-9]\d*)$/.test(base)) throw new MeterRejection(`baseCumulative harus bilangan bulat desimal, dapat ${JSON.stringify(base)}`);
+    if (!/^(0|[1-9]\d*)$/.test(base)) throw new MeterRejection(`baseCumulative must be a decimal integer, got ${JSON.stringify(base)}`);
     this.baseCumulative = BigInt(base);
     this.baseSeq = options.baseSeq ?? 0;
-    if (!Number.isSafeInteger(this.baseSeq) || this.baseSeq < 0) throw new MeterRejection(`baseSeq harus bilangan bulat >= 0, dapat ${this.baseSeq}`);
+    if (!Number.isSafeInteger(this.baseSeq) || this.baseSeq < 0) throw new MeterRejection(`baseSeq must be an integer >= 0, got ${this.baseSeq}`);
   }
 
   /** Syarat bundle yang ditandatangani pembeli dan penjual: leg pembeli ke penjual sebesar anggaran, ditambah leg pendamping. */
@@ -94,7 +94,7 @@ export class JobBudget {
 
   /** Dipanggil setelah `commit_bundle` mengembalikan `bundle_id`; voucher potongan lalu membawa `bundleId` ini. */
   attach(bundleId: number): void {
-    if (!Number.isSafeInteger(bundleId) || bundleId < 1) throw new MeterRejection(`bundleId harus bilangan bulat >= 1, dapat ${bundleId}`);
+    if (!Number.isSafeInteger(bundleId) || bundleId < 1) throw new MeterRejection(`bundleId must be an integer >= 1, got ${bundleId}`);
     this.#bundleId = bundleId;
   }
 
@@ -104,7 +104,7 @@ export class JobBudget {
 
   /** Jumlah kumulatif voucher pasangan yang melunasi potongan ke-`chunk` (1 sampai total): keadaan awal pasangan + `chunk × harga potongan`. */
   cumulativeFor(chunk: number): bigint {
-    if (!Number.isSafeInteger(chunk) || chunk < 1 || chunk > this.chunks) throw new MeterRejection(`potongan harus 1 sampai ${this.chunks}, dapat ${chunk}`);
+    if (!Number.isSafeInteger(chunk) || chunk < 1 || chunk > this.chunks) throw new MeterRejection(`chunk must be 1 to ${this.chunks}, got ${chunk}`);
     return this.baseCumulative + this.chunkAmount * BigInt(chunk);
   }
 
@@ -155,19 +155,19 @@ export class SellerJob {
    */
   accept(voucher: Pick<Voucher, "circle" | "payer" | "payee" | "epoch" | "seq" | "cumulativeAmount" | "unit" | "resource">): SellerJobSummary {
     const b = this.budget;
-    if (this.#aborted) throw new MeterRejection("job sudah dihentikan");
+    if (this.#aborted) throw new MeterRejection("the job has already been stopped");
     if (voucher.circle !== b.circle || voucher.payer !== b.buyer || voucher.payee !== b.seller || voucher.epoch !== b.epoch || voucher.unit !== CREDIT_UNIT) {
-      throw new MeterRejection("wrong_leg: voucher bukan untuk leg pembeli ke penjual di epoch job ini");
+      throw new MeterRejection("wrong_leg: voucher is not for the buyer to seller leg in this job's epoch");
     }
     // F7 (review BE-062): a voucher of the same pair for another purpose is not the payment of a chunk of this job
-    if (voucher.resource !== `job:${b.jobId}`) throw new MeterRejection(`wrong_resource: resource voucher harus job:${b.jobId}, dapat ${JSON.stringify(voucher.resource)}`);
-    if (!/^(0|[1-9]\d*)$/.test(voucher.cumulativeAmount)) throw new MeterRejection(`cumulativeAmount harus bilangan bulat desimal, dapat ${JSON.stringify(voucher.cumulativeAmount)}`);
+    if (voucher.resource !== `job:${b.jobId}`) throw new MeterRejection(`wrong_resource: voucher resource must be job:${b.jobId}, got ${JSON.stringify(voucher.resource)}`);
+    if (!/^(0|[1-9]\d*)$/.test(voucher.cumulativeAmount)) throw new MeterRejection(`cumulativeAmount must be a decimal integer, got ${JSON.stringify(voucher.cumulativeAmount)}`);
     const amount = BigInt(voucher.cumulativeAmount);
-    if (amount < this.#cumulative) throw new MeterRejection("cumulative_decreased: voucher lebih kecil dari yang sudah diterima");
-    if (amount > b.baseCumulative + b.budget) throw new MeterRejection("over_budget: voucher di atas anggaran yang dikunci");
+    if (amount < this.#cumulative) throw new MeterRejection("cumulative_decreased: voucher is smaller than what was already received");
+    if (amount > b.baseCumulative + b.budget) throw new MeterRejection("over_budget: voucher is above the locked budget");
     if (amount === this.#cumulative) return this.summary();
-    if (voucher.seq <= this.#seq) throw new MeterRejection("seq_not_increasing: seq voucher harus naik");
-    if (amount > b.baseCumulative + b.chunkAmount * BigInt(this.#completed + 1)) throw new MeterRejection("prepaid_too_far: voucher membayar lebih dari satu potongan di depan");
+    if (voucher.seq <= this.#seq) throw new MeterRejection("seq_not_increasing: voucher seq must increase");
+    if (amount > b.baseCumulative + b.chunkAmount * BigInt(this.#completed + 1)) throw new MeterRejection("prepaid_too_far: voucher pays more than one chunk ahead");
     this.#cumulative = amount;
     this.#seq = voucher.seq;
     return this.summary();
@@ -181,14 +181,14 @@ export class SellerJob {
 
   start(): number {
     const chunk = this.next();
-    if (chunk === null) throw new MeterRejection("potongan berikut belum dibayar atau job tidak berjalan");
+    if (chunk === null) throw new MeterRejection("the next chunk is not paid yet or the job is not running");
     this.#started = chunk;
     return chunk;
   }
 
   complete(chunk: number): void {
-    if (this.#aborted) throw new MeterRejection("job sudah dihentikan");
-    if (chunk !== this.#started || this.#completed >= this.#started) throw new MeterRejection(`potongan ${chunk} tidak sedang dikerjakan`);
+    if (this.#aborted) throw new MeterRejection("the job has already been stopped");
+    if (chunk !== this.#started || this.#completed >= this.#started) throw new MeterRejection(`chunk ${chunk} is not being worked on`);
     this.#completed = chunk;
   }
 
@@ -229,8 +229,8 @@ export class BuyerJob {
 
   /** Potongan `chunk` diterima dan sah (hitungan pembeli sendiri; SD-068 menyediakan hitungannya). Harus berurutan dan sudah dibayar. */
   confirm(chunk: number): void {
-    if (this.#aborted) throw new MeterRejection("job sudah dihentikan");
-    if (chunk !== this.#confirmed + 1 || chunk > this.#signed) throw new MeterRejection(`potongan ${chunk} tidak sedang ditunggu`);
+    if (this.#aborted) throw new MeterRejection("the job has already been stopped");
+    if (chunk !== this.#confirmed + 1 || chunk > this.#signed) throw new MeterRejection(`chunk ${chunk} is not being awaited`);
     this.#confirmed = chunk;
   }
 
@@ -248,7 +248,7 @@ export class BuyerJob {
   /** Tandatangani voucher potongan berikut, atau lempar bila potongan sebelumnya belum diterima (tidak membayar dua potongan di depan). */
   signNext(secretKey: VoucherSecretKey): { chunk: number; voucher: Voucher; bundleId: number | null } {
     const chunk = this.nextChunk();
-    if (chunk === null) throw new MeterRejection("voucher berikut hanya ditandatangani setelah potongan sebelumnya diterima");
+    if (chunk === null) throw new MeterRejection("the next voucher is signed only after the previous chunk is received");
     const voucher = signVoucher(this.budget.voucherFor(chunk), secretKey);
     this.#signed = chunk;
     return { chunk, voucher, bundleId: this.budget.bundleId };

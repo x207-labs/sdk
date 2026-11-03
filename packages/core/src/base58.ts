@@ -22,7 +22,7 @@ export function base58Decode(text: string): Uint8Array {
   let n = 0n;
   for (const char of text) {
     const digit = INDEX.get(char);
-    if (digit === undefined) throw new Error(`karakter base58 tidak sah: ${char}`);
+    if (digit === undefined) throw new Error(`invalid base58 character: ${char}`);
     n = n * 58n + digit;
   }
   const bytes: number[] = [];

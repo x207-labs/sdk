@@ -88,7 +88,7 @@ function setup(options: { timeoutMs?: number; mode?: "per_request" | "cumulative
 const err = (code: string) => new Error(`Smart contract panicked: ${code}: detail`);
 
 describe("SD-029 mode per_request", () => {
-  it("TC-SD-029-01 setiap /settle memanggil register_voucher satu kali dan menjawab registered", async () => {
+  it("TC-SD-029-01 each /settle calls register_voucher once and answers registered", async () => {
     const { chain, settle, pending } = setup();
     for (const seq of [1, 2, 3]) {
       const r = await settle(seq);
@@ -99,7 +99,7 @@ describe("SD-029 mode per_request", () => {
     expect(pending.listOpen(CONTRACT)).toEqual([]);
   });
 
-  it("TC-SD-029-02 tanpa flag perilaku kumulatif tidak berubah: settle menjawab pending dan tidak mendaftarkan", async () => {
+  it("TC-SD-029-02 without the flag the cumulative behavior is unchanged: settle answers pending and does not register", async () => {
     const { chain, settle, pending } = setup({ mode: "cumulative" });
     const r = await settle(1);
     expect(r.success).toBe(true);
@@ -108,7 +108,7 @@ describe("SD-029 mode per_request", () => {
     expect(pending.listOpen(CONTRACT)).toHaveLength(1);
   });
 
-  it("TC-SD-029-03 ERR_SEQ_GAP: jatuh ke register_cumulative, voucher tetap terdaftar", async () => {
+  it("TC-SD-029-03 ERR_SEQ_GAP: falls back to register_cumulative, the voucher stays registered", async () => {
     const { chain, settle } = setup();
     chain.behave = async (call) => {
       if (call.mode === "per_request") throw err("ERR_SEQ_GAP");
@@ -119,9 +119,9 @@ describe("SD-029 mode per_request", () => {
     expect(chain.calls.map((c) => c.mode)).toEqual(["per_request", "cumulative"]);
   });
 
-  it("TC-SD-029-04 konfigurasi: per_request butuh relayer, dan batas tunggu bisa diatur", () => {
+  it("TC-SD-029-04 configuration: per_request needs a relayer, and the wait limit can be set", () => {
     const base = { X207_CIRCLES: `agents-main=${CONTRACT}`, X207_REGISTER_MODE: "per_request" };
-    expect(() => loadConfig(base)).toThrow(/butuh X207_RELAYER_ACCOUNT_ID/);
+    expect(() => loadConfig(base)).toThrow(/needs X207_RELAYER_ACCOUNT_ID/);
     const config = loadConfig({ ...base, X207_RELAYER_ACCOUNT_ID: "r.near", X207_RELAYER_PRIVATE_KEY: "ed25519:x", X207_SETTLE_TIMEOUT_MS: "3000" });
     expect(config).toMatchObject({ registerMode: "per_request", settleTimeoutMs: 3000 });
     expect(loadConfig({ X207_CIRCLES: `agents-main=${CONTRACT}` })).toMatchObject({ registerMode: "cumulative", settleTimeoutMs: 10_000 });
@@ -129,7 +129,7 @@ describe("SD-029 mode per_request", () => {
 });
 
 describe("SD-030 settlement_pending", () => {
-  it("TC-SD-030-01 registrasi belum final dalam batas waktu: success false, settlement_pending, registration pending", async () => {
+  it("TC-SD-030-01 registration not final within the time limit: success false, settlement_pending, registration pending", async () => {
     const { chain, settle } = setup({ timeoutMs: 30 });
     let release!: () => void;
     chain.behave = () => new Promise<void>((resolve) => { release = resolve; });
@@ -138,7 +138,7 @@ describe("SD-030 settlement_pending", () => {
     release();
   });
 
-  it("TC-SD-030-02 registrasi yang terlambat tetap selesai dan baris D3 menjadi registered", async () => {
+  it("TC-SD-030-02 a late registration still completes and the D3 row becomes registered", async () => {
     const { chain, settle, pending } = setup({ timeoutMs: 30 });
     let release!: () => void;
     chain.behave = () => new Promise<void>((resolve) => { release = resolve; });
@@ -148,7 +148,7 @@ describe("SD-030 settlement_pending", () => {
     expect(pending.listOpen(CONTRACT)).toEqual([]);
   });
 
-  it("TC-SD-030-03 kegagalan sementara (ERR_INSUFFICIENT_CREDIT) juga non-terminal dan baris diulang dengan backoff", async () => {
+  it("TC-SD-030-03 a temporary failure (ERR_INSUFFICIENT_CREDIT) is also non-terminal and the row is retried with backoff", async () => {
     const { chain, settle, pending } = setup();
     chain.behave = async () => { throw err("ERR_INSUFFICIENT_CREDIT"); };
     const r = await settle(1);
@@ -157,7 +157,7 @@ describe("SD-030 settlement_pending", () => {
     expect(pending.listOpen(CONTRACT)[0]!.attempts).toBe(1);
   });
 
-  it("TC-SD-030-04 kegagalan terminal (ERR_BAD_SIGNATURE) dikembalikan sebagai kode spec dan baris dibuang", async () => {
+  it("TC-SD-030-04 a terminal failure (ERR_BAD_SIGNATURE) is returned as a spec code and the row is dropped", async () => {
     const { chain, settle, pending } = setup();
     chain.behave = async () => { throw err("ERR_BAD_SIGNATURE"); };
     const r = await settle(1);
@@ -165,7 +165,7 @@ describe("SD-030 settlement_pending", () => {
     expect(pending.listOpen(CONTRACT)).toEqual([]);
   });
 
-  it("TC-SD-030-05 mode kumulatif tidak pernah menjawab settlement_pending", async () => {
+  it("TC-SD-030-05 cumulative mode never answers settlement_pending", async () => {
     const { settle } = setup({ mode: "cumulative" });
     for (const seq of [1, 2]) expect((await settle(seq)).errorReason).toBeUndefined();
   });

@@ -36,9 +36,9 @@ const U128_MAX = 340282366920938463463374607431768211455n;
 const micro = (value: number | string, name: string): bigint => {
   const text = typeof value === "number" ? (Number.isFinite(value) && value >= 0 ? value.toFixed(6) : "") : value.trim();
   const match = QUANTITY.exec(text.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, ""));
-  if (!match) throw new MeterRejection(`${name} harus angka desimal > 0 dengan paling banyak 6 desimal, dapat ${JSON.stringify(value)}`);
+  if (!match) throw new MeterRejection(`${name} must be a decimal number > 0 with at most 6 decimals, got ${JSON.stringify(value)}`);
   const result = BigInt(match[1]!) * SCALE + BigInt((match[2] ?? "").padEnd(6, "0"));
-  if (result <= 0n) throw new MeterRejection(`${name} harus > 0`);
+  if (result <= 0n) throw new MeterRejection(`${name} must be > 0`);
   return result;
 };
 const plain = (microValue: bigint): string => {
@@ -50,10 +50,10 @@ const plain = (microValue: bigint): string => {
 /** `unitPrice × quantity` dalam satuan credit terkecil, dibulatkan ke atas (penjual tidak menerima kurang dari harganya; selisih paling banyak satu satuan terkecil). */
 export function meterAmount(unitPriceAtomic: string, quantityMicro: bigint): string {
   // F8 (review BE-062): BigInt() takes hex, spaces and an empty text; the price is a decimal whole number above 0
-  if (!/^[1-9]\d*$/.test(unitPriceAtomic)) throw new MeterRejection(`harga satuan harus bilangan bulat desimal > 0, dapat ${JSON.stringify(unitPriceAtomic)}`);
+  if (!/^[1-9]\d*$/.test(unitPriceAtomic)) throw new MeterRejection(`unit price must be a decimal integer > 0, got ${JSON.stringify(unitPriceAtomic)}`);
   const amount = (BigInt(unitPriceAtomic) * quantityMicro + SCALE - 1n) / SCALE;
-  if (amount === 0n) throw new MeterRejection("jumlah yang harus dibayar 0 setelah pembulatan");
-  if (amount > U128_MAX) throw new MeterRejection("jumlah melebihi U128");
+  if (amount === 0n) throw new MeterRejection("the amount to pay is 0 after rounding");
+  if (amount > U128_MAX) throw new MeterRejection("amount exceeds U128");
   return amount.toString();
 }
 
@@ -68,12 +68,12 @@ export async function resolvePrice(
 ): Promise<{ amount: string; meter?: MeterAnnouncement }> {
   if (typeof price !== "function") return { amount: priceToAmount(price) };
   const quote = await price(request);
-  if (!UNIT.test(quote.unit)) throw new MeterRejection(`unit harus 1 sampai 24 karakter [A-Za-z0-9._/-], dapat ${JSON.stringify(quote.unit)}`);
+  if (!UNIT.test(quote.unit)) throw new MeterRejection(`unit must be 1 to 24 characters [A-Za-z0-9._/-], got ${JSON.stringify(quote.unit)}`);
   const quantity = micro(quote.quantity, "quantity");
   const ceilings = [routeMaxQuantity, quote.maxQuantity].filter((c): c is number | string => c !== undefined).map((c) => micro(c, "maxQuantity"));
   const ceiling = ceilings.length > 0 ? ceilings.reduce((a, b) => (a < b ? a : b)) : undefined;
   if (ceiling !== undefined && quantity > ceiling) {
-    throw new MeterRejection(`jumlah ${plain(quantity)} ${quote.unit} melebihi batas ${plain(ceiling)} ${quote.unit} per request`, 413, {
+    throw new MeterRejection(`quantity ${plain(quantity)} ${quote.unit} exceeds the limit ${plain(ceiling)} ${quote.unit} per request`, 413, {
       unit: quote.unit, quantity: plain(quantity), max_quantity: plain(ceiling),
     });
   }

@@ -17,7 +17,7 @@ function runAll(j: MeteredJob, payUntil = Infinity): number[] {
   }
 }
 
-describe("SD-063 voucher bertahap untuk job panjang", () => {
+describe("SD-063 staged vouchers for a long job", () => {
   it("TC-SD-063-01 a job whose vouchers keep coming runs to the end and is paid in full, one increment per chunk", () => {
     const j = job();
     expect(j.chunkAmount).toBe(50_000n);
@@ -36,7 +36,7 @@ describe("SD-063 voucher bertahap untuk job panjang", () => {
     const summary = j.abort();
     expect(summary).toMatchObject({ status: "aborted", startedChunks: 3, completedChunks: 3, paidChunks: 2, cumulativePaid: "100000", amountDue: "50000", prepaid: "0" });
     expect(BigInt(summary.amountDue)).toBeLessThanOrEqual(j.chunkAmount); // the seller's risk: one chunk at most
-    expect(() => j.pay("150000")).toThrow(/dihentikan/);
+    expect(() => j.pay("150000")).toThrow(/already been stopped/);
   });
 
   it("TC-SD-063-03 a chunk that is not finished is not paid for and not counted: the buyer cuts during a chunk", () => {

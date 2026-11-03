@@ -1,6 +1,6 @@
 {
   "name": "keys",
-  "description": "Seed ed25519 32 byte: 0x01 kA (translator), 0x02 kB, 0x03 kC, 0x04 kD, 0x05 kunci S/P/X/L, 0x0f kZ (penyerang, tidak terdaftar).",
+  "description": "32-byte ed25519 seeds: 0x01 kA (translator), 0x02 kB, 0x03 kC, 0x04 kD, 0x05 the S/P/X/L keys, 0x0f kZ (attacker, not registered).",
   "keys": {
     "kA": {
       "seed": "0101010101010101010101010101010101010101010101010101010101010101",

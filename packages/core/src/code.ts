@@ -39,9 +39,9 @@ const ACCOUNT = /^(?:[a-z\d]+[-_])*[a-z\d]+(?:\.(?:[a-z\d]+[-_])*[a-z\d]+)*$/;
 const isAccount = (v: unknown): v is string => typeof v === "string" && v.length >= 2 && v.length <= 64 && ACCOUNT.test(v);
 const U128_MAX = (1n << 128n) - 1n;
 const parseAmount = (value: unknown, name: string, code: CodeErrorCode): bigint => {
-  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) return fail(code, `${name} harus string bilangan bulat tanpa nol di depan`);
+  if (typeof value !== "string" || !/^(0|[1-9]\d*)$/.test(value)) return fail(code, `${name} must be an integer string with no leading zeros`);
   const n = BigInt(value);
-  if (n > U128_MAX) return fail(code, `${name} melebihi u128`);
+  if (n > U128_MAX) return fail(code, `${name} exceeds u128`);
   return n;
 };
 
@@ -74,30 +74,30 @@ export const newCodeSalt = (): Uint8Array => randomBytes(CODE_SALT_BYTES);
 
 function checkCodeText(code: string): Uint8Array {
   const bytes = utf8(code);
-  if (bytes.length < MIN_CODE_BYTES || bytes.length > MAX_CODE_BYTES) return fail("code_bad_code", `kode harus ${MIN_CODE_BYTES} sampai ${MAX_CODE_BYTES} byte`);
-  if (code !== code.trim() || /[\u0000-\u001f]/.test(code)) return fail("code_bad_code", "kode tidak boleh diawali atau diakhiri spasi dan tidak boleh memuat karakter kontrol");
+  if (bytes.length < MIN_CODE_BYTES || bytes.length > MAX_CODE_BYTES) return fail("code_bad_code", `code must be ${MIN_CODE_BYTES} to ${MAX_CODE_BYTES} bytes`);
+  if (code !== code.trim() || /[\u0000-\u001f]/.test(code)) return fail("code_bad_code", "code must not start or end with whitespace and must not contain control characters");
   return bytes;
 }
 /** Isi yang dienkripsi dan dihash: `salt (32) ‖ byte UTF-8 kode`. */
 export function codePayload(code: string, salt: Uint8Array): Uint8Array {
-  if (salt.length !== CODE_SALT_BYTES) return fail("code_bad_salt", `salt harus ${CODE_SALT_BYTES} byte`);
+  if (salt.length !== CODE_SALT_BYTES) return fail("code_bad_salt", `salt must be ${CODE_SALT_BYTES} bytes`);
   return concatBytes(salt, checkCodeText(code));
 }
 /** `code_commitment` = `contentHash` SD-070 atas `salt ‖ kode`. */
 export const codeCommitment = (code: string, salt: Uint8Array): string => contentHash(codePayload(code, salt));
 
 export function normalizeCode(doc: CodeDocument): Required<CodeDocument> {
-  for (const [name, value] of [["circle", doc.circle], ["seller", doc.seller]] as const) if (!isAccount(value)) fail("code_bad_account", `${name} bukan akun NEAR: ${JSON.stringify(value)}`);
-  if (!HASH.test(doc.code_commitment)) fail("code_bad_commitment", "code_commitment harus 64 heksadesimal huruf kecil");
-  if (typeof doc.issuer !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(doc.issuer)) fail("code_bad_account", "issuer harus 1 sampai 64 karakter [a-z0-9._-]");
-  if (parseAmount(doc.value, "value", "code_bad_value") === 0n) fail("code_bad_value", "value harus lebih dari 0");
-  if (typeof doc.verifiable !== "boolean") fail("code_bad_value", "verifiable harus boolean");
+  for (const [name, value] of [["circle", doc.circle], ["seller", doc.seller]] as const) if (!isAccount(value)) fail("code_bad_account", `${name} is not a NEAR account: ${JSON.stringify(value)}`);
+  if (!HASH.test(doc.code_commitment)) fail("code_bad_commitment", "code_commitment must be 64 lowercase hex characters");
+  if (typeof doc.issuer !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(doc.issuer)) fail("code_bad_account", "issuer must be 1 to 64 characters [a-z0-9._-]");
+  if (parseAmount(doc.value, "value", "code_bad_value") === 0n) fail("code_bad_value", "value must be greater than 0");
+  if (typeof doc.verifiable !== "boolean") fail("code_bad_value", "verifiable must be a boolean");
   const arbiter = doc.arbiter ?? null;
   if (arbiter !== null) {
-    if (!isAccount(arbiter)) fail("code_bad_arbiter", "arbiter bukan akun NEAR");
-    if (arbiter === doc.seller) fail("code_bad_arbiter", "arbiter tidak boleh penjual");
+    if (!isAccount(arbiter)) fail("code_bad_arbiter", "arbiter is not a NEAR account");
+    if (arbiter === doc.seller) fail("code_bad_arbiter", "arbiter must not be the seller");
   }
-  if (typeof doc.nonce !== "string" || !/^[A-Za-z0-9._-]{1,32}$/.test(doc.nonce)) fail("code_bad_nonce", "nonce harus 1 sampai 32 karakter [A-Za-z0-9._-]");
+  if (typeof doc.nonce !== "string" || !/^[A-Za-z0-9._-]{1,32}$/.test(doc.nonce)) fail("code_bad_nonce", "nonce must be 1 to 32 characters [A-Za-z0-9._-]");
   return { circle: doc.circle, seller: doc.seller, code_commitment: doc.code_commitment, issuer: doc.issuer, value: doc.value, verifiable: doc.verifiable, arbiter, nonce: doc.nonce };
 }
 
@@ -110,7 +110,7 @@ export function codeNeedsBond(doc: Pick<CodeDocument, "value" | "verifiable" | "
 /** Memeriksa dokumen dan batas nilai; melempar `code_over_limit_unbonded` bila kode tak bisa dicek, nilainya di atas batas, dan tanpa arbiter. Mengembalikan dokumen ternormalisasi. */
 export function checkCodeDocument(doc: CodeDocument, limit: U128String = UNVERIFIABLE_CODE_LIMIT): Required<CodeDocument> {
   const normal = normalizeCode(doc);
-  if (codeNeedsBond(normal, limit)) fail("code_over_limit_unbonded", `kode yang tidak bisa dicek dibatasi ${limit} unit; di atasnya wajib jaminan (arbiter)`);
+  if (codeNeedsBond(normal, limit)) fail("code_over_limit_unbonded", `a code that cannot be checked is capped at ${limit} units; above that a bond (arbiter) is required`);
   return normal;
 }
 
@@ -118,7 +118,7 @@ export function checkCodeDocument(doc: CodeDocument, limit: U128String = UNVERIF
 export const serializeCode = (doc: CodeDocument): string => JSON.stringify(normalizeCode(doc));
 export const codeDocumentHash = (doc: CodeDocument): string => bytesToHex(sha256(utf8(serializeCode(doc))));
 export function codeResource(hash: string): string {
-  if (!HASH.test(hash)) return fail("code_bad_resource", "hash dokumen kode harus 64 heksadesimal huruf kecil");
+  if (!HASH.test(hash)) return fail("code_bad_resource", "code document hash must be 64 lowercase hex characters");
   return `${CODE_RESOURCE_PREFIX}${hash}`;
 }
 export function parseCodeResource(resource: string): string | null {
@@ -139,7 +139,7 @@ export function createCodeRelease(args: Omit<Parameters<typeof createRelease>[0]
   const { doc, code, salt, limit, ...rest } = args;
   const normal = checkCodeDocument(doc, limit);
   const payload = codePayload(code, salt);
-  if (contentHash(payload) !== normal.code_commitment) fail("code_bad_commitment", "salt dan kode tidak cocok dengan code_commitment dokumen");
+  if (contentHash(payload) !== normal.code_commitment) fail("code_bad_commitment", "salt and code do not match the document code_commitment");
   return createRelease({ ...rest, circle: normal.circle, license_hash: codeDocumentHash(normal), content_hash: normal.code_commitment, content_size: payload.length });
 }
 

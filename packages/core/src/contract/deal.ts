@@ -8,7 +8,7 @@ import type { DealView, FreezeView, Verdict } from "./types.generated.js";
 const HASH = /^[0-9a-f]{64}$/;
 const call = (circleContract: AccountId, methodName: string, args: Record<string, unknown>): ContractCall => ({ receiverId: circleContract, methodName, args, deposit: 0n });
 const bundleId = (id: number): number => {
-  if (!Number.isSafeInteger(id) || id < 0) throw new Error(`bundle_id harus bilangan bulat >= 0, dapat ${id}`);
+  if (!Number.isSafeInteger(id) || id < 0) throw new Error(`bundle_id must be an integer >= 0, got ${id}`);
   return id;
 };
 
@@ -24,12 +24,12 @@ export const ASSET_CONTRACT_ERROR_CODES = ["ERR_ASSET_CLASS_NOT_A", "ERR_ASSET_T
 export const buildConfirmDealCall = (circleContract: AccountId, id: number): ContractCall => call(circleContract, "confirm_deal", { bundle_id: bundleId(id) });
 /** `dispute_deal(bundle_id, evidence_hash)`: a party disputes inside the window (before `confirm_by`); `evidence_hash` is the sha256 (64 lowercase hex) of the evidence kept off-chain. */
 export function buildDisputeDealCall(circleContract: AccountId, id: number, evidenceHash: string): ContractCall {
-  if (!HASH.test(evidenceHash)) throw new Error("evidence_hash harus 64 karakter hex huruf kecil (sha256)");
+  if (!HASH.test(evidenceHash)) throw new Error("evidence_hash must be 64 lowercase hex characters (sha256)");
   return call(circleContract, "dispute_deal", { bundle_id: bundleId(id), evidence_hash: evidenceHash });
 }
 /** `rule_deal(bundle_id, verdict)`: the arbiter alone, on a disputed deal. */
 export function buildRuleDealCall(circleContract: AccountId, id: number, verdict: Verdict): ContractCall {
-  if (verdict !== "accused_guilty" && verdict !== "complaint_false" && verdict !== "no_fault") throw new Error(`verdict tidak dikenal: ${JSON.stringify(verdict)}`);
+  if (verdict !== "accused_guilty" && verdict !== "complaint_false" && verdict !== "no_fault") throw new Error(`unknown verdict: ${JSON.stringify(verdict)}`);
   return call(circleContract, "rule_deal", { bundle_id: bundleId(id), verdict });
 }
 /** `settle_deal(bundle_id)`: anybody, once the deal is due and nobody disputed (or the arbiter missed the window). */
@@ -37,7 +37,7 @@ export const buildSettleDealCall = (circleContract: AccountId, id: number): Cont
 
 /** `propose_freeze(account_id, reason_hash?)`: the owner (the DAO) only; the freeze applies after the timelock. */
 export function buildProposeFreezeCall(circleContract: AccountId, accountId: AccountId, reasonHash?: string): ContractCall {
-  if (reasonHash !== undefined && !HASH.test(reasonHash)) throw new Error("reason_hash harus 64 karakter hex huruf kecil");
+  if (reasonHash !== undefined && !HASH.test(reasonHash)) throw new Error("reason_hash must be 64 lowercase hex characters");
   return call(circleContract, "propose_freeze", { account_id: accountId, ...(reasonHash === undefined ? {} : { reason_hash: reasonHash }) });
 }
 export const buildApplyFreezeCall = (circleContract: AccountId, accountId: AccountId): ContractCall => call(circleContract, "apply_freeze", { account_id: accountId });
@@ -46,7 +46,7 @@ export const buildUnfreezeMemberCall = (circleContract: AccountId, accountId: Ac
 
 /** `set_asset_contracts(asset_type, contracts)` (CT-096): the owner names the official contracts of an asset type; an escrow of NFT, NEP-141 or NEP-245 needs one of them. */
 export function buildSetAssetContractsCall(circleContract: AccountId, assetType: string, contracts: AccountId[]): ContractCall {
-  if (assetType === "") throw new Error("asset_type tidak boleh kosong");
+  if (assetType === "") throw new Error("asset_type must not be empty");
   return call(circleContract, "set_asset_contracts", { asset_type: assetType, contracts });
 }
 

@@ -22,7 +22,7 @@ describe.skipIf(!sandboxAvailable)("SD-031 gas key relayer di near-sandbox", () 
     await fx?.stop();
   });
 
-  it("TC-SD-031-08 empat registrasi paralel di empat jalur tanpa konflik nonce", async () => {
+  it("TC-SD-031-08 four parallel registrations on four lanes without a nonce conflict", async () => {
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {
       const account = await fx.member(name);

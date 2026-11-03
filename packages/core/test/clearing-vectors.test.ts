@@ -58,11 +58,11 @@ const netBefore = (snapshot: Snapshot) => net(snapshot, []);
 const asStrings = (m: Record<string, bigint>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.toString()]));
 
 describe("SD-009 test vector kliring", () => {
-  it("berkas yang diharapkan ada", () => {
+  it("the expected files exist", () => {
     expect(files).toEqual(["cleared_exceeds_obligation.json", "unbalanced_member.json", "valid.json"]);
   });
 
-  it("TC-SD-009-01 proposal valid, posisi bersih tidak berubah", () => {
+  it("TC-SD-009-01 a valid proposal, net positions unchanged", () => {
     const { input, expected } = load("valid.json");
     const result = simulate(input);
     expect(result.valid).toBe(true);
@@ -80,7 +80,7 @@ describe("SD-009 test vector kliring", () => {
     expect(Object.values(netBefore(input.snapshot)).reduce((a, b) => a + b, 0n)).toBe(0n);
   });
 
-  it("TC-SD-009-02 cleared melebihi obligation", () => {
+  it("TC-SD-009-02 cleared exceeds the obligation", () => {
     const { input, expected } = load("cleared_exceeds_obligation.json");
     const result = simulate(input);
     expect(expected.valid).toBe(false);
@@ -97,12 +97,12 @@ describe("SD-009 test vector kliring", () => {
     expect(result.reason).toMatch(/^ERR_UNBALANCED_MEMBER/);
   });
 
-  it("TC-SD-009-04 konsistensi internal semua berkas", () => {
+  it("TC-SD-009-04 internal consistency of all files", () => {
     for (const file of files) {
       const { input, expected } = load(file);
       const known = new Set(input.snapshot.obligations.map((o) => pair(o.debtor, o.creditor)));
       for (const edge of input.edges) {
-        expect(known.has(pair(edge.debtor, edge.creditor)), `${file} edge di snapshot`).toBe(true);
+        expect(known.has(pair(edge.debtor, edge.creditor)), `${file} edge in the snapshot`).toBe(true);
         expect(edge.cleared, file).toMatch(U128);
       }
       for (const o of input.snapshot.obligations) expect(o.amount, file).toMatch(U128);

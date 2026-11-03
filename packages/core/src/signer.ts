@@ -19,7 +19,7 @@ export class ContractCallError extends Error {
   readonly code: string | null;
   constructor(readonly call: Pick<ContractCall, "receiverId" | "methodName">, cause: unknown) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    super(`${call.receiverId}.${call.methodName} gagal: ${message}`);
+    super(`${call.receiverId}.${call.methodName} failed: ${message}`);
     this.name = "ContractCallError";
     this.code = contractErrorCode(cause);
   }

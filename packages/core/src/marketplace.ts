@@ -60,35 +60,35 @@ const isAmount = (v: unknown): v is U128String => typeof v === "string" && AMOUN
 const asciiText = (v: unknown, max: number): v is string => typeof v === "string" && v.length <= max && /^[\x20-\x7e]*$/.test(v);
 
 function checkSide(side: ListingSide, name: string): void {
-  if (typeof side !== "object" || side === null) throw new BarterFormatError(`${name} harus objek`);
-  if (typeof side.asset_type !== "string" || !ASSET_TYPE.test(side.asset_type)) throw new BarterFormatError(`${name}.asset_type harus ASCII huruf kecil, angka, titik, titik dua, strip atau garis bawah (1-64)`);
+  if (typeof side !== "object" || side === null) throw new BarterFormatError(`${name} must be an object`);
+  if (typeof side.asset_type !== "string" || !ASSET_TYPE.test(side.asset_type)) throw new BarterFormatError(`${name}.asset_type must be ASCII lowercase letters, digits, dot, colon, hyphen or underscore (1-64)`);
   if (!(ASSET_CLASSES as readonly string[]).includes(side.asset_class)) {
-    throw new BarterFormatError(`${name}.asset_class ${JSON.stringify(side.asset_class)} ditolak: kelas yang sah A, B, C, atau D`);
+    throw new BarterFormatError(`${name}.asset_class ${JSON.stringify(side.asset_class)} rejected: valid classes are A, B, C, or D`);
   }
-  if (!isInt(side.quantity, 1)) throw new BarterFormatError(`${name}.quantity harus integer >= 1`);
-  if (!isAmount(side.value)) throw new BarterFormatError(`${name}.value harus string desimal > 0 tanpa nol di depan dan <= U128`);
+  if (!isInt(side.quantity, 1)) throw new BarterFormatError(`${name}.quantity must be an integer >= 1`);
+  if (!isAmount(side.value)) throw new BarterFormatError(`${name}.value must be a decimal string > 0 with no leading zeros and <= U128`);
 }
 
 export function validateListing(listing: Listing): void {
-  if (!isAccount(listing.circle) || !isAccount(listing.account)) throw new BarterFormatError("circle dan account harus akun NEAR");
+  if (!isAccount(listing.circle) || !isAccount(listing.account)) throw new BarterFormatError("circle and account must be NEAR accounts");
   checkSide(listing.offer, "offer");
   checkSide(listing.want, "want");
-  if (!asciiText(listing.terms, 512)) throw new BarterFormatError("terms harus teks ASCII maksimal 512 karakter");
-  if (!asciiText(listing.detail, 2048)) throw new BarterFormatError("detail harus teks ASCII maksimal 2048 karakter");
-  if (!isInt(listing.expires_at, 1)) throw new BarterFormatError("expires_at harus integer detik unix >= 1");
-  if (!isInt(listing.discount_bps, 0) || listing.discount_bps > 10_000) throw new BarterFormatError("discount_bps harus integer 0..10000");
-  if (typeof listing.accept_payment !== "boolean" || typeof listing.discoverable !== "boolean") throw new BarterFormatError("accept_payment dan discoverable harus boolean");
-  if (typeof listing.nonce !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(listing.nonce)) throw new BarterFormatError("nonce harus 1-64 karakter [A-Za-z0-9_-]");
+  if (!asciiText(listing.terms, 512)) throw new BarterFormatError("terms must be ASCII text of at most 512 characters");
+  if (!asciiText(listing.detail, 2048)) throw new BarterFormatError("detail must be ASCII text of at most 2048 characters");
+  if (!isInt(listing.expires_at, 1)) throw new BarterFormatError("expires_at must be an integer of unix seconds >= 1");
+  if (!isInt(listing.discount_bps, 0) || listing.discount_bps > 10_000) throw new BarterFormatError("discount_bps must be an integer 0..10000");
+  if (typeof listing.accept_payment !== "boolean" || typeof listing.discoverable !== "boolean") throw new BarterFormatError("accept_payment and discoverable must be booleans");
+  if (typeof listing.nonce !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(listing.nonce)) throw new BarterFormatError("nonce must be 1-64 characters [A-Za-z0-9_-]");
 }
 
 export function validateOffer(offer: Offer): void {
-  if (!isAccount(offer.circle) || !isAccount(offer.proposer)) throw new BarterFormatError("circle dan proposer harus akun NEAR");
-  if (typeof offer.listing_hash !== "string" || !HASH_HEX.test(offer.listing_hash)) throw new BarterFormatError("listing_hash harus heks huruf kecil 64 karakter");
-  if (!isInt(offer.round, 1)) throw new BarterFormatError("round harus integer >= 1");
-  if (offer.mode !== "pay" && offer.mode !== "barter") throw new BarterFormatError('mode harus "pay" atau "barter"');
-  if (!isAmount(offer.value)) throw new BarterFormatError("value harus string desimal > 0 tanpa nol di depan dan <= U128");
-  if (!isInt(offer.quantity, 1)) throw new BarterFormatError("quantity harus integer >= 1");
-  if (!isInt(offer.deliver_by, 1)) throw new BarterFormatError("deliver_by harus integer detik unix >= 1");
+  if (!isAccount(offer.circle) || !isAccount(offer.proposer)) throw new BarterFormatError("circle and proposer must be NEAR accounts");
+  if (typeof offer.listing_hash !== "string" || !HASH_HEX.test(offer.listing_hash)) throw new BarterFormatError("listing_hash must be 64 lowercase hex characters");
+  if (!isInt(offer.round, 1)) throw new BarterFormatError("round must be an integer >= 1");
+  if (offer.mode !== "pay" && offer.mode !== "barter") throw new BarterFormatError('mode must be "pay" or "barter"');
+  if (!isAmount(offer.value)) throw new BarterFormatError("value must be a decimal string > 0 with no leading zeros and <= U128");
+  if (!isInt(offer.quantity, 1)) throw new BarterFormatError("quantity must be an integer >= 1");
+  if (!isInt(offer.deliver_by, 1)) throw new BarterFormatError("deliver_by must be an integer of unix seconds >= 1");
 }
 
 const side = (s: ListingSide) => ({ asset_type: s.asset_type, asset_class: s.asset_class, quantity: s.quantity, value: s.value });
@@ -152,16 +152,16 @@ export type QuickBarterParams = {
 };
 
 function bpsOf(value: bigint, bps: number): bigint {
-  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) throw new BarterFormatError("bps harus integer 0..10000");
+  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) throw new BarterFormatError("bps must be an integer 0..10000");
   return (value * BigInt(bps)) / BPS_DENOMINATOR;
 }
 
 function split({ value, discountBps, searcherShareBps }: QuickBarterParams) {
-  if (!isAmount(value)) throw new BarterFormatError("value harus string desimal > 0 tanpa nol di depan dan <= U128");
+  if (!isAmount(value)) throw new BarterFormatError("value must be a decimal string > 0 with no leading zeros and <= U128");
   const v = BigInt(value);
   const discount = bpsOf(v, discountBps);
   const searcher = bpsOf(v, searcherShareBps);
-  if (searcher > discount) throw new BarterFormatError("jatah pencari tidak boleh melebihi diskon");
+  if (searcher > discount) throw new BarterFormatError("the seeker share must not exceed the discount");
   return { v, discount, searcher };
 }
 
@@ -232,16 +232,16 @@ export type Referral = {
 };
 
 export function validateReferral(referral: Referral): void {
-  if (!isAccount(referral.circle) || !isAccount(referral.seeker) || !isAccount(referral.to)) throw new BarterFormatError("circle, seeker, dan to harus akun NEAR");
-  if (referral.seeker === referral.to) throw new BarterFormatError("pencari tidak mengajak dirinya sendiri");
-  if (typeof referral.listing_hash !== "string" || !HASH_HEX.test(referral.listing_hash)) throw new BarterFormatError("listing_hash harus heks huruf kecil 64 karakter");
-  if (referral.mode !== "pay" && referral.mode !== "barter") throw new BarterFormatError('mode harus "pay" atau "barter"');
-  if (!isAmount(referral.value)) throw new BarterFormatError("value harus string desimal > 0 tanpa nol di depan dan <= U128");
-  if (!isInt(referral.quantity, 1)) throw new BarterFormatError("quantity harus integer >= 1");
-  if (!isInt(referral.deliver_by, 1)) throw new BarterFormatError("deliver_by harus integer detik unix >= 1");
-  if (!isInt(referral.searcher_share_bps, 0) || referral.searcher_share_bps > 10_000) throw new BarterFormatError("searcher_share_bps harus integer 0..10000");
-  if (!isInt(referral.expires_at, 1)) throw new BarterFormatError("expires_at harus integer detik unix >= 1");
-  if (typeof referral.nonce !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(referral.nonce)) throw new BarterFormatError("nonce harus 1-64 karakter [A-Za-z0-9_-]");
+  if (!isAccount(referral.circle) || !isAccount(referral.seeker) || !isAccount(referral.to)) throw new BarterFormatError("circle, seeker, and to must be NEAR accounts");
+  if (referral.seeker === referral.to) throw new BarterFormatError("the seeker must not refer themselves");
+  if (typeof referral.listing_hash !== "string" || !HASH_HEX.test(referral.listing_hash)) throw new BarterFormatError("listing_hash must be 64 lowercase hex characters");
+  if (referral.mode !== "pay" && referral.mode !== "barter") throw new BarterFormatError('mode must be "pay" or "barter"');
+  if (!isAmount(referral.value)) throw new BarterFormatError("value must be a decimal string > 0 with no leading zeros and <= U128");
+  if (!isInt(referral.quantity, 1)) throw new BarterFormatError("quantity must be an integer >= 1");
+  if (!isInt(referral.deliver_by, 1)) throw new BarterFormatError("deliver_by must be an integer of unix seconds >= 1");
+  if (!isInt(referral.searcher_share_bps, 0) || referral.searcher_share_bps > 10_000) throw new BarterFormatError("searcher_share_bps must be an integer 0..10000");
+  if (!isInt(referral.expires_at, 1)) throw new BarterFormatError("expires_at must be an integer of unix seconds >= 1");
+  if (typeof referral.nonce !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(referral.nonce)) throw new BarterFormatError("nonce must be 1-64 characters [A-Za-z0-9_-]");
 }
 
 /** JSON kanonik ajakan: key `circle, seeker, to, listing_hash, mode, value, quantity, deliver_by, searcher_share_bps, expires_at, nonce`. */

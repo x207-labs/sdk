@@ -36,7 +36,7 @@ export class NearRpc {
   readonly #rateLimit: { attempts: number; baseMs: number };
 
   constructor(options: NearRpcOptions) {
-    if (options.urls.length === 0) throw new Error("NearRpc butuh minimal satu URL");
+    if (options.urls.length === 0) throw new Error("NearRpc needs at least one URL");
     this.#urls = options.urls;
     this.#timeoutMs = options.timeoutMs;
     this.#fetch = options.fetch ?? fetch;
@@ -81,7 +81,7 @@ export class NearRpc {
         failures.push(`${url}: ${(error as Error).name === "TimeoutError" ? `timeout ${this.#timeoutMs} ms` : (error as Error).message}`);
       }
     }
-    throw new ChainUnavailableError(`semua endpoint RPC gagal (${failures.join("; ")})`);
+    throw new ChainUnavailableError(`all RPC endpoints failed (${failures.join("; ")})`);
   }
 
   /** Panggil view method kontrak; hasil di-parse sebagai JSON. */

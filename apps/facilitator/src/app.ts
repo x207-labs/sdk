@@ -40,13 +40,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /** Body `/verify` dan `/settle`; network x207 wajib lolos regex CAIP-2. */
 function parsePaymentRequest(body: unknown): VerifyRequest {
-  if (!isRecord(body)) throw new InvalidRequestError("body harus objek JSON");
-  if (typeof body.x402Version !== "number") throw new InvalidRequestError("x402Version wajib");
-  if (!isRecord(body.paymentPayload)) throw new InvalidRequestError("paymentPayload wajib");
+  if (!isRecord(body)) throw new InvalidRequestError("body must be a JSON object");
+  if (typeof body.x402Version !== "number") throw new InvalidRequestError("x402Version is required");
+  if (!isRecord(body.paymentPayload)) throw new InvalidRequestError("paymentPayload is required");
   const requirements = body.paymentRequirements;
-  if (!isRecord(requirements)) throw new InvalidRequestError("paymentRequirements wajib");
+  if (!isRecord(requirements)) throw new InvalidRequestError("paymentRequirements is required");
   const { network } = requirements;
-  if (typeof network !== "string") throw new InvalidRequestError("paymentRequirements.network wajib");
+  if (typeof network !== "string") throw new InvalidRequestError("paymentRequirements.network is required");
   if (network.startsWith("x207:")) {
     try {
       assertCircleId(network);
@@ -60,14 +60,14 @@ function parsePaymentRequest(body: unknown): VerifyRequest {
 /** Query `GET /x207/pair-state`; semua parameter wajib dan network lolos regex CAIP-2. */
 function parsePairStateQuery(query: Record<string, string | undefined>): PairStateQuery {
   const { network, payer, payee, epoch } = query;
-  if (!network || !payer || !payee || !epoch) throw new InvalidRequestError("network, payer, payee, dan epoch wajib");
+  if (!network || !payer || !payee || !epoch) throw new InvalidRequestError("network, payer, payee and epoch are required");
   try {
     assertCircleId(network);
   } catch (error) {
     throw new InvalidRequestError((error as Error).message);
   }
   if (!/^[1-9]\d*$/.test(epoch) || !Number.isSafeInteger(Number(epoch))) {
-    throw new InvalidRequestError(`epoch harus integer >= 1, dapat "${epoch}"`);
+    throw new InvalidRequestError(`epoch must be an integer >= 1, got "${epoch}"`);
   }
   return { network, payer, payee, epoch: Number(epoch) };
 }
@@ -101,7 +101,7 @@ export function createApp(service: FacilitatorService, options: AppOptions = {})
     try {
       body = await c.req.json();
     } catch {
-      throw new InvalidRequestError("body bukan JSON");
+      throw new InvalidRequestError("body is not JSON");
     }
     return c.json(await run(parsePaymentRequest(body)) as object, 200);
   };

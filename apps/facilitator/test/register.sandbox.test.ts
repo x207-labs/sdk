@@ -23,7 +23,7 @@ describe.skipIf(!sandboxAvailable)("SD-028 registrasi di near-sandbox", () => {
     await fx?.stop();
   });
 
-  it("TC-SD-028-19 50 voucher dengan total 1000000 menjadi satu register_cumulative sebelum cutoff_at", async () => {
+  it("TC-SD-028-19 50 vouchers totaling 1000000 become one register_cumulative before cutoff_at", async () => {
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {
       const account = await fx.member(name);

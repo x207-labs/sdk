@@ -121,10 +121,10 @@ describe("SD-061 templates of batch 1 (catalog 1 to 10)", () => {
     ];
     for (const [name, input, expected] of cases) expect(code(input), name).toBe(expected);
     // an RWA token without a whitelist check is allowed with a warning, a failed buyer check is a warning too
-    expect(buildAssetTemplate({ kind: "rwa", ...ft, ...base }, NOW).warnings.join(" ")).toContain("Whitelist token belum diperiksa");
-    expect(buildAssetTemplate({ kind: "rwa", ...ft, whitelist: { circleContract: true, grantor: true, buyer: false }, ...base }, NOW).warnings.join(" ")).toContain("Pembeli belum ada di whitelist");
-    expect(buildAssetTemplate(VALID.lst!, NOW).warnings.join(" ")).toContain("bukan oracle");
-    expect(buildAssetTemplate(VALID.ft!, NOW).warnings.join(" ")).toContain("biaya transfer tidak didukung");
+    expect(buildAssetTemplate({ kind: "rwa", ...ft, ...base }, NOW).warnings.join(" ")).toContain("Token whitelist not checked");
+    expect(buildAssetTemplate({ kind: "rwa", ...ft, whitelist: { circleContract: true, grantor: true, buyer: false }, ...base }, NOW).warnings.join(" ")).toContain("The buyer is not in the token whitelist");
+    expect(buildAssetTemplate(VALID.lst!, NOW).warnings.join(" ")).toContain("not an oracle");
+    expect(buildAssetTemplate(VALID.ft!, NOW).warnings.join(" ")).toContain("transfer fee are not supported");
     // the check itself
     const whitelisted = new Set(["circle.near", "grantor.near"]);
     const check = async (_token: string, who: string) => whitelisted.has(who);
@@ -139,7 +139,7 @@ describe("SD-061 templates of batch 1 (catalog 1 to 10)", () => {
     expect(code({ ...intents, amount: "0" })).toBe("bad_amount");
     expect(code({ kind: "pool-share", pool: "P", standard: "erc20" as never, ...mt, ...base })).toBe("pool_standard");
     expect(code({ kind: "pool-share", pool: "P", standard: "nep245", ...mt, tokenId: "", ...base })).toBe("bad_token_id");
-    expect(buildAssetTemplate(intents, NOW).warnings.join(" ")).toContain("kontrak Intents yang asli");
+    expect(buildAssetTemplate(intents, NOW).warnings.join(" ")).toContain("real Intents contract");
   });
 
   it("TC-SD-061-07 no secret in a listing, ASCII only, detail within 2048, and an unknown kind is refused", () => {
@@ -179,8 +179,8 @@ describe("SD-066 template fixes from the cross review of batch 1 (X1, X3, X5, X6
       expect(codeWith(input), kind).toBeUndefined();
       expect(codeWith({ ...input, metadata: { decimals: 2, symbol: "TKN" } } as AssetInput), kind).toBe("ft_metadata_mismatch");
       expect(codeWith({ ...input, metadata: { decimals: 6, symbol: "USDC" } } as AssetInput), kind).toBe("ft_metadata_mismatch");
-      expect(build(input).warnings.join(" ")).not.toMatch(/belum diperiksa terhadap token/);
-      expect(build(VALID[kind]!).warnings.join(" ")).toMatch(/Desimal dan simbol belum diperiksa terhadap token/);
+      expect(build(input).warnings.join(" ")).not.toMatch(/not checked against the token/);
+      expect(build(VALID[kind]!).warnings.join(" ")).toMatch(/Decimals and symbol are not checked against the token/);
     }
     const share = { kind: "pool-share", pool: "P", standard: "nep141", ...ft, ...base } as AssetInput;
     expect(codeWith({ ...share, metadata: { decimals: 18, symbol: "TKN" } } as AssetInput)).toBe("ft_metadata_mismatch");
@@ -214,7 +214,7 @@ describe("SD-066 template fixes from the cross review of batch 1 (X1, X3, X5, X6
 
   it("TC-SD-066-05 [X4] the warning of an RWA listing says that the circle keeps its own list and points to listings/check", () => {
     const w = build(VALID.rwa!).warnings.join(" ");
-    expect(w).toMatch(/daftar lingkaran/);
+    expect(w).toMatch(/circle list/);
     expect(w).toMatch(/listings\/check/);
   });
 });

@@ -27,20 +27,20 @@ const out = file("grant/voucher_grant.json");
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, `${JSON.stringify({
   name: "voucher_grant",
-  description: "Endpoint grant F8 (SD-053): payTo = pemberi grant, extra.grantId, resource voucher = x207:grant:<grantId>. Kasus lain: payee akun broker dan resource URL.",
+  description: "F8 grant endpoint (SD-053): payTo = the grantor, extra.grantId, voucher resource = x207:grant:<grantId>. Other cases: the broker account as payee, and a URL as resource.",
   input: { publicKey: voucherPublicKey(seed("kA")), requirements: requirements(GRANTOR), voucher: valid },
   expected: { valid: true, resource: grantResource(GRANT_ID), message: serializeVoucherMessage(unsigned(GRANTOR, grantResource(GRANT_ID))) },
   cases: [
     {
-      name: "payee_broker", description: "Voucher ber-payee akun broker sementara requirements.payTo = pemberi grant",
+      name: "payee_broker", description: "Voucher whose payee is the broker account while requirements.payTo is the grantor",
       requirements: requirements(GRANTOR), voucher: voucherOf(BROKER, grantResource(GRANT_ID)), facilitatorReason: "payee_mismatch",
     },
     {
-      name: "resource_url", description: "Voucher ber-resource URL broker, bukan x207:grant:<grantId>",
+      name: "resource_url", description: "Voucher whose resource is the broker URL, not x207:grant:<grantId>",
       requirements: requirements(GRANTOR), voucher: voucherOf(GRANTOR, "https://broker.example/grants/7/lease"), facilitatorReason: "grant_resource_mismatch",
     },
     {
-      name: "resource_other_grant", description: "Voucher untuk grant lain (x207:grant:8)",
+      name: "resource_other_grant", description: "Voucher for another grant (x207:grant:8)",
       requirements: requirements(GRANTOR), voucher: voucherOf(GRANTOR, grantResource(8)), facilitatorReason: "grant_resource_mismatch",
     },
   ],

@@ -6,8 +6,8 @@ import { isKnownX207Event, parseEventLog } from "@x207/core";
 const dir = fileURLToPath(new URL("../../../spec/test-vectors/events/sandbox/", import.meta.url));
 const files = readdirSync(dir).filter((f) => f.endsWith(".log"));
 
-describe("SD-011 fixture log nyata dari near-sandbox", () => {
-  it("TC-SD-011-17 log kontrak asli untuk event siklus hidup ter-parse tanpa error", () => {
+describe("SD-011 real log fixtures from near-sandbox", () => {
+  it("TC-SD-011-17 real contract logs for lifecycle events parse without error", () => {
     for (const expected of [
       "member_joined", "stake_added", "voucher_registered", "epoch_cutoff", "clearing_submitted", "clearing_applied",
       "epoch_committed", "limits_updated", "residual_paid", "epoch_finalized", "residual_claimed", "member_defaulted", "params_updated",
@@ -25,7 +25,7 @@ describe("SD-011 fixture log nyata dari near-sandbox", () => {
     }
   });
 
-  it("clearing_applied hanya memuat edge dengan cleared > 0 (ADR-31b)", () => {
+  it("clearing_applied contains only edges with cleared > 0 (ADR-31b)", () => {
     const [applied] = parseEventLog(readFileSync(`${dir}clearing_applied.log`, "utf8").trim())!;
     const edges = (applied as unknown as { edges: Array<{ cleared: string }> }).edges;
     expect(edges.length).toBeGreaterThan(0);

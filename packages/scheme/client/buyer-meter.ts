@@ -40,7 +40,7 @@ const GB_BYTES = 1_000_000_000n;
 function micro(value: number | string, name: string): bigint {
   const text = typeof value === "number" ? (Number.isFinite(value) && value >= 0 ? value.toFixed(6) : "") : value.trim();
   const match = QUANTITY.exec(text.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, ""));
-  if (!match) throw new MeterOverbilledError("meter_bad_count", `${name} harus angka desimal >= 0 dengan paling banyak 6 desimal, dapat ${JSON.stringify(value)}`);
+  if (!match) throw new MeterOverbilledError("meter_bad_count", `${name} must be a decimal number >= 0 with at most 6 decimals, got ${JSON.stringify(value)}`);
   return BigInt(match[1]!) * SCALE + BigInt((match[2] ?? "").padEnd(6, "0"));
 }
 const plain = (value: bigint): string => {
@@ -67,11 +67,11 @@ export class BuyerMeter {
   }
 
   static #checkEpoch(epoch: number): number {
-    if (!Number.isSafeInteger(epoch) || epoch < 1) throw new MeterOverbilledError("meter_wrong_epoch", `epoch harus bilangan bulat >= 1, dapat ${epoch}`);
+    if (!Number.isSafeInteger(epoch) || epoch < 1) throw new MeterOverbilledError("meter_wrong_epoch", `epoch must be an integer >= 1, got ${epoch}`);
     return epoch;
   }
   static #checkBase(base: string): bigint {
-    if (!/^(0|[1-9]\d*)$/.test(base)) throw new MeterOverbilledError("meter_bad_count", `baseCumulative harus bilangan bulat desimal, dapat ${JSON.stringify(base)}`);
+    if (!/^(0|[1-9]\d*)$/.test(base)) throw new MeterOverbilledError("meter_bad_count", `baseCumulative must be a decimal integer, got ${JSON.stringify(base)}`);
     return BigInt(base);
   }
 
@@ -81,7 +81,7 @@ export class BuyerMeter {
 
   /** Pindah ke epoch berikutnya dengan keadaan pasangan di sana; yang diterima dan yang diharapkan dihitung dari 0 lagi. */
   startEpoch(epoch: number, baseCumulative: U128String = "0"): void {
-    if (epoch <= this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `epoch ${epoch} bukan setelah epoch ${this.#epoch}`);
+    if (epoch <= this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `epoch ${epoch} is not after epoch ${this.#epoch}`);
     this.#epoch = BuyerMeter.#checkEpoch(epoch);
     this.#base = BuyerMeter.#checkBase(baseCumulative);
     this.#received = 0n;
@@ -112,23 +112,23 @@ export class BuyerMeter {
 
   /** Mencatat byte yang diterima; hanya untuk satuan `GB` (1 GB = 10^9 byte). */
   recordBytes(bytes: number | bigint): void {
-    if (this.unit !== "GB") throw new MeterOverbilledError("meter_unit_mismatch", `byte hanya untuk satuan GB, satuan meter ini ${this.unit}`);
+    if (this.unit !== "GB") throw new MeterOverbilledError("meter_unit_mismatch", `bytes only apply to unit GB, this meter's unit is ${this.unit}`);
     const b = BigInt(bytes);
-    if (b < 0n) throw new MeterOverbilledError("meter_bad_count", "byte tidak boleh negatif");
+    if (b < 0n) throw new MeterOverbilledError("meter_bad_count", "bytes must not be negative");
     this.record(plain((b * SCALE) / GB_BYTES));
   }
 
   /** Mencatat durasi yang diterima dalam milidetik; hanya untuk satuan `minute` atau `day`. */
   recordMillis(ms: number): void {
     const unitMs = this.unit === "minute" ? 60_000 : this.unit === "day" ? 86_400_000 : 0;
-    if (unitMs === 0) throw new MeterOverbilledError("meter_unit_mismatch", `durasi hanya untuk satuan minute atau day, satuan meter ini ${this.unit}`);
-    if (!Number.isFinite(ms) || ms < 0) throw new MeterOverbilledError("meter_bad_count", "durasi tidak boleh negatif");
+    if (unitMs === 0) throw new MeterOverbilledError("meter_unit_mismatch", `duration only applies to unit minute or day, this meter's unit is ${this.unit}`);
+    if (!Number.isFinite(ms) || ms < 0) throw new MeterOverbilledError("meter_bad_count", "duration must not be negative");
     this.record((ms / unitMs).toFixed(6));
   }
 
   /** Mencatat jumlah panggilan, request, atau job yang diterima (bilangan bulat). */
   recordCalls(count = 1): void {
-    if (!Number.isSafeInteger(count) || count < 0) throw new MeterOverbilledError("meter_bad_count", `jumlah harus bilangan bulat >= 0, dapat ${count}`);
+    if (!Number.isSafeInteger(count) || count < 0) throw new MeterOverbilledError("meter_bad_count", `count must be an integer >= 0, got ${count}`);
     this.record(count);
   }
 
@@ -143,15 +143,15 @@ export class BuyerMeter {
    * per request), dan `amount` sama dengan harga satuan × jumlah.
    */
   authorize(announcement: MeterAnnouncement | undefined, amount: U128String): void {
-    if (announcement === undefined) throw new MeterOverbilledError("meter_missing", "402 tidak mengumumkan extra.meter: satuan dan jumlah tagihan tidak diketahui");
+    if (announcement === undefined) throw new MeterOverbilledError("meter_missing", "402 does not announce extra.meter: the unit and the billed quantity are unknown");
     if (announcement.unit !== this.unit) throw new MeterOverbilledError("meter_unit_mismatch", `satuan ${announcement.unit}, diharapkan ${this.unit}`, { unit: announcement.unit });
     // F8 (review BE-062): BigInt() reads hex ("0x10"), spaces and an empty text; the price is a decimal whole number above 0 or the announcement is refused
     if (typeof announcement.unit_price !== "string" || !/^[1-9]\d*$/.test(announcement.unit_price)) {
-      throw new MeterOverbilledError("meter_bad_count", `unit_price harus bilangan bulat desimal > 0, dapat ${JSON.stringify(announcement.unit_price)}`);
+      throw new MeterOverbilledError("meter_bad_count", `unit_price must be a decimal integer > 0, got ${JSON.stringify(announcement.unit_price)}`);
     }
     const announcedPrice = BigInt(announcement.unit_price);
     if (announcedPrice > this.unitPrice) {
-      throw new MeterOverbilledError("meter_price_too_high", `harga satuan ${announcement.unit_price} di atas yang disetujui ${this.unitPrice}`, { unit_price: announcement.unit_price });
+      throw new MeterOverbilledError("meter_price_too_high", `unit price ${announcement.unit_price} is above the approved ${this.unitPrice}`, { unit_price: announcement.unit_price });
     }
     const quantity = micro(announcement.quantity, "quantity");
     const allowed = this.#pending > 0n ? this.#pending : this.#maxPerRequest;
@@ -161,18 +161,18 @@ export class BuyerMeter {
       });
     }
     if (meterAmount(announcement.unit_price, quantity) !== amount) {
-      throw new MeterOverbilledError("meter_amount_mismatch", `jumlah ${amount} bukan ${announcement.unit_price} × ${announcement.quantity}`, { amount });
+      throw new MeterOverbilledError("meter_amount_mismatch", `amount ${amount} is not ${announcement.unit_price} × ${announcement.quantity}`, { amount });
     }
   }
 
   /** Voucher kumulatif di atas `ceiling()` ditolak. */
   checkVoucher(cumulativeAmount: U128String, epoch: number): void {
-    if (epoch !== this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `voucher untuk epoch ${epoch}, meter ini untuk epoch ${this.#epoch}: panggil startEpoch`, { epoch: String(epoch) });
+    if (epoch !== this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `voucher is for epoch ${epoch}, this meter is for epoch ${this.#epoch}: panggil startEpoch`, { epoch: String(epoch) });
     const cap = this.ceiling();
     if (BigInt(cumulativeAmount) > cap) {
       throw new MeterOverbilledError(
         "meter_overbilled",
-        `voucher ${cumulativeAmount} di atas harga ${this.received} ${this.unit} diterima dan ${this.pending} diharapkan (${cap})`,
+        `voucher ${cumulativeAmount} is above the price of ${this.received} ${this.unit} received and ${this.pending} expected (${cap})`,
         { cumulative_amount: cumulativeAmount, ceiling: cap.toString(), received: this.received },
       );
     }

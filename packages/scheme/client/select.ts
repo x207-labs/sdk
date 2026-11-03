@@ -92,7 +92,7 @@ export class HeadroomEstimator {
 
 export class NoPayableRequirementsError extends Error {
   constructor() {
-    super("tidak ada entri yang bisa dibayar: headroom x207 tidak cukup dan tidak ada entri lain yang didukung");
+    super("no entry can be paid: x207 headroom is not enough and no other entry is supported");
     this.name = "NoPayableRequirementsError";
   }
 }

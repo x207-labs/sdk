@@ -75,7 +75,7 @@ export class NearRegistrationChain implements RegistrationChain {
             request_type: "view_gas_key_nonces", finality: "optimistic", account_id: relayer.accountId, public_key: this.#gasPublicKey,
           });
           const value = nonces.nonces[lane];
-          if (value === undefined) throw new Error(`gas key ${this.#gasPublicKey} tidak punya jalur nonce ${lane}`);
+          if (value === undefined) throw new Error(`gas key ${this.#gasPublicKey} has no nonce lane ${lane}`);
           return BigInt(value);
         },
         async (lane, nonce) => {

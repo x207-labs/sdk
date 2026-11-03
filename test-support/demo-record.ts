@@ -23,7 +23,7 @@ export function readDemoRecord(path: string): DemoRecord {
 
 function write(path: string, record: DemoRecord): void {
   const text = JSON.stringify(record, null, 2);
-  if (SECRET_LIKE.test(text)) throw new Error("catatan gladi memuat sesuatu yang mirip kunci; tidak ditulis");
+  if (SECRET_LIKE.test(text)) throw new Error("the rehearsal note contains something that looks like a key; not written");
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(`${path}.tmp`, `${text}\n`);
   renameSync(`${path}.tmp`, path);

@@ -31,7 +31,7 @@ function setup(spendLimit?: SpendLimit) {
 const voucherOf = (p: PaymentPayload) => (p.payload as unknown as X207Payload).voucher;
 
 describe("SD-020 spend controls klien", () => {
-  it("TC-SD-020-01 per panggilan: melampaui batas ditolak, voucher tidak ditandatangani dan state tidak maju", async () => {
+  it("TC-SD-020-01 per call: exceeding the limit is rejected, the voucher is not signed and the state does not advance", async () => {
     const { pay, store, scheme } = setup({ maxPerCall: "20000" });
     await expect(pay(req({ amount: "20001" }))).rejects.toThrow(SpendLimitError);
     await expect(pay(req({ amount: "20001" }))).rejects.toMatchObject({ limit: "per_call", amount: "20001", max: "20000" });
@@ -42,7 +42,7 @@ describe("SD-020 spend controls klien", () => {
     expect(verifyVoucher({ ...voucherOf(ok), signature: (ok.payload as unknown as X207Payload).signature }, PUBKEY)).toBe(true);
   });
 
-  it("TC-SD-020-02 per epoch lintas payee: pembayaran yang melewati total ditolak, epoch lain tidak terpengaruh", async () => {
+  it("TC-SD-020-02 per epoch across payees: a payment that passes the total is rejected, other epochs are not affected", async () => {
     const { pay, respond, scheme } = setup({ maxPerEpoch: "50000" });
     await respond(await pay(req({ payTo: B })), true);
     await respond(await pay(req({ payTo: C })), true);
@@ -54,7 +54,7 @@ describe("SD-020 spend controls klien", () => {
     expect(voucherOf(await pay(req({ epoch: 43 }))).epoch).toBe(43);
   });
 
-  it("TC-SD-020-03 ditolak server: anggaran dikembalikan dan state voucher tidak maju", async () => {
+  it("TC-SD-020-03 rejected by the server: the budget is returned and the voucher state does not advance", async () => {
     const { pay, respond, scheme, store } = setup({ maxPerEpoch: "20000" });
     await respond(await pay(), false);
     expect(scheme.spentInEpoch(42)).toBe(0n);
@@ -63,14 +63,14 @@ describe("SD-020 spend controls klien", () => {
     expect(voucherOf(again).seq).toBe(1);
   });
 
-  it("TC-SD-020-04 pembayaran paralel tidak melewati batas epoch", async () => {
+  it("TC-SD-020-04 parallel payments do not pass the epoch limit", async () => {
     const { pay } = setup({ maxPerEpoch: "60000" });
     const results = await Promise.allSettled([pay(req({ payTo: B })), pay(req({ payTo: C })), pay(req({ payTo: "image.x207-circle.near" })), pay(req({ payTo: "gpu.x207-circle.near" }))]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
     expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
   });
 
-  it("TC-SD-020-05 tanpa batas perilaku lama tetap: tidak ada penolakan", async () => {
+  it("TC-SD-020-05 without a limit the old behavior stays: no rejection", async () => {
     const { pay, respond } = setup();
     // tanpa spendLimit tidak ada penolakan dari klien x207 (x402Client sendiri punya batas bawaan $1 per pembayaran)
     for (let i = 0; i < 5; i += 1) await respond(await pay(req({ amount: "900000" })), true);

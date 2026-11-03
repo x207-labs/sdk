@@ -38,8 +38,8 @@ class ExampleEndpointAdapter implements AccessAssetAdapter<{ endpoint: string }>
   }
 }
 
-describe("SD-050 tipe dan antarmuka F8", () => {
-  it("TC-SD-050-01 adaptor contoh memakai kelima fungsi; meter menghasilkan tagihan ber-payee pemberi dan resource grant", async () => {
+describe("SD-050 F8 types and interface", () => {
+  it("TC-SD-050-01 the example adapter uses all five functions; meter produces a bill whose payee is the giver and whose resource is the grant", async () => {
     const adapter = new ExampleEndpointAdapter();
     const g = grant({ class: "D", unit: "call", unit_price: "20000" });
     expect(adapter.price(g)).toEqual({ assetType: "near-rpc:access", unit: "call", unitPrice: "20000" });
@@ -50,23 +50,23 @@ describe("SD-050 tipe dan antarmuka F8", () => {
     expect(adapter.revoked).toEqual([{ grantId: 7, reason: "defaulted" }]);
   });
 
-  it("TC-SD-050-02 meter menolak grant yang belum active, tanpa penerima, atau jumlah tidak sah", () => {
+  it("TC-SD-050-02 meter rejects a grant that is not active, has no grantee, or has an invalid amount", () => {
     expect(() => meterGrant(grant({ status: "offered", grantee: null }), { quantity: 1 })).toThrow(AccessGrantError);
     expect(() => meterGrant(grant({ status: "revoked" }), { quantity: 1 })).toThrow(/revoked/);
-    expect(() => meterGrant(grant({ grantee: null }), { quantity: 1 })).toThrow(/penerima/);
+    expect(() => meterGrant(grant({ grantee: null }), { quantity: 1 })).toThrow(/no grantee/);
     expect(() => meterGrant(grant(), { quantity: 0 })).toThrow(/quantity/);
     expect(() => meterGrant(grant(), { quantity: 1.5 })).toThrow(/quantity/);
     // jumlah besar tidak kehilangan presisi
     expect(meterGrant(grant({ unit_price: "340282366920938463463374607431768211455" }), { quantity: 2 }).amount).toBe("680564733841876926926749214863536422910");
   });
 
-  it("TC-SD-050-03 grantResource dan parseGrantResource saling membalik; resource lain bukan grant", () => {
+  it("TC-SD-050-03 grantResource and parseGrantResource invert each other; another resource is not a grant", () => {
     expect(grantResource(7)).toBe("x207:grant:7");
     expect(parseGrantResource("x207:grant:7")).toBe(7);
     for (const bad of ["x207:grant:", "x207:grant:07", "x207:grant:-1", "x207:grant:1.5", "invoice:abc", "x207:grant:99999999999999999999"]) expect(parseGrantResource(bad), bad).toBeNull();
   });
 
-  it("TC-SD-050-04 tipe cocok dengan abi.json yang dipin: kelas, status, unit, dan entri registri", () => {
+  it("TC-SD-050-04 the types match the pinned abi.json: class, status, unit, and registry entry", () => {
     const classes: RegisteredAssetClass[] = ["A", "B", "C", "D", "X"];
     const statuses: GrantStatus[] = ["offered", "active", "revoked", "expired"];
     expect(classes).toHaveLength(5);
@@ -89,7 +89,7 @@ describe("SD-050 tipe dan antarmuka F8", () => {
 
 describe("SD-050 event F8", () => {
   const dir = fileURLToPath(new URL("../../../spec/test-vectors/events/sandbox/", import.meta.url));
-  it("TC-SD-050-05 log nyata dari near-sandbox: keenam event F8 dikenal parser", () => {
+  it("TC-SD-050-05 real log from near-sandbox: the parser knows all six F8 events", () => {
     for (const name of ["asset_class_set", "grant_offered", "grant_activated", "grant_revoked", "escrow_held", "escrow_failed"]) {
       const events = parseEventLog(readFileSync(`${dir}${name}.log`, "utf8").trim());
       expect(events, name).not.toBeNull();
@@ -100,7 +100,7 @@ describe("SD-050 event F8", () => {
     expect(offered).toMatchObject({ grant_id: 1, class: "B", unit: "call", unit_price: "10000" });
   });
 
-  it("TC-SD-050-06 grant_revoked: dikenal dengan lima alasan yang sah, alasan lain ditolak", () => {
+  it("TC-SD-050-06 grant_revoked: known with five valid reasons, another reason is rejected", () => {
     const log = (reason: string) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.6", event: "grant_revoked", data: [{ grant_id: 1, reason }] })}`;
     for (const reason of ["grantor", "grantee", "operator", "expired", "defaulted"]) {
       expect(parseEventLog(log(reason))![0], reason).toMatchObject({ event: "grant_revoked", grant_id: 1, reason });
@@ -108,7 +108,7 @@ describe("SD-050 event F8", () => {
     expect(() => parseEventLog(log("bored"))).toThrow(/reason/);
   });
 
-  it("TC-SD-050-07 escrow_held dan escrow_failed (0.0.7): ter-parse, field salah ditolak", () => {
+  it("TC-SD-050-07 escrow_held and escrow_failed (0.0.7): parsed, a wrong field is rejected", () => {
     const log = (event: string, data: unknown) => `EVENT_JSON:${JSON.stringify({ standard: "x207", version: "0.0.7", event, data: [data] })}`;
     const held = parseEventLog(log("escrow_held", { grant_id: 1, nft_contract: "nft.near", token_id: "t1" }))![0]!;
     expect(isKnownX207Event(held)).toBe(true);
@@ -121,7 +121,7 @@ describe("SD-050 event F8", () => {
     expect(() => parseEventLog(log("escrow_held", { grant_id: 1, nft_contract: "nft.near" }))).toThrow(/token_id/);
   });
 
-  it("TC-SD-050-08 tipe escrow cocok dengan ABI 0.0.10", () => {
+  it("TC-SD-050-08 the escrow types match ABI 0.0.10", () => {
     const states: EscrowState[] = ["held", "completing", "cancelling", "delivered", "cancelled", "stuck"];
     const steps: EscrowStep[] = ["complete", "cancel"];
     const view: EscrowView = { grant_id: 1, nft_contract: "nft.near", token_id: "t1", state: "held" };
@@ -174,8 +174,8 @@ describe("SD-050 event F8", () => {
     const registered = async (c: string, m: string, a: object) => (calls.push([c, m, a]), { total: "1250000000000000000000", available: "0" });
     await expect(assertBuyerRegisteredAtToken(registered, "rwa.near", "buyer.near")).resolves.toBeUndefined();
     expect(calls).toEqual([["rwa.near", "storage_balance_of", { account_id: "buyer.near" }]]);
-    await expect(assertBuyerRegisteredAtToken(async () => null, "rwa.near", "buyer.near")).rejects.toThrow(/belum terdaftar.*storage_deposit/);
-    await expect(assertBuyerRegisteredAtToken(async () => { throw new Error("method not found"); }, "rwa.near", "buyer.near")).rejects.toThrow(/storage_balance_of.*gagal/);
+    await expect(assertBuyerRegisteredAtToken(async () => null, "rwa.near", "buyer.near")).rejects.toThrow(/not registered.*storage_deposit/);
+    await expect(assertBuyerRegisteredAtToken(async () => { throw new Error("method not found"); }, "rwa.near", "buyer.near")).rejects.toThrow(/storage_balance_of.*failed/);
   });
 
   it("TC-SD-060-03 ft_escrow_held (0.0.10) is parsed, a wrong field is refused, and FtEscrowView matches the ABI", () => {

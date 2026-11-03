@@ -21,14 +21,14 @@ const ACCOUNT = /^(?:[a-z\d]+[-_])*[a-z\d]+(?:\.(?:[a-z\d]+[-_])*[a-z\d]+)*$/;
 const isAccount = (value: string): boolean => value.length >= 2 && value.length <= 64 && ACCOUNT.test(value);
 
 function assertEpoch(epoch: number): void {
-  if (!Number.isSafeInteger(epoch) || epoch < 1) throw new Error(`epoch harus integer >= 1, dapat ${epoch}`);
+  if (!Number.isSafeInteger(epoch) || epoch < 1) throw new Error(`epoch must be an integer >= 1, got ${epoch}`);
 }
 
 /** `{"action":"settle","epoch":N}` atau dengan `member_id` untuk membayar atas nama anggota lain. */
 export function buildSettleMsg(input: { epoch: number; memberId?: AccountId }): string {
   assertEpoch(input.epoch);
   if (input.memberId === undefined) return JSON.stringify({ action: "settle", epoch: input.epoch });
-  if (!isAccount(input.memberId)) throw new Error(`memberId bukan akun NEAR: ${input.memberId}`);
+  if (!isAccount(input.memberId)) throw new Error(`memberId is not a NEAR account: ${input.memberId}`);
   return JSON.stringify({ action: "settle", epoch: input.epoch, member_id: input.memberId });
 }
 
@@ -40,7 +40,7 @@ export function buildSettleTransferCall(input: {
   memberId?: AccountId;
   usdtTokenId?: AccountId;
 }): ContractCall {
-  if (!/^[1-9]\d*$/.test(input.amount)) throw new Error(`amount harus string bilangan bulat > 0, dapat ${input.amount}`);
+  if (!/^[1-9]\d*$/.test(input.amount)) throw new Error(`amount must be an integer string > 0, got ${input.amount}`);
   return {
     receiverId: input.usdtTokenId ?? USDT_TOKEN_ID,
     methodName: "ft_transfer_call",
@@ -57,7 +57,7 @@ export function buildSettleTransferCall(input: {
 export function buildClaimArgs(epoch: number, destination: ClaimDestination): { epoch: number; destination: ClaimDestination } {
   assertEpoch(epoch);
   if (!CLAIM_DESTINATIONS.includes(destination)) {
-    throw new Error(`destination harus "near" atau "intents", dapat ${JSON.stringify(destination)}`);
+    throw new Error(`destination must be "near" or "intents", got ${JSON.stringify(destination)}`);
   }
   return { epoch, destination };
 }

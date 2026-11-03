@@ -7,15 +7,15 @@ const vector = (path: string) =>
   JSON.parse(readFileSync(fileURLToPath(new URL(`../../../spec/test-vectors/${path}`, import.meta.url)), "utf8")) as any;
 const C = "scraper.x207-circle.near";
 
-describe("SD-014 helper settle residual dan claim", () => {
-  it("TC-SD-014-01 msg settle tanpa dan dengan member_id", () => {
+describe("SD-014 settle residual and claim helpers", () => {
+  it("TC-SD-014-01 settle msg without and with member_id", () => {
     expect(buildSettleMsg({ epoch: 42 })).toBe('{"action":"settle","epoch":42}');
     expect(buildSettleMsg({ epoch: 42, memberId: C })).toBe(
       '{"action":"settle","epoch":42,"member_id":"scraper.x207-circle.near"}',
     );
   });
 
-  it("TC-SD-014-02 argumen claim near dan intents, deposit 1 yocto, gas 100 TGas", () => {
+  it("TC-SD-014-02 claim arguments for near and intents, deposit 1 yocto, gas 100 TGas", () => {
     expect(JSON.stringify(buildClaimArgs(42, "near"))).toBe('{"epoch":42,"destination":"near"}');
     expect(JSON.stringify(buildClaimArgs(42, "intents"))).toBe('{"epoch":42,"destination":"intents"}');
     const call = buildClaimCall({ circleContract: "x207-circle.near", epoch: 42, destination: "intents" });
@@ -29,12 +29,12 @@ describe("SD-014 helper settle residual dan claim", () => {
     expect(CLAIM_MIN_GAS).toBe(100_000_000_000_000n);
   });
 
-  it("TC-SD-014-03 tujuan tidak sah melempar sebelum transaksi dibuat", () => {
+  it("TC-SD-014-03 an invalid destination throws before the transaction is built", () => {
     expect(() => buildClaimArgs(42, "base" as never)).toThrow(/destination/);
     expect(() => buildClaimCall({ circleContract: "x207-circle.near", epoch: 42, destination: "base" as never })).toThrow();
   });
 
-  it("TC-SD-014-04 dicakup vector yang dibaca kontrak", () => {
+  it("TC-SD-014-04 covered by the vectors the contract reads", () => {
     const settle = vector("msg/settle.json");
     const msgs = settle.input.cases.map((c: { epoch: number; memberId?: string }) => buildSettleMsg(c));
     expect(msgs).toEqual(settle.expected.msgs);
@@ -47,7 +47,7 @@ describe("SD-014 helper settle residual dan claim", () => {
     }
   });
 
-  it("transfer settle: ft_transfer_call USDT ke kontrak dengan msg, deposit 1 yocto", () => {
+  it("settle transfer: ft_transfer_call USDT to the contract with msg, deposit 1 yocto", () => {
     const call = buildSettleTransferCall({ circleContract: "x207-circle.near", amount: "35000000", epoch: 42, memberId: C });
     expect(call).toEqual({
       receiverId: "usdt.tether-token.near",

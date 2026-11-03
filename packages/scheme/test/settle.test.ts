@@ -89,7 +89,7 @@ function payload(seq = 1, cumulative = String(seq * 20000), signer = "kA"): any 
 }
 
 describe("SD-026 facilitator settle", () => {
-  it("TC-SD-026-01 jalur sukses", async () => {
+  it("TC-SD-026-01 success path", async () => {
     const { facilitator } = setup();
     expect(await facilitator.settle(payload(), REQ as any)).toEqual({
       success: true,
@@ -100,7 +100,7 @@ describe("SD-026 facilitator settle", () => {
     });
   });
 
-  it("TC-SD-026-02 transaction adalah commitment id, bukan tx hash", async () => {
+  it("TC-SD-026-02 transaction is the commitment id, not a tx hash", async () => {
     const result = await setup().facilitator.settle(payload(), REQ as any);
     expect(result.transaction).toMatch(/^[^:]+:[^:]+:\d+:\d+$/);
     expect(result.transaction).not.toBe("");
@@ -112,13 +112,13 @@ describe("SD-026 facilitator settle", () => {
     expect(result.success).toBe(true);
   });
 
-  it("TC-SD-026-04 voucher tersimpan", async () => {
+  it("TC-SD-026-04 voucher stored", async () => {
     const { facilitator, store } = setup();
     await facilitator.settle(payload(), REQ as any);
     expect(store.get(A, B, 42)).toMatchObject({ seq: 1, cumulativeAmount: "20000", attempts: 0 });
   });
 
-  it("TC-SD-026-05 pending dihitung di /verify berikutnya", async () => {
+  it("TC-SD-026-05 pending is counted in the next /verify", async () => {
     const { facilitator, chain } = setup();
     expect(await computeHeadroom(A, 42, chain)).toBe("1000000");
     await facilitator.settle(payload(), REQ as any);
@@ -127,7 +127,7 @@ describe("SD-026 facilitator settle", () => {
     expect(await computeHeadroom(A, 42, chain)).toBe("980000");
   });
 
-  it("TC-SD-026-06 /verify berulang tanpa efek", async () => {
+  it("TC-SD-026-06 repeated /verify has no effect", async () => {
     const { facilitator, store } = setup();
     for (let i = 0; i < 5; i++) await facilitator.verify(payload(), REQ as any);
     expect(store.rows.size).toBe(0);
@@ -144,7 +144,7 @@ describe("SD-026 facilitator settle", () => {
     expect(store.saves).toBe(1);
   });
 
-  it("TC-SD-026-08 seq lebih kecil dari yang tersimpan", async () => {
+  it("TC-SD-026-08 seq lower than the stored one", async () => {
     const { facilitator, store } = setup();
     store.set({ payer: A, payee: B, epoch: 42, seq: 137, cumulativeAmount: "2740000", signature: "ed25519:x", registeredSeq: 0, attempts: 0 });
     expect(await facilitator.settle(payload(136, "2720000"), REQ as any)).toEqual({
@@ -174,7 +174,7 @@ describe("SD-026 facilitator settle", () => {
     expect((again.extensions as any).x207.registration).toBe("registered");
   });
 
-  it("TC-SD-026-11 status retrying bila percobaan gagal ≥ 1", async () => {
+  it("TC-SD-026-11 status retrying when failed attempts ≥ 1", async () => {
     const { facilitator, store } = setup();
     await facilitator.settle(payload(), REQ as any);
     store.set({ ...store.get(A, B, 42)!, payer: A, payee: B, epoch: 42, attempts: 1 });
@@ -183,13 +183,13 @@ describe("SD-026 facilitator settle", () => {
     expect((next.extensions as any).x207).toMatchObject({ seq: 2, cumulativeAmount: "40000", registration: "retrying" });
   });
 
-  it("TC-SD-026-12 hanya flow authorization", () => {
+  it("TC-SD-026-12 authorization flow only", () => {
     const flows = new X207SchemeServer().paymentFlows;
     expect(Object.values(flows).flatMap((f) => f.supported)).toEqual(["authorization"]);
     expect(Object.values(flows).map((f) => f.default)).toEqual(["authorization"]);
   });
 
-  it("settle paralel yang kalah balapan menjawab seq_not_increasing", async () => {
+  it("a parallel settle that loses the race answers seq_not_increasing", async () => {
     const { facilitator, store } = setup();
     const original = store.save.bind(store);
     store.save = () => false; // pasangan sudah diisi settle lain di antara verify dan simpan

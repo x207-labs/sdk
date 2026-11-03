@@ -36,12 +36,12 @@ export type CounterOfferInput = {
 export function counterOffer(input: CounterOfferInput, secretKey: VoucherSecretKey): SignedOffer {
   const { listing, previous } = input;
   const hash = listingHash(listing);
-  if (listing.expires_at <= input.now) throw new BarterFormatError("listing sudah kedaluwarsa");
-  if (input.mode === "pay" && !listing.accept_payment) throw new BarterFormatError("listing tidak menerima pembayaran (accept_payment false)");
-  if (input.proposer === listing.account && previous === undefined) throw new BarterFormatError("pemasang listing tidak menawar listingnya sendiri");
+  if (listing.expires_at <= input.now) throw new BarterFormatError("listing is expired");
+  if (input.mode === "pay" && !listing.accept_payment) throw new BarterFormatError("listing does not accept payment (accept_payment false)");
+  if (input.proposer === listing.account && previous === undefined) throw new BarterFormatError("the listing poster must not bid on its own listing");
   if (previous !== undefined) {
-    if (previous.listing_hash !== hash) throw new BarterFormatError("penawaran sebelumnya untuk listing lain");
-    if (previous.proposer === input.proposer) throw new BarterFormatError("ronde berikutnya harus dari pihak lawan");
+    if (previous.listing_hash !== hash) throw new BarterFormatError("the previous offer is for another listing");
+    if (previous.proposer === input.proposer) throw new BarterFormatError("the next round must come from the opposing party");
   }
   const offer: Offer = {
     circle: listing.circle, listing_hash: hash, proposer: input.proposer, round: (previous?.round ?? 0) + 1, mode: input.mode,
@@ -94,11 +94,11 @@ function leg(payer: AccountId, payee: AccountId, amount: bigint): BundleLeg[] {
  */
 export function planOffer(input: PlanInput): OfferPlan {
   const { listing, offer } = input;
-  if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("penawaran untuk listing lain");
-  if (offer.circle !== listing.circle) throw new BarterFormatError("lingkaran penawaran berbeda");
+  if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("offer is for another listing");
+  if (offer.circle !== listing.circle) throw new BarterFormatError("offer circle differs");
   const seller = listing.account;
   const counterparty = input.counterparty ?? offer.proposer;
-  if (counterparty === seller) throw new BarterFormatError("lawan tidak boleh sama dengan pemasang listing");
+  if (counterparty === seller) throw new BarterFormatError("the counterparty must not be the same as the listing poster");
   const searcherShareBps = input.searcher ? (input.searcherShareBps ?? 0) : 0;
   const params = { value: offer.value, discountBps: listing.discount_bps, searcherShareBps };
   let legs: BundleLeg[];
@@ -107,7 +107,7 @@ export function planOffer(input: PlanInput): OfferPlan {
   /** Leg yang membayar pencari; hanya ada bila jatahnya > 0 sehingga ada legnya. */
   let searchLeg: SearchLeg | undefined;
   if (offer.mode === "pay") {
-    if (!listing.accept_payment) throw new BarterFormatError("listing tidak menerima pembayaran");
+    if (!listing.accept_payment) throw new BarterFormatError("listing does not accept payment");
     const pay = quickPay(params);
     discount = pay.discount;
     searcher = input.searcher ? pay.searcher : "0";
@@ -136,12 +136,12 @@ export function planOffer(input: PlanInput): OfferPlan {
 /** Terima penawaran: hitung rencana dengan `planOffer` dan tandatangani `terms_hash` untuk `account`. */
 export function acceptOffer(input: AcceptInput, secretKey: VoucherSecretKey): AcceptResult {
   const { listing, offer } = input;
-  if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("penawaran untuk listing lain");
-  if (offer.circle !== listing.circle) throw new BarterFormatError("lingkaran penawaran berbeda");
-  if (input.account !== listing.account && input.account !== offer.proposer && input.account !== input.counterparty) throw new BarterFormatError("hanya pihak listing yang boleh menerima");
+  if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("offer is for another listing");
+  if (offer.circle !== listing.circle) throw new BarterFormatError("offer circle differs");
+  if (input.account !== listing.account && input.account !== offer.proposer && input.account !== input.counterparty) throw new BarterFormatError("only a party of the listing may accept");
   const plan = planOffer(input);
   if (plan.kind === "payment") return { kind: "payment", payer: plan.payer, payee: plan.payee, amount: plan.amount };
-  if (!bundleParticipants(plan.terms).includes(input.account)) throw new BarterFormatError("akun penerima bukan peserta bundle");
+  if (!bundleParticipants(plan.terms).includes(input.account)) throw new BarterFormatError("the receiving account is not a bundle participant");
   return { kind: "bundle", terms: plan.terms, terms_hash: plan.terms_hash, signature: signBundle(plan.terms, input.account, secretKey) };
 }
 

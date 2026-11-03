@@ -19,7 +19,7 @@ describe.skipIf(!sandboxAvailable)("SD-029 per_request di near-sandbox", () => {
     await fx?.stop();
   });
 
-  it("TC-SD-029-05 tiap voucher menjadi satu transaksi register_voucher; seq melompat jatuh ke register_cumulative", async () => {
+  it("TC-SD-029-05 each voucher becomes one register_voucher transaction; a seq jump falls back to register_cumulative", async () => {
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {
       const account = await fx.member(name);

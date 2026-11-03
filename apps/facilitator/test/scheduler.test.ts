@@ -83,7 +83,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(seen).toEqual([{ payer: A, payee: B, epoch: EPOCH }]);
   });
 
-  it("TC-SD-028-01 ambang tercapai: satu register_cumulative dengan seq tertinggi", async () => {
+  it("TC-SD-028-01 threshold reached: one register_cumulative with the highest seq", async () => {
     const { store, chain, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 10, "400000"), SIG);
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
@@ -93,7 +93,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(store.get(KEY)).toMatchObject({ state: "registered", registeredSeq: 50, registeredCumulative: "1000000" });
   });
 
-  it("TC-SD-028-02 di bawah ambang: tidak ada transaksi", async () => {
+  it("TC-SD-028-02 below the threshold: no transaction", async () => {
     const { store, chain, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 49, "999999"), SIG);
     await scheduler.tick();
@@ -101,7 +101,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(store.get(KEY)?.state).toBe("pending");
   });
 
-  it("TC-SD-028-03 flush menjelang cutoff: 120 detik ya, 121 detik belum", async () => {
+  it("TC-SD-028-03 flush near cutoff: 120 seconds yes, 121 seconds not yet", async () => {
     const { store, chain, clock, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 3, "60000"), SIG);
     store.upsert(CIRCLE, voucher(C, 2, "40000"), SIG);
@@ -113,7 +113,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(chain.calls.map((c) => c.payee).sort()).toEqual([C, B]);
   });
 
-  it("TC-SD-028-04 kegagalan dicatat: attempts, last_error, next_attempt_at, log", async () => {
+  it("TC-SD-028-04 failure recorded: attempts, last_error, next_attempt_at, log", async () => {
     const { store, chain, clock, logs, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = new Error("RPC timeout");
@@ -123,7 +123,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(logs[0]).toMatchObject({ event: "registration_retry", payer: A, payee: B, error: "RPC timeout", attempts: 1 });
   });
 
-  it("TC-SD-028-05 backoff 5, 10, 20, 40, 60, 60 detik", async () => {
+  it("TC-SD-028-05 backoff 5, 10, 20, 40, 60, 60 seconds", async () => {
     const { store, chain, clock, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = new Error("RPC down");
@@ -138,7 +138,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(backoffSeconds(30)).toBe(BACKOFF_MAX_SECONDS);
   });
 
-  it("tidak mencoba sebelum next_attempt_at", async () => {
+  it("does not try before next_attempt_at", async () => {
     const { store, chain, clock, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = new Error("RPC down");
@@ -151,7 +151,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(chain.calls).toHaveLength(2);
   });
 
-  it("TC-SD-028-06 berhenti di cutoff: state failed dan risiko dicatat", async () => {
+  it("TC-SD-028-06 stops at cutoff: state failed and the risk is logged", async () => {
     const { store, chain, clock, logs, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = new Error("RPC down");
@@ -167,7 +167,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(chain.calls).toHaveLength(1);
   });
 
-  it("TC-SD-028-09 penolakan berhenti: retry sukses mengembalikan attempts ke 0", async () => {
+  it("TC-SD-028-09 a rejection stops: a successful retry resets attempts to 0", async () => {
     const { store, chain, clock, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 7, "1000000"), SIG);
     chain.failWith = new Error("RPC down");
@@ -181,7 +181,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(store.get(KEY)).toMatchObject({ registeredSeq: 7, attempts: 0, state: "registered" });
   });
 
-  it("TC-SD-028-10 ERR_SEQ_NOT_INCREASING dengan last_seq >= seq dianggap sukses tanpa menaikkan attempts", async () => {
+  it("TC-SD-028-10 ERR_SEQ_NOT_INCREASING with last_seq >= seq counts as success without raising attempts", async () => {
     const { store, chain, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = fail("ERR_SEQ_NOT_INCREASING");
@@ -190,7 +190,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(store.get(KEY)).toMatchObject({ registeredSeq: 50, attempts: 0, state: "registered" });
   });
 
-  it("TC-SD-028-11 ERR_SEQ_NOT_INCREASING dengan last_seq < seq di-retry", async () => {
+  it("TC-SD-028-11 ERR_SEQ_NOT_INCREASING with last_seq < seq is retried", async () => {
     const { store, chain, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = fail("ERR_SEQ_NOT_INCREASING");
@@ -205,7 +205,7 @@ describe("SD-028 RegistrationScheduler", () => {
     ["ERR_WRONG_CIRCLE", "circle_mismatch"],
     ["ERR_SELF_PAYMENT", "self_payment"],
     ["ERR_BAD_UNIT", "invalid_payload"],
-  ])("TC-SD-028-12 %s dibuang dengan kode %s", async (contractCode, specCode) => {
+  ])("TC-SD-028-12 %s is dropped with code %s", async (contractCode, specCode) => {
     const { store, chain, logs, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = fail(contractCode);
@@ -217,7 +217,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(chain.calls).toHaveLength(1);
   });
 
-  it("TC-SD-028-13 ERR_INSUFFICIENT_CREDIT di-retry dengan log insufficient_credit", async () => {
+  it("TC-SD-028-13 ERR_INSUFFICIENT_CREDIT is retried with the insufficient_credit log", async () => {
     const { store, chain, logs, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = fail("ERR_INSUFFICIENT_CREDIT");
@@ -231,7 +231,7 @@ describe("SD-028 RegistrationScheduler", () => {
     ["ERR_PAYEE_NOT_ACTIVE", "payee_not_active"],
     ["ERR_PAST_CUTOFF", "epoch_closing"],
     ["ERR_EPOCH_MISMATCH", "epoch_mismatch"],
-  ])("TC-SD-028-14/15 %s ditandai gagal dengan kode %s", async (contractCode, specCode) => {
+  ])("TC-SD-028-14/15 %s is marked failed with code %s", async (contractCode, specCode) => {
     const { store, chain, logs, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = fail(contractCode);
@@ -240,7 +240,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(logs[0]).toMatchObject({ code: specCode });
   });
 
-  it("TC-SD-028-16 voucher baru saat retry: percobaan berikut mengirim seq terbaru", async () => {
+  it("TC-SD-028-16 a new voucher during retry: the next attempt sends the latest seq", async () => {
     const { store, chain, clock, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 10, "1000000"), SIG);
     chain.failWith = new Error("RPC down");
@@ -253,7 +253,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(store.get(KEY)).toMatchObject({ registeredSeq: 11, state: "registered" });
   });
 
-  it("registrasi lama selesai saat seq lebih baru masuk: baris tetap pending untuk seq baru", () => {
+  it("an old registration finishes when a newer seq arrives: the row stays pending for the new seq", () => {
     const { store } = setup();
     store.upsert(CIRCLE, voucher(B, 10, "1000000"), SIG);
     store.upsert(CIRCLE, voucher(B, 11, "1020000"), SIG);
@@ -261,7 +261,7 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(store.get(KEY)).toMatchObject({ registeredSeq: 10, state: "pending", seq: 11 });
   });
 
-  it("TC-SD-028-17 restart saat retry: lanjut pada next_attempt_at", async () => {
+  it("TC-SD-028-17 restart during retry: continues at next_attempt_at", async () => {
     const dir = mkdtempSync(join(tmpdir(), "x207-sched-"));
     dirs.push(dir);
     const path = join(dir, "pending.sqlite");
@@ -284,18 +284,18 @@ describe("SD-028 RegistrationScheduler", () => {
     expect(reopened.get(KEY)?.state).toBe("registered");
   });
 
-  it("TC-SD-028-18 mode default memakai register_cumulative", async () => {
+  it("TC-SD-028-18 the default mode uses register_cumulative", async () => {
     const { store, chain, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     await scheduler.tick();
     expect(chain.calls[0]?.mode).toBe("cumulative");
     const config = loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}` });
     expect(config.registerMode).toBe("cumulative");
-    expect(() => loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}`, X207_REGISTER_MODE: "per_request" })).toThrow(/butuh X207_RELAYER_ACCOUNT_ID/);
+    expect(() => loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}`, X207_REGISTER_MODE: "per_request" })).toThrow(/needs X207_RELAYER_ACCOUNT_ID/);
     expect(() => loadConfig({ X207_CIRCLES: `agents-main=${CIRCLE}`, X207_REGISTER_MODE: "nope" })).toThrow(/X207_REGISTER_MODE/);
   });
 
-  it("putaran tumpang tindih dilewati", async () => {
+  it("an overlapping round is skipped", async () => {
     const { store, chain, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     let release!: () => void;
@@ -312,7 +312,7 @@ describe("SD-028 RegistrationScheduler", () => {
 });
 
 describe("SD-054 pemetaan ERR_EXITING", () => {
-  it("TC-SD-054-11 registrasi ditolak ERR_EXITING: dicatat member_exiting dan baris state failed", async () => {
+  it("TC-SD-054-11 registration rejected with ERR_EXITING: logged as member_exiting and the row state is failed", async () => {
     const { store, chain, logs, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
     chain.failWith = fail("ERR_EXITING");
@@ -323,7 +323,7 @@ describe("SD-054 pemetaan ERR_EXITING", () => {
 });
 
 describe("SD-048 registrasi voucher leg bundle", () => {
-  it("TC-SD-048-09 baris dengan bundle_id didaftarkan lewat bundleId; ERR_BUNDLE_LEG_EXCEEDED menggugurkan baris", async () => {
+  it("TC-SD-048-09 a row with bundle_id is registered through bundleId; ERR_BUNDLE_LEG_EXCEEDED drops the row", async () => {
     const { store, chain, scheduler } = setup();
     chain.registerArgs = [];
     store.upsert(CIRCLE, voucher(B, 1, "20000000"), SIG, 7);

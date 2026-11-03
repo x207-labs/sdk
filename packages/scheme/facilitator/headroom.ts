@@ -46,7 +46,7 @@ export async function computeBase(
 /**
  * `computeHeadroom(p) = max(0, headroom(p) - sum_q max(0, pending(p, q, e) - registered(p, q, e)))`.
  * Hanya kenaikan pending di atas kumulatif terdaftar yang dikurangkan, karena kumulatif terdaftar
- * sudah ada di `outstanding_debt` (ADR-32 K-27). Hasil tidak pernah negatif.
+ * sudah ada di `outstanding_debt` (ADR-32 K-27). Hasil never negative.
  */
 export async function computeHeadroom(
   payer: AccountId,

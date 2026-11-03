@@ -118,7 +118,7 @@ export class RegistrationScheduler {
     if (this.#timer) return;
     this.#timer = setInterval(() => {
       this.tick().catch((error: unknown) => {
-        console.error("x207 scheduler tick gagal:", error instanceof Error ? error.message : error);
+        console.error("x207 scheduler tick failed:", error instanceof Error ? error.message : error);
       });
     }, intervalMs);
     this.#timer.unref();
@@ -172,7 +172,7 @@ export class RegistrationScheduler {
     if (!row || row.registeredSeq >= row.seq) return { status: row ? "registered" : "none" };
     const result: TickResult = { registered: 0, retrying: 0, dropped: 0, failedAtCutoff: 0 };
     const outcome = await this.#process(row, new Map(), result, true);
-    return outcome ?? { status: "retrying", error: "belum waktunya" };
+    return outcome ?? { status: "retrying", error: "not time yet" };
   }
 
   #process(row: PendingRow, cutoffs: Map<number, number | undefined>, result: TickResult, force = false): Promise<RegisterOutcome | undefined> {

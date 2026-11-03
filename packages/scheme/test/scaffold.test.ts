@@ -42,21 +42,21 @@ describe("SD-015 assertCircleId", () => {
     expect(() => assertCircleId("x207:agents-main")).not.toThrow();
   });
 
-  it("TC-SD-015-02 network dengan titik", () => {
+  it("TC-SD-015-02 network with a dot", () => {
     expect(() => assertCircleId("x207:x207-circle.near")).toThrow();
   });
 
-  it("TC-SD-015-03 batas panjang reference", () => {
+  it("TC-SD-015-03 reference length limit", () => {
     expect(() => assertCircleId(`x207:${"a".repeat(32)}`)).not.toThrow();
     expect(() => assertCircleId(`x207:${"a".repeat(33)}`)).toThrow();
     expect(() => assertCircleId("x207:")).toThrow();
   });
 
-  it("TC-SD-015-04 namespace huruf besar", () => {
+  it("TC-SD-015-04 uppercase namespace", () => {
     expect(() => assertCircleId("X207:agents-main")).toThrow();
   });
 
-  it("menolak namespace selain x207 dan wildcard", () => {
+  it("rejects namespaces other than x207 and wildcards", () => {
     expect(() => assertCircleId("near:mainnet")).toThrow();
     expect(() => assertCircleId("x207:*")).toThrow();
   });
@@ -97,7 +97,7 @@ describe("SD-015 register x402 2.28.0", () => {
     });
   });
 
-  it("TC-SD-015-06 validasi saat konfigurasi", () => {
+  it("TC-SD-015-06 validation at configuration time", () => {
     const bad = { network: "x207:x207-circle.near", circleContract: CIRCLE_CONTRACT };
     expect(() => defineCircleConfig(bad)).toThrow();
     expect(() => new X207SchemeFacilitator(bad)).toThrow();

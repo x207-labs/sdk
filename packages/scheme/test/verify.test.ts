@@ -19,7 +19,7 @@ const N = "n.x207-circle.near"; // tidak terdaftar
 const S = "s.x207-circle.near"; // suspended
 const P = "p.x207-circle.near"; // pending
 const X = "x.x207-circle.near"; // exited
-const L = "l.x207-circle.near"; // active, sedang keluar
+const L = "l.x207-circle.near"; // active, exiting
 const NETWORK = "x207:agents-main";
 const NOW = 1_793_836_800_000;
 const CUTOFF_MS = NOW + 3_600_000;
@@ -102,7 +102,7 @@ function payloadOf(
 const verify = (w: World, payload: any, reqs: any = requirements()) => facilitatorOf(w).verify(payload, reqs);
 
 describe("SD-024 facilitator verify", () => {
-  it("TC-SD-024-01 jalur sukses", async () => {
+  it("TC-SD-024-01 success path", async () => {
     expect(await verify(world(), payloadOf({}))).toEqual({ isValid: true, payer: A });
   });
 
@@ -117,13 +117,13 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(world(), p, reqs)).toMatchObject({ invalidReason: "unsupported_scheme" });
   });
 
-  it("TC-SD-024-04 network tidak dikonfigurasi", async () => {
+  it("TC-SD-024-04 network not configured", async () => {
     const reqs = { ...requirements(), network: "x207:other-circle" };
     const p = payloadOf({}, "kA", reqs);
     expect(await verify(world(), p, reqs)).toMatchObject({ invalidReason: "invalid_network" });
   });
 
-  it("TC-SD-024-05 accepted berbeda dari requirements", async () => {
+  it("TC-SD-024-05 accepted differs from requirements", async () => {
     const p = payloadOf({}, "kA", requirements(B, 42, CIRCLE, "10000"));
     expect(await verify(world(), p, requirements())).toMatchObject({ invalidReason: "invalid_payment_requirements" });
     const zero = requirements(B, 42, CIRCLE, "0");
@@ -155,14 +155,14 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(world(), p)).toMatchObject({ invalidReason: "payee_mismatch" });
   });
 
-  it("TC-SD-024-10 unit dan resource", async () => {
+  it("TC-SD-024-10 unit and resource", async () => {
     const unit = payloadOf({}); unit.payload.voucher.unit = "usd";
     expect(await verify(world(), unit)).toMatchObject({ invalidReason: "invalid_payload" });
     const resource = payloadOf({}); resource.payload.voucher.resource = "https://x.example/ü";
     expect(await verify(world(), resource)).toMatchObject({ invalidReason: "invalid_payload" });
   });
 
-  it("TC-SD-024-11 bayar diri sendiri", async () => {
+  it("TC-SD-024-11 paying yourself", async () => {
     const p = payloadOf({ payee: A }, "kA", requirements(A));
     expect(await verify(world(), p, requirements(A))).toMatchObject({ invalidReason: "self_payment" });
   });
@@ -172,14 +172,14 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(world(), p)).toMatchObject({ invalidReason: "epoch_mismatch" });
   });
 
-  it("TC-SD-024-13 epoch kontrak", async () => {
+  it("TC-SD-024-13 contract epoch", async () => {
     const reqs = requirements(B, 41);
     expect(await verify(world(), payloadOf({ epoch: 41 }, "kA", reqs), reqs)).toMatchObject({
       invalidReason: "epoch_mismatch",
     });
   });
 
-  it("TC-SD-024-14 batas flushLead", async () => {
+  it("TC-SD-024-14 flushLead limit", async () => {
     const w = world();
     w.now = CUTOFF_MS - 120_000;
     expect(await verify(w, payloadOf({}))).toMatchObject({ invalidReason: "epoch_closing" });
@@ -187,18 +187,18 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(w, payloadOf({}))).toMatchObject({ isValid: true });
   });
 
-  it("fase bukan open dianggap epoch_closing", async () => {
+  it("a phase that is not open counts as epoch_closing", async () => {
     const w = world();
     (w.epoch as { phase: string }).phase = "cutoff";
     expect(await verify(w, payloadOf({}))).toMatchObject({ invalidReason: "epoch_closing" });
   });
 
-  it("TC-SD-024-15 bukan anggota", async () => {
+  it("TC-SD-024-15 not a member", async () => {
     const p = payloadOf({ payer: N }, "kZ");
     expect(await verify(world(), p)).toMatchObject({ invalidReason: "member_not_found", payer: N });
   });
 
-  it("TC-SD-024-16 payer tidak aktif", async () => {
+  it("TC-SD-024-16 payer not active", async () => {
     for (const payer of [S, P, X]) {
       expect(await verify(world(), payloadOf({ payer }, "kOther")), payer).toMatchObject({
         invalidReason: "member_not_active",
@@ -206,7 +206,7 @@ describe("SD-024 facilitator verify", () => {
     }
   });
 
-  it("TC-SD-024-17 payee tidak aktif", async () => {
+  it("TC-SD-024-17 payee not active", async () => {
     for (const payee of [N, S]) {
       const reqs = requirements(payee);
       expect(await verify(world(), payloadOf({ payee }, "kA", reqs), reqs), payee).toMatchObject({
@@ -229,7 +229,7 @@ describe("SD-024 facilitator verify", () => {
     await expect(verify({ ...world(), frozen: [], fail: true }, payloadOf({}, "kA"))).rejects.toThrow();
   });
 
-  it("TC-SD-024-18 dan 19 sedang keluar", async () => {
+  it("TC-SD-024-18 and 19 exiting", async () => {
     expect(await verify(world(), payloadOf({ payer: L }, "kOther"))).toMatchObject({ invalidReason: "member_exiting" });
     const reqs = requirements(L);
     expect(await verify(world(), payloadOf({ payee: L }, "kA", reqs), reqs)).toMatchObject({
@@ -241,7 +241,7 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(world(), payloadOf({}, "kZ"))).toMatchObject({ invalidReason: "invalid_signature" });
   });
 
-  it("TC-SD-024-21 dan 22 ADR-23", async () => {
+  it("TC-SD-024-21 and 22 ADR-23", async () => {
     const w = world();
     w.pending.push({ payer: A, payee: C, epoch: 42, seq: 1, cumulativeAmount: "1000", attempts: 2 });
     expect(await verify(w, payloadOf({}))).toMatchObject({ invalidReason: "registration_retry_pending" });
@@ -274,7 +274,7 @@ describe("SD-024 facilitator verify", () => {
     });
   });
 
-  it("TC-SD-024-26 dan 27 kenaikan bukan harga", async () => {
+  it("TC-SD-024-26 and 27 an increase is not a price", async () => {
     const w = world();
     w.obligations[`42:${A}:${B}`] = { cumulative: "20000", last_seq: 1 };
     expect(await verify(w, payloadOf({ seq: 2, cumulativeAmount: "60000" }))).toMatchObject({
@@ -285,7 +285,7 @@ describe("SD-024 facilitator verify", () => {
     });
   });
 
-  it("TC-SD-024-28 kredit (dan TC-SD-023-06 dua voucher pending)", async () => {
+  it("TC-SD-024-28 credit (and TC-SD-023-06 two pending vouchers)", async () => {
     const w = world();
     w.pending.push({ payer: D, payee: C, epoch: 42, seq: 1, cumulativeAmount: "20000" });
     const p = payloadOf({ payer: D }, "kD");
@@ -298,7 +298,7 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(fresh, second, requirements(C))).toMatchObject({ invalidReason: "insufficient_credit" });
   });
 
-  it("TC-SD-023-05 lolos on-chain, gagal setelah pending", async () => {
+  it("TC-SD-023-05 passes on-chain, fails after pending", async () => {
     const w = world();
     w.headroom[A] = "100000";
     w.pending.push({ payer: A, payee: B, epoch: 42, seq: 1, cumulativeAmount: "90000" });
@@ -308,13 +308,13 @@ describe("SD-024 facilitator verify", () => {
     });
   });
 
-  it("TC-SD-024-29 basis dari obligation", async () => {
+  it("TC-SD-024-29 base from obligation", async () => {
     const w = world();
     w.obligations[`42:${A}:${B}`] = { cumulative: "60000", last_seq: 3 };
     expect(await verify(w, payloadOf({ seq: 4, cumulativeAmount: "80000" }))).toMatchObject({ isValid: true });
   });
 
-  it("TC-SD-024-30 berhenti di penolakan pertama", async () => {
+  it("TC-SD-024-30 stops at the first rejection", async () => {
     const w = world();
     w.obligations[`42:${A}:${B}`] = { cumulative: "100000", last_seq: 5 };
     expect(await verify(w, payloadOf({ seq: 3, cumulativeAmount: "120000" }, "kZ"))).toMatchObject({
@@ -324,7 +324,7 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(world(), wrongVersion)).toMatchObject({ invalidReason: "invalid_x402_version" });
   });
 
-  it("TC-SD-024-31 tanpa perubahan state", async () => {
+  it("TC-SD-024-31 no state change", async () => {
     const w = world();
     const before = JSON.stringify(w);
     for (let i = 0; i < 3; i++) expect(await verify(w, payloadOf({}))).toMatchObject({ isValid: true });
@@ -332,30 +332,30 @@ describe("SD-024 facilitator verify", () => {
     expect(JSON.stringify(w)).toBe(before);
   });
 
-  it("TC-SD-024-32 RPC gagal melempar, bukan isValid false", async () => {
+  it("TC-SD-024-32 RPC failure throws, not isValid false", async () => {
     const w = world();
     w.fail = true;
     await expect(verify(w, payloadOf({}))).rejects.toThrow("chain unavailable");
   });
 
-  it("tanpa konfigurasi verify melempar NotImplementedError", async () => {
+  it("without configuration verify throws NotImplementedError", async () => {
     const f = new X207SchemeFacilitator({ network: NETWORK, circleContract: CIRCLE });
     await expect(f.verify(payloadOf({}), requirements() as any)).rejects.toThrow(/SD-024/);
   });
 });
 
 describe("SD-024 kasus negatif tambahan", () => {
-  it("pemalsuan oleh penjual", async () => {
+  it("forgery by the seller", async () => {
     expect(await verify(world(), payloadOf({}, "kB"))).toMatchObject({ invalidReason: "invalid_signature" });
   });
 
-  it("field diubah setelah ditandatangani", async () => {
+  it("field changed after signing", async () => {
     const p = payloadOf({ cumulativeAmount: "20000" });
     p.payload.voucher.cumulativeAmount = "10000";
     expect(await verify(world(), p)).toMatchObject({ invalidReason: "invalid_signature" });
   });
 
-  it("payer suspended dengan headroom 0", async () => {
+  it("payer suspended with headroom 0", async () => {
     expect(await verify(world(), payloadOf({ payer: S }, "kOther"))).toMatchObject({
       invalidReason: "member_not_active",
     });
@@ -367,7 +367,7 @@ describe("SD-024 kasus negatif tambahan", () => {
     });
   });
 
-  it("replay payload yang sudah di-settle", async () => {
+  it("replay of an already settled payload", async () => {
     const w = world();
     const p = payloadOf({});
     expect(await verify(w, p)).toMatchObject({ isValid: true });

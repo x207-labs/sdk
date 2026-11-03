@@ -36,7 +36,7 @@ const schedulers = config.relayer
       })(),
     )
   : [];
-if (schedulers.length === 0) console.warn("X207_RELAYER_ACCOUNT_ID kosong: voucher tidak diregistrasi on-chain");
+if (schedulers.length === 0) console.warn("X207_RELAYER_ACCOUNT_ID is empty: vouchers are not registered on-chain");
 schedulers.forEach((scheduler) => scheduler.start());
 const byContract = new Map(schedulers.map((scheduler, i) => [config.circles[i]!.circleContract, scheduler]));
 // Chain reads of /verify are cached for a few seconds (src/chain-cache.ts); X207_CHAIN_CACHE=off turns it off.

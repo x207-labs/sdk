@@ -26,7 +26,7 @@ describe.skipIf(!sandboxAvailable)("SD-048 voucher leg bundle di near-sandbox", 
     await fx?.stop();
   });
 
-  it("TC-SD-048-12 leg sah didaftarkan dari headroom cadangan; melebihi leg ditolak verify dan kontrak", async () => {
+  it("TC-SD-048-12 a valid leg is registered from reserve headroom; exceeding the leg is rejected by verify and the contract", async () => {
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {
       const account = await fx.member(name);

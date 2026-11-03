@@ -49,7 +49,7 @@ describe("SD-053 vector voucher grant", () => {
     expect(validatePaymentRequirements(vector.input.requirements).ok).toBe(true);
   });
 
-  it("TC-SD-053-02 facilitator menerima voucher grant dan menolak payee broker dan resource lain", async () => {
+  it("TC-SD-053-02 the facilitator accepts a grant voucher and rejects the broker payee and other resources", async () => {
     expect(await verifyWith(vector.input.requirements, vector.input.voucher)).toEqual({ isValid: true, payer: GRANTEE });
     for (const c of vector.cases) {
       expect(await verifyWith(c.requirements, c.voucher), c.name).toMatchObject({ isValid: false, invalidReason: c.facilitatorReason, payer: GRANTEE });
@@ -57,11 +57,11 @@ describe("SD-053 vector voucher grant", () => {
   });
 });
 
-describe("SD-053 requirements dan klien", () => {
+describe("SD-053 requirements and client", () => {
   const extraSource = (): X207ExtraSource =>
     ({ get: async () => ({ circleContract: CIRCLE, unit: "credit", decimals: 6, epoch: 42 }) }) as unknown as X207ExtraSource;
 
-  it("TC-SD-053-03 buildPaymentRequirements: grantId hanya di entri x207, payTo pemberi", async () => {
+  it("TC-SD-053-03 buildPaymentRequirements: grantId only on the x207 entry, payTo is the grantor", async () => {
     const [x207, exact] = await buildPaymentRequirements({ circleId: "agents-main", payTo: GRANTOR, price: "0.25", extra: extraSource(), grantId: 7 });
     expect(x207!.payTo).toBe(GRANTOR);
     expect((x207!.extra as Record<string, unknown>).grantId).toBe(7);
@@ -70,7 +70,7 @@ describe("SD-053 requirements dan klien", () => {
     expect("grantId" in (plain!.extra as object)).toBe(false);
   });
 
-  it("TC-SD-053-04 klien menyusun voucher dengan payee = payTo (bukan akun broker) dan resource x207:grant:7", async () => {
+  it("TC-SD-053-04 the client builds the voucher with payee = payTo (not the broker account) and resource x207:grant:7", async () => {
     const scheme = new X207SchemeClient({ payer: GRANTEE, secretKey: Buffer.from(keys.kA.seed, "hex"), store: new MemoryVoucherStateStore() });
     const client = new x402Client().register(X207_NETWORK_FAMILY, scheme);
     const result = await client.createPaymentPayload({ x402Version: 2, resource: { url: "https://broker.example/grants/7/lease" }, accepts: [vector.input.requirements] });
@@ -81,7 +81,7 @@ describe("SD-053 requirements dan klien", () => {
     expect(signature).toBe(vector.input.voucher.signature);
   });
 
-  it("TC-SD-053-05 middleware: route.grant menentukan payTo dan extra.grantId per request; grant tidak ada menjawab 404", async () => {
+  it("TC-SD-053-05 middleware: route.grant sets payTo and extra.grantId per request; a missing grant answers 404", async () => {
     const middleware = x207Middleware({
       routes: {
         "/grants/7/lease": { price: "0.25", grant: () => ({ grantId: 7, payTo: GRANTOR }) },

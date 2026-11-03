@@ -16,14 +16,14 @@ import { sandboxAvailable, type SandboxAccount, type TxResult } from "../../../.
 
 const STAKE = "50000000";
 
-describe.skipIf(!sandboxAvailable)("SD-011/012/013 onboarding di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-011/012/013 onboarding on near-sandbox", () => {
   let fx: CircleFixture;
   let view: ReturnType<typeof createCircleViewFn>;
   const eventsSeen: Array<{ event: string } & Record<string, unknown>> = [];
 
   const record = (result: TxResult) => {
     for (const log of result.logs) for (const parsed of parseEventLog(log) ?? []) {
-      expect(isKnownX207Event(parsed), `event ${parsed.event} dikenal`).toBe(true);
+      expect(isKnownX207Event(parsed), `event ${parsed.event} is known`).toBe(true);
       eventsSeen.push(parsed as never);
     }
   };
@@ -42,7 +42,7 @@ describe.skipIf(!sandboxAvailable)("SD-011/012/013 onboarding di near-sandbox", 
     await fx?.stop();
   });
 
-  it("TC-SD-013-01/02 onboardMember membawa akun baru sampai active dengan kunci voucher terpisah", async () => {
+  it("TC-SD-013-01/02 onboardMember takes a new account to active with a separate voucher key", async () => {
     const translator = await fx.member("translator");
     const result = await onboardMember(
       { sendCall: sender(translator), view, pollIntervalMs: 200, timeoutMs: 20_000 },
@@ -73,7 +73,7 @@ describe.skipIf(!sandboxAvailable)("SD-011/012/013 onboarding di near-sandbox", 
     expect(await getMember(view, `nobody.${fx.sandbox.rootAccountId}`)).toBeNull();
   }, 120_000);
 
-  it("TC-SD-012-07 join kedua melempar ERR_ALREADY_MEMBER", async () => {
+  it("TC-SD-012-07 a second join throws ERR_ALREADY_MEMBER", async () => {
     const translator = await fx.member("translator");
     const again = await translator.call(
       buildJoinCall({
@@ -85,7 +85,7 @@ describe.skipIf(!sandboxAvailable)("SD-011/012/013 onboarding di near-sandbox", 
     expect(contractErrorCode(new Error(again.failures.join("; ")))).toBe("ERR_ALREADY_MEMBER");
   }, 60_000);
 
-  it("TC-SD-011-17 (sebagian) log nyata member_joined dan stake_added ter-parse", () => {
+  it("TC-SD-011-17 (partial) real member_joined and stake_added logs parse", () => {
     const names = eventsSeen.map((e) => e.event);
     expect(names).toContain("member_joined");
     expect(names).toContain("stake_added");

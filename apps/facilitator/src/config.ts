@@ -35,7 +35,7 @@ function parseCircles(raw: string): CircleConfig[] {
   const circles = raw.split(",").map((part) => {
     const [circleId, contract, ...rest] = part.trim().split("=");
     if (!circleId || !contract || rest.length > 0) {
-      throw new ConfigError(`X207_CIRCLES salah format "${part.trim()}"; pakai <circleId>=<akun kontrak>`);
+      throw new ConfigError(`X207_CIRCLES bad format "${part.trim()}"; use <circleId>=<contract account>`);
     }
     try {
       return defineCircleConfig({ network: `x207:${circleId}`, circleContract: contract });
@@ -50,39 +50,39 @@ function parsePositiveInt(env: Env, name: string, fallback: number): number {
   const raw = env[name];
   if (raw === undefined || raw === "") return fallback;
   const value = Number(raw);
-  if (!Number.isInteger(value) || value <= 0) throw new ConfigError(`${name} harus bilangan bulat > 0, dapat "${raw}"`);
+  if (!Number.isInteger(value) || value <= 0) throw new ConfigError(`${name} must be an integer > 0, got "${raw}"`);
   return value;
 }
 
 export function loadConfig(env: Env = process.env): FacilitatorConfig {
   const circlesRaw = env.X207_CIRCLES;
   if (!circlesRaw) {
-    throw new ConfigError("variabel wajib X207_CIRCLES kosong; contoh: X207_CIRCLES=agents-main=x207-circle.near");
+    throw new ConfigError("required variable X207_CIRCLES is empty; example: X207_CIRCLES=agents-main=x207-circle.near");
   }
   const rpcRaw = env.NEAR_RPC_URLS;
   const rpcUrls = rpcRaw ? rpcRaw.split(",").map((u) => u.trim()).filter(Boolean) : [...RPC_URLS];
-  if (rpcUrls.length === 0) throw new ConfigError("NEAR_RPC_URLS tidak berisi URL");
+  if (rpcUrls.length === 0) throw new ConfigError("NEAR_RPC_URLS contains no URL");
 
   const accountId = env.X207_RELAYER_ACCOUNT_ID;
   const privateKey = env.X207_RELAYER_PRIVATE_KEY;
   if (Boolean(accountId) !== Boolean(privateKey)) {
-    throw new ConfigError("X207_RELAYER_ACCOUNT_ID dan X207_RELAYER_PRIVATE_KEY harus diisi bersama");
+    throw new ConfigError("X207_RELAYER_ACCOUNT_ID and X207_RELAYER_PRIVATE_KEY must be set together");
   }
 
   const gasKeyPrivate = env.X207_GAS_KEY_PRIVATE_KEY;
   const gasKeyLanes = env.X207_GAS_KEY_LANES;
-  if (Boolean(gasKeyPrivate) !== Boolean(gasKeyLanes)) throw new ConfigError("X207_GAS_KEY_PRIVATE_KEY dan X207_GAS_KEY_LANES harus diisi bersama");
-  if (gasKeyPrivate && !accountId) throw new ConfigError("gas key butuh X207_RELAYER_ACCOUNT_ID: kunci itu terpasang di akun relayer");
+  if (Boolean(gasKeyPrivate) !== Boolean(gasKeyLanes)) throw new ConfigError("X207_GAS_KEY_PRIVATE_KEY and X207_GAS_KEY_LANES must be set together");
+  if (gasKeyPrivate && !accountId) throw new ConfigError("the gas key needs X207_RELAYER_ACCOUNT_ID: that key is attached to the relayer account");
   const lanes = gasKeyLanes ? parsePositiveInt(env, "X207_GAS_KEY_LANES", 1) : 0;
-  if (lanes > 1024) throw new ConfigError(`X207_GAS_KEY_LANES harus 1..1024, dapat ${lanes}`);
+  if (lanes > 1024) throw new ConfigError(`X207_GAS_KEY_LANES must be 1..1024, got ${lanes}`);
 
   const mode = env.X207_REGISTER_MODE;
   if (mode !== undefined && mode !== "" && mode !== "cumulative" && mode !== "per_request") {
-    throw new ConfigError(`X207_REGISTER_MODE harus "cumulative" atau "per_request", dapat "${mode}"`);
+    throw new ConfigError(`X207_REGISTER_MODE must be "cumulative" or "per_request", got "${mode}"`);
   }
 
   if (mode === "per_request" && !accountId) {
-    throw new ConfigError("X207_REGISTER_MODE=per_request butuh X207_RELAYER_ACCOUNT_ID dan X207_RELAYER_PRIVATE_KEY");
+    throw new ConfigError("X207_REGISTER_MODE=per_request needs X207_RELAYER_ACCOUNT_ID and X207_RELAYER_PRIVATE_KEY");
   }
 
   return {

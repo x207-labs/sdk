@@ -96,7 +96,7 @@ const toBase64 = (value: unknown): string => Buffer.from(JSON.stringify(value), 
 function fromBase64(header: string): any {
   const text = Buffer.from(header, "base64").toString("utf8");
   if (!text || Buffer.from(text, "utf8").toString("base64").replace(/=+$/, "") !== header.replace(/=+$/, "")) {
-    throw new Error("bukan base64");
+    throw new Error("not base64");
   }
   return JSON.parse(text);
 }
@@ -141,7 +141,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
     try {
       return await response.json();
     } catch {
-      throw new FacilitatorUnavailable(`${path}: jawaban bukan JSON`);
+      throw new FacilitatorUnavailable(`${path}: response is not JSON`);
     }
   }
   const post = (path: string, body: unknown) =>

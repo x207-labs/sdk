@@ -45,16 +45,16 @@ export function createViewAccessKeyFn(options: ViewAccessKeyOptions = {}): ViewA
         const body = (await response.json()) as { result?: AccessKeyView & { error?: string }; error?: { cause?: { name?: string }; data?: unknown } };
         const missing = body.error?.cause?.name === "UNKNOWN_ACCESS_KEY" || /does not exist|UNKNOWN_ACCESS_KEY/.test(`${body.result?.error ?? ""}${JSON.stringify(body.error?.data ?? "")}`);
         if (missing) return null;
-        if (body.error) throw new Error(`RPC error pada view_access_key: ${JSON.stringify(body.error)}`);
-        if (body.result?.error) throw new Error(`view_access_key gagal: ${body.result.error}`);
-        if (body.result === undefined || body.result.permission === undefined) throw new Error("view_access_key: jawaban RPC tanpa permission");
+        if (body.error) throw new Error(`RPC error in view_access_key: ${JSON.stringify(body.error)}`);
+        if (body.result?.error) throw new Error(`view_access_key failed: ${body.result.error}`);
+        if (body.result === undefined || body.result.permission === undefined) throw new Error("view_access_key: RPC answer without permission");
         return { nonce: body.result.nonce, permission: body.result.permission };
       } catch (error) {
         if ((error as Error).message.startsWith("RPC error") || (error as Error).message.startsWith("view_access_key")) throw error;
         failures.push(`${url}: ${(error as Error).message}`);
       }
     }
-    throw new Error(`semua endpoint RPC gagal (${failures.join("; ")})`);
+    throw new Error(`all RPC endpoints failed (${failures.join("; ")})`);
   };
 }
 
@@ -69,15 +69,15 @@ export function parseFunctionCallKeyScope(scope: string): FunctionCallKeyScope {
   try {
     parsed = JSON.parse(scope);
   } catch {
-    throw new Error("scope bukan JSON");
+    throw new Error("scope is not JSON");
   }
   const s = parsed as Partial<FunctionCallKeyScope> | null;
-  if (typeof s !== "object" || s === null) throw new Error("scope harus objek");
-  if (typeof s.receiver_id !== "string" || s.receiver_id === "") throw new Error("scope.receiver_id wajib");
+  if (typeof s !== "object" || s === null) throw new Error("scope must be an object");
+  if (typeof s.receiver_id !== "string" || s.receiver_id === "") throw new Error("scope.receiver_id is required");
   if (!Array.isArray(s.method_names) || s.method_names.length === 0 || !s.method_names.every((m) => typeof m === "string" && m !== "")) {
-    throw new Error("scope.method_names harus daftar method yang tidak kosong");
+    throw new Error("scope.method_names must be a non-empty list of methods");
   }
-  if (typeof s.allowance !== "string" || !YOCTO.test(s.allowance)) throw new Error("scope.allowance harus string yoctoNEAR");
+  if (typeof s.allowance !== "string" || !YOCTO.test(s.allowance)) throw new Error("scope.allowance must be a yoctoNEAR string");
   return { receiver_id: s.receiver_id, method_names: s.method_names, allowance: s.allowance };
 }
 

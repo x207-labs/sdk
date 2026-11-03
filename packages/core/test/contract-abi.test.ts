@@ -32,18 +32,18 @@ const committedContractsAbi = (): string | null => {
 };
 const contractsAbi = existsSync(CONTRACTS_REPO) ? committedContractsAbi() : null;
 
-describe("SD-010 tipe client kontrak dari abi.json", () => {
-  it("versi ABI yang dipin tertulis di sdk", () => {
+describe("SD-010 contract client types from abi.json", () => {
+  it("the pinned ABI version is written in the sdk", () => {
     expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe(pinned.interface_version);
     expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.12");
     expect(ContractAbi.X207_CIRCLE_ABI_SHA256).toBe(createHash("sha256").update(pinnedText).digest("hex"));
   });
 
-  it("types.generated.ts sama dengan hasil generator dari ABI yang dipin", () => {
+  it("types.generated.ts equals the generator output for the pinned ABI", () => {
     expect(readFileSync(GENERATED_PATH, "utf8")).toBe(generate(pinnedText));
   });
 
-  it("daftar method dan event sama dengan ABI", () => {
+  it("the method and event lists equal the ABI", () => {
     const names = (kind: string) => pinned.body.functions.filter((f) => f.kind === kind).map((f) => f.name);
     expect([...ContractAbi.CIRCLE_VIEW_METHODS]).toEqual(names("view"));
     expect([...ContractAbi.CIRCLE_CALL_METHODS]).toEqual(names("call"));
@@ -53,24 +53,24 @@ describe("SD-010 tipe client kontrak dari abi.json", () => {
     }
   });
 
-  it("mengganti nama method di ABI mengubah hasil generator (CI merah)", () => {
+  it("renaming a method in the ABI changes the generator output (CI red)", () => {
     const renamed = pinnedText.replace('"name": "member"', '"name": "member_x"');
     expect(renamed).not.toBe(pinnedText);
     expect(generate(renamed)).not.toBe(readFileSync(GENERATED_PATH, "utf8"));
   });
 
-  it("konstruk schema tak dikenal melempar error", () => {
+  it("an unknown schema construct throws an error", () => {
     const odd = pinnedText.replace('"type": "boolean"', '"type": "number"');
     expect(odd).not.toBe(pinnedText);
-    expect(() => generate(odd)).toThrow(/type tidak dikenal/);
+    expect(() => generate(odd)).toThrow(/unknown type/);
   });
 
-  it.skipIf(contractsAbi === null)("pin sama dengan abi.json yang ter-commit di repo contracts lokal", () => {
+  it.skipIf(contractsAbi === null)("the pin equals the abi.json committed in the local contracts repo", () => {
     // Isi sama; urutan key boleh beda (contracts menulis key terurut).
     expect(JSON.parse(contractsAbi as string)).toEqual(pinned);
   });
 
-  it("tipe @x207/core cocok dengan tipe ABI (diperiksa saat typecheck)", () => {
+  it("the @x207/core types match the ABI types (checked at typecheck)", () => {
     const voucher: ContractAbi.Voucher = {} as UnsignedVoucher;
     const phaseA: ContractAbi.EpochPhaseView = "" as EpochPhase;
     const phaseB: EpochPhase = "" as ContractAbi.EpochPhaseView;

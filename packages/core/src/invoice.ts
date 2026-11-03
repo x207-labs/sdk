@@ -42,13 +42,13 @@ const fail = (code: InvoiceErrorCode, message: string): never => {
 };
 
 function checkDocument(doc: InvoiceDocument): void {
-  if (typeof doc.id !== "string" || !ID.test(doc.id)) fail("invoice_bad_id", "id harus 1 sampai 64 karakter [A-Za-z0-9._:/-]");
+  if (typeof doc.id !== "string" || !ID.test(doc.id)) fail("invoice_bad_id", "id must be 1 to 64 characters [A-Za-z0-9._:/-]");
   for (const [name, value] of [["issuer", doc.issuer], ["debtor", doc.debtor]] as const) {
-    if (typeof value !== "string" || value.length < 2 || value.length > 64 || !ACCOUNT.test(value)) fail("invoice_bad_account", `${name} bukan akun NEAR: ${JSON.stringify(value)}`);
+    if (typeof value !== "string" || value.length < 2 || value.length > 64 || !ACCOUNT.test(value)) fail("invoice_bad_account", `${name} is not a NEAR account: ${JSON.stringify(value)}`);
   }
-  if (doc.issuer === doc.debtor) fail("invoice_same_party", "issuer dan debtor harus akun yang berbeda");
-  if (typeof doc.amount !== "string" || !AMOUNT.test(doc.amount) || BigInt(doc.amount) > U128_MAX) fail("invoice_bad_amount", `amount harus bilangan bulat desimal > 0 (satuan terkecil), dapat ${JSON.stringify(doc.amount)}`);
-  if (typeof doc.memo !== "string" || doc.memo.length > 256 || !/^[\x20-\x7e]*$/.test(doc.memo)) fail("invoice_bad_memo", "memo harus teks ASCII paling banyak 256 karakter");
+  if (doc.issuer === doc.debtor) fail("invoice_same_party", "issuer and debtor must be different accounts");
+  if (typeof doc.amount !== "string" || !AMOUNT.test(doc.amount) || BigInt(doc.amount) > U128_MAX) fail("invoice_bad_amount", `amount must be a decimal integer > 0 (smallest unit), got ${JSON.stringify(doc.amount)}`);
+  if (typeof doc.memo !== "string" || doc.memo.length > 256 || !/^[\x20-\x7e]*$/.test(doc.memo)) fail("invoice_bad_memo", "memo must be ASCII text of at most 256 characters");
 }
 
 /** JSON kanonik `{id, issuer, debtor, amount, memo}` (urutan key tetap, tanpa spasi); sama dengan format AG-021. */
@@ -65,7 +65,7 @@ export function invoiceHash(doc: InvoiceDocument): string {
 
 /** `x207:invoice:<hash>`. */
 export function invoiceResource(hash: string): string {
-  if (!/^[0-9a-f]{64}$/.test(hash)) fail("invoice_bad_resource", "hash invoice harus 64 heksadesimal huruf kecil");
+  if (!/^[0-9a-f]{64}$/.test(hash)) fail("invoice_bad_resource", "invoice hash must be 64 lowercase hex characters");
   return `${INVOICE_RESOURCE_PREFIX}${hash}`;
 }
 
@@ -80,13 +80,13 @@ export function parseInvoiceResource(resource: string): string | null {
 export type InvoicePairState = { seq: number; cumulativeAmount: U128String };
 
 const checkState = (state: InvoicePairState): void => {
-  if (!Number.isSafeInteger(state.seq) || state.seq < 0 || !/^(0|[1-9]\d*)$/.test(state.cumulativeAmount)) fail("installment_bad_state", `keadaan pasangan tidak sah: ${JSON.stringify(state)}`);
+  if (!Number.isSafeInteger(state.seq) || state.seq < 0 || !/^(0|[1-9]\d*)$/.test(state.cumulativeAmount)) fail("installment_bad_state", `invalid pair state: ${JSON.stringify(state)}`);
 };
 
 /** Voucher invoice biasa (satu kali bayar): melanjutkan keadaan pasangan di epoch `epoch`. */
 export function invoiceVoucher(args: { circle: AccountId; doc: InvoiceDocument; epoch: number; state: InvoicePairState }): UnsignedVoucher {
   checkState(args.state);
-  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("installment_bad_epoch", `epoch harus bilangan bulat >= 1, dapat ${args.epoch}`);
+  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("installment_bad_epoch", `epoch must be an integer >= 1, got ${args.epoch}`);
   return {
     circle: args.circle, payer: args.doc.debtor, payee: args.doc.issuer, epoch: args.epoch, seq: args.state.seq + 1,
     cumulativeAmount: (BigInt(args.state.cumulativeAmount) + BigInt(args.doc.amount)).toString(), unit: CREDIT_UNIT, resource: invoiceResource(invoiceHash(args.doc)),
@@ -104,7 +104,7 @@ export type EpochClock = { epoch: number; openedAt: number; epochLength: number 
  */
 export function epochForTime(time: number, clock: EpochClock): number {
   if (!Number.isFinite(time) || !Number.isSafeInteger(clock.epoch) || clock.epoch < 1 || !(clock.epochLength > 0) || time < clock.openedAt) {
-    return fail("installment_bad_epoch", "waktu harus tidak lebih awal dari pembukaan epoch yang berjalan, dengan epochLength > 0");
+    return fail("installment_bad_epoch", "time must not be earlier than the opening of the running epoch, with epochLength > 0");
   }
   return clock.epoch + Math.floor((time - clock.openedAt) / clock.epochLength);
 }
@@ -119,10 +119,10 @@ export type InstallmentPlan = { circle: AccountId; doc: InvoiceDocument; hash: s
 export function planInstallments(args: { circle: AccountId; doc: InvoiceDocument; firstEpoch: number; count: number }): InstallmentPlan {
   const { circle, doc, firstEpoch, count } = args;
   const hash = invoiceHash(doc);
-  if (!Number.isSafeInteger(count) || count < 1 || count > MAX_INSTALLMENTS) fail("installment_count", `count harus bilangan bulat 1 sampai ${MAX_INSTALLMENTS}, dapat ${count}`);
-  if (!Number.isSafeInteger(firstEpoch) || firstEpoch < 1) fail("installment_bad_epoch", `firstEpoch harus bilangan bulat >= 1, dapat ${firstEpoch}`);
+  if (!Number.isSafeInteger(count) || count < 1 || count > MAX_INSTALLMENTS) fail("installment_count", `count must be an integer from 1 to ${MAX_INSTALLMENTS}, got ${count}`);
+  if (!Number.isSafeInteger(firstEpoch) || firstEpoch < 1) fail("installment_bad_epoch", `firstEpoch must be an integer >= 1, got ${firstEpoch}`);
   const total = BigInt(doc.amount);
-  if (total < BigInt(count)) fail("installment_amount_too_small", `jumlah ${doc.amount} tidak cukup untuk ${count} cicilan`);
+  if (total < BigInt(count)) fail("installment_amount_too_small", `amount ${doc.amount} is not enough for ${count} installments`);
   const base = total / BigInt(count);
   const extra = Number(total % BigInt(count));
   return {
@@ -132,7 +132,7 @@ export function planInstallments(args: { circle: AccountId; doc: InvoiceDocument
 }
 
 const installmentAt = (plan: InstallmentPlan, index: number): Installment =>
-  plan.installments.find((i) => i.index === index) ?? fail("installment_not_found", `cicilan ${index} tidak ada; rencana ini punya ${plan.installments.length}`);
+  plan.installments.find((i) => i.index === index) ?? fail("installment_not_found", `installment ${index} does not exist; this plan has ${plan.installments.length}`);
 
 /**
  * Voucher cicilan `index`, ditandatangani di depan: `seq` 1 pasangan di epochnya dan kumulatif sebesar cicilan itu. Hanya benar bila pasangan belum punya voucher di epoch itu;
@@ -168,7 +168,7 @@ export function installmentState(plan: InstallmentPlan, index: number): { epoch:
  */
 export function catchUpVoucher(plan: InstallmentPlan, index: number, state: InvoicePairState, alreadyShifted: boolean): UnsignedVoucher {
   const item = installmentAt(plan, index);
-  if (alreadyShifted) fail("installment_already_shifted", `cicilan ${index} sudah digeser sekali; gagal lagi berarti missed`);
+  if (alreadyShifted) fail("installment_already_shifted", `installment ${index} was already shifted once; failing again means missed`);
   checkState(state);
   return {
     circle: plan.circle, payer: plan.doc.debtor, payee: plan.doc.issuer, epoch: item.epoch + 1, seq: state.seq + 1,

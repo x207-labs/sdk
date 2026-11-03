@@ -103,7 +103,7 @@ export async function settlePayment(
     return failed(reason, verdict.payer, resync);
   }
 
-  if (!parsed.ok) throw new Error("payload lolos verify tetapi gagal skema X207Payload");
+  if (!parsed.ok) throw new Error("payload passed verify but failed the X207Payload schema");
   const { voucher, signature, bundleId } = parsed.value;
   if (!(await (bundleId === undefined ? options.store.save(voucher, signature) : options.store.save(voucher, signature, bundleId)))) {
     // Settle paralel untuk pasangan yang sama sudah menyimpan seq yang sama atau lebih tinggi.
@@ -115,6 +115,6 @@ export async function settlePayment(
     });
   }
   const row = await options.store.get(voucher.payer, voucher.payee, voucher.epoch);
-  if (!row) throw new Error("baris pending hilang setelah disimpan");
+  if (!row) throw new Error("pending row is missing after it was saved");
   return succeeded(circle, voucher, row);
 }

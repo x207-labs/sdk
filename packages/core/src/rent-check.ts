@@ -31,9 +31,9 @@ const fail = (code: RentErrorCode, message: string): never => {
  */
 export async function checkAccessBeforeNextDay(args: { grantId: number; view: AccessView; nowMs: number; directCheck?: () => Promise<boolean> }): Promise<void> {
   const { view } = args;
-  if (view.grantId !== args.grantId) fail("rent_bad_state", `jawaban broker untuk grant ${view.grantId}, bukan ${args.grantId}`);
-  if (view.status !== "active") fail("rent_access_not_active", `broker menjawab ${view.status}: hari berikutnya tidak dibayar`);
-  if (view.paidUntil < args.nowMs) fail("rent_access_expired", "hari yang dibayar sudah lewat dan akses belum diperpanjang");
+  if (view.grantId !== args.grantId) fail("rent_bad_state", `broker answer is for grant ${view.grantId}, not ${args.grantId}`);
+  if (view.status !== "active") fail("rent_access_not_active", `broker answered ${view.status}: the next day is not paid`);
+  if (view.paidUntil < args.nowMs) fail("rent_access_expired", "the paid day has passed and access was not extended");
   if (args.directCheck !== undefined) {
     let ok = false;
     try {
@@ -41,6 +41,6 @@ export async function checkAccessBeforeNextDay(args: { grantId: number; view: Ac
     } catch {
       ok = false;
     }
-    if (!ok) fail("rent_direct_check_failed", "pemeriksaan langsung ke penyedia gagal: akses tidak berjalan");
+    if (!ok) fail("rent_direct_check_failed", "direct check with the provider failed: access is not running");
   }
 }

@@ -13,13 +13,13 @@ import { sandboxAvailable, type SandboxAccount } from "../../../../test-support/
 
 const OUT = fileURLToPath(new URL("../../../../spec/test-vectors/events/sandbox/", import.meta.url));
 
-describe.skipIf(!sandboxAvailable)("SD-011 siklus hidup epoch di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-011 epoch lifecycle on near-sandbox", () => {
   let fx: CircleFixture;
   afterAll(async () => {
     await fx?.stop();
   });
 
-  it("TC-SD-011-17 setiap event siklus hidup yang bisa dipicu ter-parse dan tersimpan sebagai fixture", async () => {
+  it("TC-SD-011-17 every lifecycle event that can be triggered parses and is stored as a fixture", async () => {
     fx = await deployCircle();
     const lines = new Map<string, string>();
     const seen = new Set<string>();
@@ -116,7 +116,7 @@ describe.skipIf(!sandboxAvailable)("SD-011 siklus hidup epoch di near-sandbox", 
       "member_joined", "stake_added", "voucher_registered", "epoch_cutoff", "clearing_submitted", "clearing_applied", "epoch_committed", "limits_updated",
       "residual_paid", "epoch_finalized", "residual_claimed", "member_defaulted", "params_updated",
     ]) {
-      expect(seen.has(name), `${name} muncul di log sandbox`).toBe(true);
+      expect(seen.has(name), `${name} appears in the sandbox log`).toBe(true);
     }
     if (process.env.X207_UPDATE_FIXTURES === "1") {
       mkdirSync(dirname(OUT + "x"), { recursive: true });

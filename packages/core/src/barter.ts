@@ -61,43 +61,43 @@ export type BundleTerms = {
 };
 
 function checkSide(side: BarterSide, name: string): void {
-  if (typeof side !== "object" || side === null) throw new BarterFormatError(`${name} harus objek`);
+  if (typeof side !== "object" || side === null) throw new BarterFormatError(`${name} must be an object`);
   if (typeof side.service !== "string" || !SERVICE.test(side.service)) {
-    throw new BarterFormatError(`${name}.service harus ASCII huruf kecil, angka, titik, titik dua, strip atau garis bawah (1-64)`);
+    throw new BarterFormatError(`${name}.service must be ASCII lowercase letters, digits, dot, colon, hyphen or underscore (1-64)`);
   }
-  if (!isPositiveInt(side.calls)) throw new BarterFormatError(`${name}.calls harus integer >= 1`);
-  if (!isAmount(side.value)) throw new BarterFormatError(`${name}.value harus string desimal > 0 tanpa nol di depan dan <= U128`);
+  if (!isPositiveInt(side.calls)) throw new BarterFormatError(`${name}.calls must be an integer >= 1`);
+  if (!isAmount(side.value)) throw new BarterFormatError(`${name}.value must be a decimal string > 0 with no leading zeros and <= U128`);
 }
 
 export function validateIntent(intent: BarterIntent): void {
-  if (!isAccount(intent.circle)) throw new BarterFormatError("circle bukan akun NEAR");
-  if (!isAccount(intent.account)) throw new BarterFormatError("account bukan akun NEAR");
+  if (!isAccount(intent.circle)) throw new BarterFormatError("circle is not a NEAR account");
+  if (!isAccount(intent.account)) throw new BarterFormatError("account is not a NEAR account");
   checkSide(intent.offer, "offer");
   checkSide(intent.need, "need");
-  if (!isPositiveInt(intent.expiresAt)) throw new BarterFormatError("expiresAt harus integer detik unix >= 1");
-  if (typeof intent.nonce !== "string" || !NONCE.test(intent.nonce)) throw new BarterFormatError("nonce harus 1-64 karakter [A-Za-z0-9_-]");
+  if (!isPositiveInt(intent.expiresAt)) throw new BarterFormatError("expiresAt must be an integer of unix seconds >= 1");
+  if (typeof intent.nonce !== "string" || !NONCE.test(intent.nonce)) throw new BarterFormatError("nonce must be 1-64 characters [A-Za-z0-9_-]");
 }
 
 const byBytes = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
 export function validateBundleTerms(terms: BundleTerms): void {
-  if (!isAccount(terms.circle)) throw new BarterFormatError("circle bukan akun NEAR");
-  if (!isPositiveInt(terms.epoch)) throw new BarterFormatError("epoch harus integer >= 1");
-  if (!Array.isArray(terms.legs) || terms.legs.length < 2) throw new BarterFormatError("bundle butuh minimal dua leg");
-  if (terms.legs.length > MAX_BUNDLE_LEGS) throw new BarterFormatError(`bundle punya ${terms.legs.length} leg, batas kontrak ${MAX_BUNDLE_LEGS} (ERR_BAD_BUNDLE); pecah menjadi beberapa bundle`);
+  if (!isAccount(terms.circle)) throw new BarterFormatError("circle is not a NEAR account");
+  if (!isPositiveInt(terms.epoch)) throw new BarterFormatError("epoch must be an integer >= 1");
+  if (!Array.isArray(terms.legs) || terms.legs.length < 2) throw new BarterFormatError("a bundle needs at least two legs");
+  if (terms.legs.length > MAX_BUNDLE_LEGS) throw new BarterFormatError(`bundle has ${terms.legs.length} legs, contract limit ${MAX_BUNDLE_LEGS} (ERR_BAD_BUNDLE); split into several bundles`);
   const seen = new Set<string>();
   for (const leg of terms.legs) {
-    if (!isAccount(leg.payer) || !isAccount(leg.payee)) throw new BarterFormatError("payer dan payee harus akun NEAR");
-    if (leg.payer === leg.payee) throw new BarterFormatError("leg tidak boleh membayar diri sendiri");
-    if (!isAmount(leg.max_amount)) throw new BarterFormatError("max_amount harus string desimal > 0 tanpa nol di depan dan <= U128");
+    if (!isAccount(leg.payer) || !isAccount(leg.payee)) throw new BarterFormatError("payer and payee must be NEAR accounts");
+    if (leg.payer === leg.payee) throw new BarterFormatError("a leg must not pay itself");
+    if (!isAmount(leg.max_amount)) throw new BarterFormatError("max_amount must be a decimal string > 0 with no leading zeros and <= U128");
     const key = `${leg.payer}>${leg.payee}`;
-    if (seen.has(key)) throw new BarterFormatError(`pasangan ${key} muncul dua kali`);
+    if (seen.has(key)) throw new BarterFormatError(`pair ${key} appears twice`);
     seen.add(key);
   }
   const search = terms.search_leg;
   if (search !== undefined && search !== null) {
-    if (typeof search !== "object" || !isAccount(search.payer) || !isAccount(search.payee)) throw new BarterFormatError("search_leg harus {payer, payee} akun NEAR");
-    if (!seen.has(`${search.payer}>${search.payee}`)) throw new BarterFormatError("search_leg bukan salah satu leg bundle");
+    if (typeof search !== "object" || !isAccount(search.payer) || !isAccount(search.payee)) throw new BarterFormatError("search_leg must be {payer, payee} NEAR accounts");
+    if (!seen.has(`${search.payer}>${search.payee}`)) throw new BarterFormatError("search_leg is not one of the bundle legs");
   }
   validateDealTerms(terms);
 }
@@ -110,13 +110,13 @@ function validateDealTerms(terms: BundleTerms): void {
   const agreement = terms.agreement_hash ?? null;
   const confirmBy = terms.confirm_by ?? null;
   if (arbiter === null && agreement === null && confirmBy === null) return;
-  if (arbiter === null || confirmBy === null) throw new BarterFormatError("arbiter dan confirm_by datang bersama; agreement_hash butuh keduanya (ERR_BAD_BUNDLE)");
-  if (!isAccount(arbiter)) throw new BarterFormatError("arbiter bukan akun NEAR");
-  if (agreement !== null && !HASH64.test(agreement)) throw new BarterFormatError("agreement_hash harus 64 heksadesimal huruf kecil");
-  if (typeof confirmBy !== "string" || !/^[1-9]\d*$/.test(confirmBy) || BigInt(confirmBy) > U64_MAX) throw new BarterFormatError("confirm_by harus string desimal nanodetik > 0 dan <= U64");
+  if (arbiter === null || confirmBy === null) throw new BarterFormatError("arbiter and confirm_by come together; agreement_hash needs both (ERR_BAD_BUNDLE)");
+  if (!isAccount(arbiter)) throw new BarterFormatError("arbiter is not a NEAR account");
+  if (agreement !== null && !HASH64.test(agreement)) throw new BarterFormatError("agreement_hash must be 64 lowercase hex characters");
+  if (typeof confirmBy !== "string" || !/^[1-9]\d*$/.test(confirmBy) || BigInt(confirmBy) > U64_MAX) throw new BarterFormatError("confirm_by must be a decimal string of nanoseconds > 0 and <= U64");
   const participants = new Set(terms.legs.flatMap((l) => [l.payer, l.payee]));
-  if (participants.size !== 2) throw new BarterFormatError("arbiter hanya untuk swap dua peserta (ERR_BAD_BUNDLE)");
-  if (participants.has(arbiter)) throw new BarterFormatError("arbiter tidak boleh peserta swap (ERR_ARBITER_INVALID)");
+  if (participants.size !== 2) throw new BarterFormatError("arbiter is only for a two-participant swap (ERR_BAD_BUNDLE)");
+  if (participants.has(arbiter)) throw new BarterFormatError("arbiter must not be a swap participant (ERR_ARBITER_INVALID)");
 }
 
 /** JSON kanonik intent: key `circle, account, offer{service,calls,value}, need{...}, expiresAt, nonce`, tanpa spasi. */

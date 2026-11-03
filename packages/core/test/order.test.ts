@@ -347,7 +347,7 @@ describe("SD-069 review BE-062 F4 and F5: the paid milestones and proofs must be
     // the ledger: the same, and two calls at once are refused
     const ledger = new OrderLedger(delegate);
     const slow = ledger.payProofsAsync({ epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [vote(1)], mandate, secretKey: key.secretKey, verifyTx });
-    await expect(ledger.payProofsAsync({ epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [vote(1)], mandate, secretKey: key.secretKey, verifyTx })).rejects.toThrow(/sedang berjalan/);
+    await expect(ledger.payProofsAsync({ epoch: 42, state: { seq: 0, cumulativeAmount: "0" }, proofs: [vote(1)], mandate, secretKey: key.secretKey, verifyTx })).rejects.toThrow(/is running/);
     expect((await slow).paidKeys).toEqual(["proposal:1"]);
     expect((await ledger.payProofsAsync({ epoch: 42, state: { seq: 1, cumulativeAmount: "500000" }, proofs: [vote(1, { txHash: "again000" })], mandate, secretKey: key.secretKey, verifyTx })).refused[0]!.reason).toBe("already_paid");
   });

@@ -46,14 +46,14 @@ const healthy = (value: unknown) => (_req: unknown, res: import("node:http").Ser
   res.end(JSON.stringify({ jsonrpc: "2.0", id: "x207", result: { result: [...Buffer.from(JSON.stringify(value))] } }));
 };
 const failing = (_req: unknown, res: import("node:http").ServerResponse) => { res.statusCode = 503; res.end("down"); };
-const hanging = () => { /* tidak pernah menjawab */ };
+const hanging = () => { /* never answers */ };
 
 function rpcBackedService(rpc: NearRpc): FacilitatorService {
   return { ...okService, verify: async () => ({ isValid: true, payer: String(await rpc.view("x207-circle.near", "get_epoch")) }) };
 }
 
 describe("SD-021 scaffold apps/facilitator", () => {
-  it("TC-SD-021-01 tiga rute ada dan menjawab JSON", async () => {
+  it("TC-SD-021-01 three routes exist and answer JSON", async () => {
     const app = createApp(okService);
     for (const [path, res] of [
       ["/verify", await post(app, "/verify", BODY)],
@@ -72,13 +72,13 @@ describe("SD-021 scaffold apps/facilitator", () => {
     expect(await res.json()).toEqual({ error: "not_found" });
   });
 
-  it("TC-SD-021-03 body bukan JSON 400 invalid_request", async () => {
+  it("TC-SD-021-03 body is not JSON 400 invalid_request", async () => {
     const res = await post(createApp(okService), "/verify", "abc");
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_request", message: expect.any(String) });
   });
 
-  it("TC-SD-021-04 field wajib hilang 400 invalid_request", async () => {
+  it("TC-SD-021-04 a missing required field gives 400 invalid_request", async () => {
     const { paymentRequirements: _r, ...without } = BODY;
     const res = await post(createApp(okService), "/verify", without);
     expect(res.status).toBe(400);
@@ -86,14 +86,14 @@ describe("SD-021 scaffold apps/facilitator", () => {
     expect((await post(createApp(okService), "/settle", { ...BODY, paymentPayload: undefined })).status).toBe(400);
   });
 
-  it("TC-SD-021-05 network gagal regex 400 invalid_request", async () => {
+  it("TC-SD-021-05 network failing the regex gives 400 invalid_request", async () => {
     const bad = { ...REQ, network: "x207:x207-circle.near" };
     const res = await post(createApp(okService), "/verify", { ...BODY, paymentRequirements: bad });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid_request" });
   });
 
-  it("TC-SD-021-06 RPC tidak menjawab -> 503 chain_unavailable + Retry-After", async () => {
+  it("TC-SD-021-06 RPC does not answer -> 503 chain_unavailable + Retry-After", async () => {
     const url = await rpcServer(hanging);
     const app = createApp(rpcBackedService(new NearRpc({ urls: [url], timeoutMs: 50 })));
     const res = await post(app, "/verify", BODY);
@@ -102,12 +102,12 @@ describe("SD-021 scaffold apps/facilitator", () => {
     expect(res.headers.get("retry-after")).toBe("5");
   });
 
-  it("TC-SD-021-06 timeout bawaan 10 detik (ADR-25)", () => {
+  it("TC-SD-021-06 default timeout of 10 seconds (ADR-25)", () => {
     expect(DEFAULT_RPC_TIMEOUT_MS).toBe(10_000);
     expect(loadConfig({ X207_CIRCLES: "agents-main=x207-circle.near" }).rpcTimeoutMs).toBe(10_000);
   });
 
-  it("TC-SD-021-07 failover ke RPC cadangan, lalu keduanya gagal", async () => {
+  it("TC-SD-021-07 failover to the spare RPC, then both fail", async () => {
     const down = await rpcServer(failing);
     const up = await rpcServer(healthy("epoch-42"));
     const rpc = new NearRpc({ urls: [down, up], timeoutMs: 200 });
@@ -121,16 +121,16 @@ describe("SD-021 scaffold apps/facilitator", () => {
     expect(await res.json()).toMatchObject({ error: "chain_unavailable" });
   });
 
-  it("TC-SD-021-07 error kontrak dari RPC tidak memicu failover", async () => {
+  it("TC-SD-021-07 a contract error from RPC does not trigger failover", async () => {
     const erroring = await rpcServer((_q, res) => {
       res.setHeader("content-type", "application/json");
       res.end(JSON.stringify({ jsonrpc: "2.0", id: "x207", error: { cause: { name: "UNKNOWN_ACCOUNT" } } }));
     });
-    const spare = await rpcServer(healthy("tidak dipakai"));
+    const spare = await rpcServer(healthy("unused"));
     await expect(new NearRpc({ urls: [erroring, spare], timeoutMs: 200 }).call("query", {})).rejects.toThrow(/RPC query error/);
   });
 
-  it("TC-SD-021-08 dependensi: @x402/near 2.28.0, @near-js 2.5.1, tanpa near-api-js", () => {
+  it("TC-SD-021-08 dependencies: @x402/near 2.28.0, @near-js 2.5.1, no near-api-js", () => {
     const root = fileURLToPath(new URL("../../../", import.meta.url));
     const readJson = (path: string) => JSON.parse(readFileSync(`${root}${path}`, "utf8"));
     const pkg = readJson("apps/facilitator/package.json");
@@ -154,7 +154,7 @@ describe("SD-021 scaffold apps/facilitator", () => {
     expect(readFileSync(`${root}packages/core/src/index.ts`, "utf8")).not.toMatch(/signer/);
   });
 
-  it("TC-SD-021-09 variabel konfigurasi ada di .env.example dan variabel wajib dicek", () => {
+  it("TC-SD-021-09 configuration variables are in .env.example and required variables are checked", () => {
     const root = fileURLToPath(new URL("../../../", import.meta.url));
     const example = readFileSync(`${root}.env.example`, "utf8");
     const source = readFileSync(`${root}apps/facilitator/src/config.ts`, "utf8");

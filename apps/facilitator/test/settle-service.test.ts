@@ -62,8 +62,8 @@ function setup() {
   return { pending, app };
 }
 
-describe("SD-026 /settle di facilitator", () => {
-  it("TC-SD-026-01/04 menyimpan voucher ke pending store SQLite dan menjawab commitment id", async () => {
+describe("SD-026 /settle in the facilitator", () => {
+  it("TC-SD-026-01/04 stores the voucher in the SQLite pending store and answers the commitment id", async () => {
     const { app, pending } = setup();
     const res = await post(app, "/settle", bodyOf(1));
     expect(res.status).toBe(200);
@@ -83,7 +83,7 @@ describe("SD-026 /settle di facilitator", () => {
     expect(await (await post(app, "/verify", bodyOf(2))).json()).toEqual({ isValid: true, payer: A });
   });
 
-  it("TC-SD-026-07 /settle sama dua kali: respons identik, satu baris", async () => {
+  it("TC-SD-026-07 the same /settle twice: identical response, one row", async () => {
     const { app, pending } = setup();
     const first = await (await post(app, "/settle", bodyOf(1))).json();
     const second = await (await post(app, "/settle", bodyOf(1))).json();
@@ -91,7 +91,7 @@ describe("SD-026 /settle di facilitator", () => {
     expect(pending.listByPayer("x207-circle.near", A, 42)).toHaveLength(1);
   });
 
-  it("network yang tidak dikonfigurasi dijawab invalid_network", async () => {
+  it("a network that is not configured is answered with invalid_network", async () => {
     const { app } = setup();
     const body = bodyOf(1);
     const other = { ...REQ, network: "x207:other-circle" };

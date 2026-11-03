@@ -89,7 +89,7 @@ afterEach(() => {
 });
 
 describe("SD-032 rangkaian facilitator", () => {
-  it("TC-SD-032-01 /supported memuat batch-settlement x207 dan exact near:mainnet beserta signers", async () => {
+  it("TC-SD-032-01 /supported holds batch-settlement x207 and exact near:mainnet with signers", async () => {
     const res = await appOf().app.request("/supported");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { kinds: unknown[]; signers: Record<string, string[]> };
@@ -102,14 +102,14 @@ describe("SD-032 rangkaian facilitator", () => {
     expect(body.signers["x207:*"]).toEqual([RELAYER]);
   });
 
-  it("TC-SD-034-01 exactNetwork near:testnet mendaftarkan exact di testnet saja (gladi), bawaan tetap near:mainnet", async () => {
+  it("TC-SD-034-01 exactNetwork near:testnet registers exact on testnet only (rehearsal), the default stays near:mainnet", async () => {
     const kinds = async (options: Parameters<typeof appOf>[0]) =>
       ((await (await appOf(options).app.request("/supported")).json()) as { kinds: Array<{ scheme: string; network: string }> }).kinds.filter((k) => k.scheme === "exact");
     expect(await kinds({ exactNetwork: "near:testnet" })).toEqual([{ x402Version: 2, scheme: "exact", network: "near:testnet" }]);
     expect(await kinds({})).toEqual([{ x402Version: 2, scheme: "exact", network: "near:mainnet" }]);
   });
 
-  it("TC-SD-032-02 extra.epoch dari kontrak: dipakai ulang <60 detik, dibaca ulang sesudahnya", async () => {
+  it("TC-SD-032-02 extra.epoch from the contract: reused for <60 seconds, re-read afterwards", async () => {
     let now = NOW;
     const { app } = appOf({ now: () => now });
     const epochOf = async () =>
@@ -122,7 +122,7 @@ describe("SD-032 rangkaian facilitator", () => {
     expect(await epochOf()).toBe(43);
   });
 
-  it("TC-SD-032-03 /verify lalu /settle voucher contoh", async () => {
+  it("TC-SD-032-03 /verify then /settle the sample voucher", async () => {
     const { app, pending } = appOf();
     expect(await (await post(app, "/verify", x207Body(1))).json()).toEqual({ isValid: true, payer: A });
     const settled = await (await post(app, "/settle", x207Body(1))).json();
@@ -130,7 +130,7 @@ describe("SD-032 rangkaian facilitator", () => {
     expect(pending.get({ circleContract: CIRCLE_ACCOUNT, payer: A, payee: B, epoch: 42 })).toMatchObject({ seq: 1 });
   });
 
-  it("TC-SD-032-04 pembayaran exact near:mainnet nominal kecil diproses @x402/near", async () => {
+  it("TC-SD-032-04 a small exact near:mainnet payment is processed by @x402/near", async () => {
     const hits: string[] = [];
     const fake = createServer((req, res) => {
       let raw = "";
@@ -177,7 +177,7 @@ describe("SD-032 rangkaian facilitator", () => {
     expect(settled).toMatchObject({ success: true, network: "near:mainnet", transaction: "TXHASH" });
   });
 
-  it("TC-SD-032-05 routing per network: scheme x207 hanya menerima x207, exact hanya near:mainnet", async () => {
+  it("TC-SD-032-05 routing per network: scheme x207 accepts only x207, exact only near:mainnet", async () => {
     const x207Verify = vi.spyOn((await import("@x207/scheme")).X207SchemeFacilitator.prototype, "verify");
     const exactVerify = vi.spyOn(ExactFacilitator.ExactNearScheme.prototype, "verify");
     const { app } = appOf();
@@ -195,7 +195,7 @@ describe("SD-032 rangkaian facilitator", () => {
     expect(x207Verify).toHaveBeenCalledTimes(1);
   });
 
-  it("TC-SD-032-06 network x207 yang tidak dikonfigurasi menjawab invalid_network", async () => {
+  it("TC-SD-032-06 an x207 network that is not configured answers invalid_network", async () => {
     const other = { ...REQ, network: "x207:other-circle" };
     const body = { ...x207Body(1), paymentRequirements: other };
     const res = await post(appOf().app, "/verify", body);
@@ -204,7 +204,7 @@ describe("SD-032 rangkaian facilitator", () => {
     expect(await (await post(appOf().app, "/settle", body)).json()).toMatchObject({ success: false, errorReason: "invalid_network" });
   });
 
-  it("TC-SD-032-07 GET /x207/pair-state: pending, onchain, none, dan 400", async () => {
+  it("TC-SD-032-07 GET /x207/pair-state: pending, onchain, none and 400", async () => {
     const { app, pending } = appOf();
     const query = (payer: string, payee = B) =>
       `/x207/pair-state?network=x207:agents-main&payer=${payer}&payee=${payee}&epoch=42`;

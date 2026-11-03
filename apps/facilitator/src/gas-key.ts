@@ -76,7 +76,7 @@ export type GasKeyCall = {
 
 /** Byte borsh `Transaction::V1` dengan satu aksi FunctionCall. */
 export function encodeGasKeyTransaction(tx: GasKeyCall, publicKey: Uint8Array): Buffer {
-  if (!Number.isInteger(tx.nonceIndex) || tx.nonceIndex < 0 || tx.nonceIndex >= MAX_GAS_KEY_LANES) throw new Error("nonceIndex harus bilangan bulat 0..1023");
+  if (!Number.isInteger(tx.nonceIndex) || tx.nonceIndex < 0 || tx.nonceIndex >= MAX_GAS_KEY_LANES) throw new Error("nonceIndex must be an integer 0..1023");
   const w = new Writer();
   w.u8(TRANSACTION_V1_PREFIX);
   w.string(tx.signerId);
@@ -122,8 +122,8 @@ export class GasKeyLanes {
 
   /** `timeoutMs`: a read of the nonce or a `work` that takes longer fails and gives the lane back (the nonce of the lane is then read again). */
   constructor(readonly count: number, readonly timeoutMs: number = GAS_KEY_LANE_TIMEOUT_MS) {
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new Error("timeout jalur gas key harus bilangan bulat positif");
-    if (!Number.isInteger(count) || count < 1 || count > MAX_GAS_KEY_LANES) throw new Error(`jumlah jalur gas key harus 1..${MAX_GAS_KEY_LANES}`);
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new Error("gas key lane timeout must be a positive integer");
+    if (!Number.isInteger(count) || count < 1 || count > MAX_GAS_KEY_LANES) throw new Error(`gas key lane count must be 1..${MAX_GAS_KEY_LANES}`);
     this.#busy = new Array<boolean>(count).fill(false);
     this.#nonce = new Array<bigint | undefined>(count).fill(undefined);
   }

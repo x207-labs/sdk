@@ -86,43 +86,43 @@ const isAmount = (v: unknown): v is string => typeof v === "string" && AMOUNT.te
 
 /** Memeriksa dokumen dan mengembalikan bentuk kanonik (kunci tetap, `null` untuk yang kosong). */
 export function normalizeOrder(order: OrderDocument, options: OrderOptions = {}): NormalizedOrder {
-  if (!ORDER_KINDS.includes(order.kind)) fail("order_bad_kind", `jenis pesanan tidak dikenal: ${JSON.stringify(order.kind)}; pilih ${ORDER_KINDS.join(", ")}`);
-  for (const [name, value] of [["circle", order.circle], ["buyer", order.buyer], ["seller", order.seller]] as const) if (!isAccount(value)) fail("order_bad_account", `${name} bukan akun NEAR: ${JSON.stringify(value)}`);
-  if (order.buyer === order.seller) fail("order_same_party", "pembeli dan penjual harus akun yang berbeda");
-  if (!HASH.test(order.spec_hash)) fail("order_bad_hash", "spec_hash harus 64 heksadesimal huruf kecil");
+  if (!ORDER_KINDS.includes(order.kind)) fail("order_bad_kind", `unknown order kind: ${JSON.stringify(order.kind)}; choose ${ORDER_KINDS.join(", ")}`);
+  for (const [name, value] of [["circle", order.circle], ["buyer", order.buyer], ["seller", order.seller]] as const) if (!isAccount(value)) fail("order_bad_account", `${name} is not a NEAR account: ${JSON.stringify(value)}`);
+  if (order.buyer === order.seller) fail("order_same_party", "buyer and seller must be different accounts");
+  if (!HASH.test(order.spec_hash)) fail("order_bad_hash", "spec_hash must be 64 lowercase hex characters");
   const sample = order.sample_hash ?? null;
-  if (sample !== null && !HASH.test(sample)) fail("order_bad_hash", "sample_hash harus 64 heksadesimal huruf kecil");
-  if (order.kind === "prompt" && sample === null) fail("order_sample_required", "pesanan prompt wajib memuat sample_hash: hasil yang mudah disalin harus punya contoh yang dikunci");
+  if (sample !== null && !HASH.test(sample)) fail("order_bad_hash", "sample_hash must be 64 lowercase hex characters");
+  if (order.kind === "prompt" && sample === null) fail("order_sample_required", "a prompt order must contain sample_hash: an easily copied result needs a locked sample");
   const target = order.target ?? null;
-  if (order.kind === "loadtest" && target === null) fail("order_target_required", "pesanan uji beban wajib memuat target");
-  if (order.kind !== "loadtest" && target !== null) fail("order_target_forbidden", "target hanya untuk pesanan uji beban");
+  if (order.kind === "loadtest" && target === null) fail("order_target_required", "a load-test order must contain a target");
+  if (order.kind !== "loadtest" && target !== null) fail("order_target_forbidden", "target is only for load-test orders");
   if (target !== null && (!HOST.test(target) || /^\d+(\.\d+){3}$/.test(target) || target === "localhost" || target.endsWith(".localhost") || target.endsWith(".local") || target.endsWith(".internal"))) {
-    fail("order_bad_target", "target harus nama host publik, bukan alamat IP, localhost, .local, atau .internal");
+    fail("order_bad_target", "target must be a public host name, not an IP address, localhost, .local, or .internal");
   }
-  if (!Array.isArray(order.milestones) || order.milestones.length < 1 || order.milestones.length > MAX_MILESTONES) fail("order_bad_milestones", `tonggak harus 1 sampai ${MAX_MILESTONES}`);
+  if (!Array.isArray(order.milestones) || order.milestones.length < 1 || order.milestones.length > MAX_MILESTONES) fail("order_bad_milestones", `milestones must be 1 to ${MAX_MILESTONES}`);
   let previous = 0;
   for (const m of order.milestones) {
-    if (!isAmount(m.amount)) fail("order_bad_amount", `amount tonggak harus bilangan bulat desimal > 0 (satuan terkecil), dapat ${JSON.stringify(m.amount)}`);
-    if (!Number.isSafeInteger(m.due_at) || m.due_at <= previous) fail("order_bad_milestones", "due_at harus detik unix dan naik dari tonggak ke tonggak");
+    if (!isAmount(m.amount)) fail("order_bad_amount", `milestone amount must be a decimal integer > 0 (smallest unit), got ${JSON.stringify(m.amount)}`);
+    if (!Number.isSafeInteger(m.due_at) || m.due_at <= previous) fail("order_bad_milestones", "due_at must be unix seconds and increase from milestone to milestone");
     previous = m.due_at;
   }
   const pattern = ORDER_PATTERN[order.kind];
   const proof = order.proof ?? null;
   const mandateHash = order.mandate_hash ?? null;
   if (order.kind === "delegate") {
-    if (mandateHash === null) fail("order_mandate_required", "pesanan delegate wajib memuat mandate_hash (sha256 dari mandat publik)");
-    if (!HASH.test(mandateHash!)) fail("order_bad_mandate", "mandate_hash harus 64 heksadesimal huruf kecil");
+    if (mandateHash === null) fail("order_mandate_required", "a delegate order must contain mandate_hash (sha256 of the public mandate)");
+    if (!HASH.test(mandateHash!)) fail("order_bad_mandate", "mandate_hash must be 64 lowercase hex characters");
   } else if (mandateHash !== null) {
-    fail("order_mandate_forbidden", "mandate_hash hanya untuk pesanan delegate");
+    fail("order_mandate_forbidden", "mandate_hash is only for delegate orders");
   }
   if (pattern === "proof") {
     const methods = order.kind === "delegate" ? (options.delegateMethods ?? PROOF_METHODS.delegate) : PROOF_METHODS[order.kind as "keeper" | "solver"];
-    if (proof === null || !methods.includes(proof.method)) fail("order_bad_proof", `pesanan ${order.kind} wajib memuat proof.method salah satu dari ${methods.join(", ")}`);
-    if (!isAmount(proof!.amount_per_tx)) fail("order_bad_amount", `proof.amount_per_tx harus bilangan bulat desimal > 0, dapat ${JSON.stringify(proof!.amount_per_tx)}`);
+    if (proof === null || !methods.includes(proof.method)) fail("order_bad_proof", `a ${order.kind} order must contain proof.method, one of ${methods.join(", ")}`);
+    if (!isAmount(proof!.amount_per_tx)) fail("order_bad_amount", `proof.amount_per_tx must be a decimal integer > 0, got ${JSON.stringify(proof!.amount_per_tx)}`);
   } else if (proof !== null) {
-    fail("order_bad_proof", "proof hanya untuk pesanan keeper, solver, dan delegate");
+    fail("order_bad_proof", "proof is only for keeper, solver, and delegate orders");
   }
-  if (typeof order.nonce !== "string" || !NONCE.test(order.nonce)) fail("order_bad_nonce", "nonce harus 1 sampai 32 karakter [A-Za-z0-9._-]");
+  if (typeof order.nonce !== "string" || !NONCE.test(order.nonce)) fail("order_bad_nonce", "nonce must be 1 to 32 characters [A-Za-z0-9._-]");
   return {
     circle: order.circle, kind: order.kind, buyer: order.buyer, seller: order.seller, spec_hash: order.spec_hash,
     milestones: order.milestones.map((m) => ({ amount: m.amount, due_at: m.due_at })), sample_hash: sample, target,
@@ -152,11 +152,11 @@ export const MAX_MANDATE_KINDS = 16;
 
 /** Memeriksa mandat dan mengembalikan bentuk kanonik: `kinds` terurut naik, tanpa duplikat. */
 export function normalizeMandate(m: DelegateMandate): DelegateMandate {
-  if (!isAccount(m.circle) || !isAccount(m.dao)) fail("order_bad_mandate", "circle dan dao harus akun NEAR");
-  if (!Array.isArray(m.kinds) || m.kinds.length < 1 || m.kinds.length > MAX_MANDATE_KINDS) fail("order_bad_mandate", `kinds harus 1 sampai ${MAX_MANDATE_KINDS} jenis proposal`);
-  for (const k of m.kinds) if (typeof k !== "string" || !KIND.test(k)) fail("order_bad_mandate", `jenis proposal tidak sah: ${JSON.stringify(k)}`);
-  if (new Set(m.kinds).size !== m.kinds.length) fail("order_bad_mandate", "kinds memuat jenis yang sama dua kali");
-  if (!HASH.test(m.rules_hash)) fail("order_bad_mandate", "rules_hash harus 64 heksadesimal huruf kecil");
+  if (!isAccount(m.circle) || !isAccount(m.dao)) fail("order_bad_mandate", "circle and dao must be NEAR accounts");
+  if (!Array.isArray(m.kinds) || m.kinds.length < 1 || m.kinds.length > MAX_MANDATE_KINDS) fail("order_bad_mandate", `kinds must be 1 to ${MAX_MANDATE_KINDS} proposal kinds`);
+  for (const k of m.kinds) if (typeof k !== "string" || !KIND.test(k)) fail("order_bad_mandate", `invalid proposal kind: ${JSON.stringify(k)}`);
+  if (new Set(m.kinds).size !== m.kinds.length) fail("order_bad_mandate", "kinds contains the same kind twice");
+  if (!HASH.test(m.rules_hash)) fail("order_bad_mandate", "rules_hash must be 64 lowercase hex characters");
   return { circle: m.circle, dao: m.dao, kinds: [...m.kinds].sort(), rules_hash: m.rules_hash };
 }
 /** JSON kanonik mandat: kunci `circle, dao, kinds, rules_hash`, tanpa spasi. */
@@ -172,10 +172,10 @@ export type OrderClaimNotice = { circle: AccountId; order_hash: string; actor: A
  * `circle, order_hash, actor, action, at, tx_hash`. Backend memeriksa transaksi itu lewat RPC.
  */
 export function orderClaimNotice(args: { circle: AccountId; orderHash: string; actor: AccountId; at: number; txHash: string }): OrderClaimNotice {
-  if (!isAccount(args.circle) || !isAccount(args.actor)) fail("order_bad_account", "circle dan actor harus akun NEAR");
-  if (!HASH.test(args.orderHash)) fail("order_bad_hash", "order_hash harus 64 heksadesimal huruf kecil");
-  if (!Number.isSafeInteger(args.at) || args.at < 1) fail("order_bad_state", "at harus detik unix");
-  if (!TX_HASH.test(args.txHash)) fail("order_bad_hash", "tx_hash bukan hash transaksi NEAR (base58)");
+  if (!isAccount(args.circle) || !isAccount(args.actor)) fail("order_bad_account", "circle and actor must be NEAR accounts");
+  if (!HASH.test(args.orderHash)) fail("order_bad_hash", "order_hash must be 64 lowercase hex characters");
+  if (!Number.isSafeInteger(args.at) || args.at < 1) fail("order_bad_state", "at must be unix seconds");
+  if (!TX_HASH.test(args.txHash)) fail("order_bad_hash", "tx_hash is not a NEAR transaction hash (base58)");
   return { circle: args.circle, order_hash: args.orderHash, actor: args.actor, action: "claim", at: args.at, tx_hash: args.txHash };
 }
 /** Tanda tangan notice klaim: NEP-413 atas JSON notice dengan penerima akun kontrak, skema yang sama dengan notice buku lain. */
@@ -185,7 +185,7 @@ export function signOrderClaim(notice: OrderClaimNotice, secretKey: VoucherSecre
 }
 
 export function orderResource(hash: string): string {
-  if (!HASH.test(hash)) fail("order_bad_resource", "hash pesanan harus 64 heksadesimal huruf kecil");
+  if (!HASH.test(hash)) fail("order_bad_resource", "order hash must be 64 lowercase hex characters");
   return `${ORDER_RESOURCE_PREFIX}${hash}`;
 }
 export function parseOrderResource(resource: string): string | null {
@@ -205,9 +205,9 @@ export function orderBudget(order: OrderDocument): U128String {
  */
 export function orderBundleTerms(args: { order: OrderDocument; epoch: number; amount?: U128String }): BundleTerms {
   const o = normalizeOrder(args.order, ownMethod(args.order));
-  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch harus bilangan bulat >= 1, dapat ${args.epoch}`);
+  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch must be an integer >= 1, got ${args.epoch}`);
   const amount = args.amount ?? orderBudget(o);
-  if (!isAmount(amount)) fail("order_bad_amount", `amount bundle tidak sah: ${JSON.stringify(amount)}`);
+  if (!isAmount(amount)) fail("order_bad_amount", `invalid bundle amount: ${JSON.stringify(amount)}`);
   return {
     circle: o.circle, epoch: args.epoch,
     legs: [{ payer: o.buyer, payee: o.seller, max_amount: amount }, { payer: o.seller, payee: o.buyer, max_amount: "1" }],
@@ -222,12 +222,12 @@ export function orderBundleTerms(args: { order: OrderDocument; epoch: number; am
 export function milestoneVoucher(args: { order: OrderDocument; index: number; epoch: number; state: InvoicePairState; paid: readonly number[] }): UnsignedVoucher {
   const o = normalizeOrder(args.order, ownMethod(args.order));
   // F5 (review BE-062): the library has no memory, so the caller must say which milestones it paid; a milestone is paid once
-  if (!Array.isArray(args.paid)) fail("order_bad_state", "paid (tonggak yang sudah dibayar) wajib diberikan");
-  if (args.paid.includes(args.index)) fail("order_bad_state", `tonggak ${args.index} sudah dibayar`);
+  if (!Array.isArray(args.paid)) fail("order_bad_state", "paid (the milestones already paid) is required");
+  if (args.paid.includes(args.index)) fail("order_bad_state", `milestone ${args.index} is already paid`);
   const item = o.milestones[args.index - 1];
-  if (!Number.isInteger(args.index) || item === undefined) fail("order_bad_milestones", `tonggak ${args.index} tidak ada; pesanan ini punya ${o.milestones.length}`);
-  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch harus bilangan bulat >= 1, dapat ${args.epoch}`);
-  if (!Number.isSafeInteger(args.state.seq) || args.state.seq < 0 || !/^(0|[1-9]\d*)$/.test(args.state.cumulativeAmount)) fail("order_bad_state", `keadaan pasangan tidak sah: ${JSON.stringify(args.state)}`);
+  if (!Number.isInteger(args.index) || item === undefined) fail("order_bad_milestones", `milestone ${args.index} does not exist; this order has ${o.milestones.length}`);
+  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch must be an integer >= 1, got ${args.epoch}`);
+  if (!Number.isSafeInteger(args.state.seq) || args.state.seq < 0 || !/^(0|[1-9]\d*)$/.test(args.state.cumulativeAmount)) fail("order_bad_state", `invalid pair state: ${JSON.stringify(args.state)}`);
   return {
     circle: o.circle, payer: o.buyer, payee: o.seller, epoch: args.epoch, seq: args.state.seq + 1,
     cumulativeAmount: (BigInt(args.state.cumulativeAmount) + BigInt(item!.amount)).toString(), unit: CREDIT_UNIT,
@@ -277,18 +277,18 @@ export type PayForProofsArgs = {
 export function payForProofs(args: PayForProofsArgs): PayForProofsResult {
   const o = normalizeOrder(args.order, args.options);
   const delegate = o.kind === "delegate";
-  const mandate = delegate ? normalizeMandate(args.mandate ?? fail("order_mandate_required", "pesanan delegate dibayar terhadap mandatnya: berikan mandate")) : null;
-  if (mandate !== null && (mandateHash(mandate) !== o.mandate_hash || mandate.circle !== o.circle)) fail("order_bad_mandate", "mandat ini bukan yang hash-nya ada di pesanan");
-  if (ORDER_PATTERN[o.kind] !== "proof" || o.proof === null) fail("order_not_proof_kind", `pesanan ${o.kind} tidak dibayar per bukti on-chain`);
-  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch harus bilangan bulat >= 1, dapat ${args.epoch}`);
+  const mandate = delegate ? normalizeMandate(args.mandate ?? fail("order_mandate_required", "a delegate order is paid against its mandate: provide mandate")) : null;
+  if (mandate !== null && (mandateHash(mandate) !== o.mandate_hash || mandate.circle !== o.circle)) fail("order_bad_mandate", "this mandate is not the one whose hash is in the order");
+  if (ORDER_PATTERN[o.kind] !== "proof" || o.proof === null) fail("order_not_proof_kind", `a ${o.kind} order is not paid per on-chain proof`);
+  if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("order_bad_state", `epoch must be an integer >= 1, got ${args.epoch}`);
   const budget = BigInt(orderBudget(o));
   const each = BigInt(o.proof!.amount_per_tx);
   if (!Array.isArray(args.alreadyPaid) || typeof args.alreadySpent !== "string" || !/^(0|[1-9]\d*)$/.test(args.alreadySpent)) {
-    fail("order_bad_state", "alreadyPaid dan alreadySpent wajib diberikan (dari panggilan sebelumnya)");
+    fail("order_bad_state", "alreadyPaid and alreadySpent are required (from the previous call)");
   }
   if (delegate) {
     const stray = args.alreadyPaid.find((k) => !/^proposal:\d+$/.test(k));
-    if (stray !== undefined) fail("order_bad_state", `alreadyPaid pesanan delegate berisi paidKeys (proposal:<id>), bukan hash transaksi: ${JSON.stringify(stray)}`);
+    if (stray !== undefined) fail("order_bad_state", `alreadyPaid of a delegate order contains paidKeys (proposal:<id>), not transaction hashes: ${JSON.stringify(stray)}`);
   }
   const seen = new Set(args.alreadyPaid);
   let spent = BigInt(args.alreadySpent);
@@ -402,7 +402,7 @@ export class OrderLedger {
   payMilestone(args: { index: number; epoch: number; state: InvoicePairState; secretKey: VoucherSecretKey }): Voucher {
     const unsigned = milestoneVoucher({ order: this.order, index: args.index, epoch: args.epoch, state: args.state, paid: [...this.#milestones] });
     const amount = BigInt(unsigned.cumulativeAmount) - BigInt(args.state.cumulativeAmount);
-    if (this.#spent + amount > BigInt(orderBudget(this.order))) fail("order_bad_state", "melewati anggaran pesanan");
+    if (this.#spent + amount > BigInt(orderBudget(this.order))) fail("order_bad_state", "exceeds the order budget");
     const signed = signVoucher(unsigned, args.secretKey);
     this.#milestones.add(args.index);
     this.#spent += amount;
@@ -411,7 +411,7 @@ export class OrderLedger {
 
   /** Like `payProofs`, with a `verifyTx` that may ask the chain (see `payForProofsAsync`). Not for two calls at once: the ledger is read before the chain is asked, so a second call is refused. */
   async payProofsAsync(args: { epoch: number; state: InvoicePairState; proofs: readonly OnchainProof[]; secretKey: VoucherSecretKey; verifyTx?: (proof: OnchainProof) => boolean | Promise<boolean>; mandate?: DelegateMandate; options?: OrderOptions }): Promise<PayForProofsResult> {
-    if (this.#asking) fail("order_bad_state", "payProofsAsync sedang berjalan: tunggu hasilnya sebelum memanggil lagi");
+    if (this.#asking) fail("order_bad_state", "payProofsAsync is running: wait for its result before calling again");
     this.#asking = true;
     let result: PayForProofsResult;
     try {

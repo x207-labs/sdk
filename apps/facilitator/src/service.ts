@@ -84,7 +84,7 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
       epochSource: {
         currentEpoch: async () => {
           const epoch = await chain.getEpoch();
-          if (!epoch) throw new Error(`get_epoch kosong untuk ${circle.circleContract}`);
+          if (!epoch) throw new Error(`get_epoch is empty for ${circle.circleContract}`);
           return epoch.epoch;
         },
       },
@@ -166,7 +166,7 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
 
     async pairState({ network, payer, payee, epoch }: PairStateQuery): Promise<PairStateResponse> {
       const entry = byNetwork.get(network);
-      if (!entry) throw new InvalidRequestError(`network ${network} tidak dikonfigurasi`);
+      if (!entry) throw new InvalidRequestError(`network ${network} is not configured`);
       const [row] = (await entry.chain.pendingByPayer(payer, epoch)).filter((r) => r.payee === payee);
       const base = { network, payer, payee, epoch };
       if (row) return { ...base, lastSeq: row.seq, lastCumulativeAmount: row.cumulativeAmount, source: "pending" };

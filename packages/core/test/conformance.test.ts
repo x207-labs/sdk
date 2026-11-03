@@ -11,7 +11,7 @@ const runner = fileURLToPath(new URL("../../../conformance/run.mjs", import.meta
 const run = (cmd?: string) => spawnSync("node", [runner, ...(cmd ? ["--cmd", cmd] : [])], { encoding: "utf8", timeout: 60_000 });
 
 describe("SD-058 conformance suite", () => {
-  it("TC-SD-058-01 implementasi referensi lulus semua kasus dengan satu perintah", () => {
+  it("TC-SD-058-01 the reference implementation passes every case with one command", () => {
     const result = run();
     const total = loadCases().length;
     expect(result.status).toBe(0);
@@ -19,12 +19,12 @@ describe("SD-058 conformance suite", () => {
     expect(total).toBeGreaterThanOrEqual(45);
   });
 
-  it("TC-SD-058-02 kasus mencakup voucher, intent, bundle, listing, penawaran, dan barter cepat", () => {
+  it("TC-SD-058-02 the cases cover voucher, intent, bundle, listing, offer, and quick barter", () => {
     const ops = new Set(loadCases().map((c) => c.op.split(".")[0]));
     expect(ops).toEqual(new Set(["voucher", "intent", "bundle", "listing", "offer", "referral", "quick"]));
   });
 
-  it("TC-SD-058-03 adapter yang selalu menjawab salah gagal dan menyebut kasusnya", () => {
+  it("TC-SD-058-03 an adapter that always answers wrong fails and names the case", () => {
     const wrong = `node -e "require('readline').createInterface({input:process.stdin}).on('line',l=>{const r=JSON.parse(l);console.log(JSON.stringify({id:r.id,output:'x'}))})"`;
     const result = run(wrong);
     expect(result.status).toBe(1);
@@ -32,16 +32,16 @@ describe("SD-058 conformance suite", () => {
     expect(result.stdout).toMatch(/conformance: \d+\/\d+ passed/);
   });
 
-  it("TC-SD-058-04 adapter yang diam atau mengembalikan error gagal", () => {
+  it("TC-SD-058-04 an adapter that stays silent or returns an error fails", () => {
     const silent = run(`node -e "process.stdin.resume()"`);
     expect(silent.status).toBe(1);
     expect(silent.stdout).toContain("no answer");
-    const failing = run(`node -e "require('readline').createInterface({input:process.stdin}).on('line',l=>{const r=JSON.parse(l);console.log(JSON.stringify({id:r.id,error:'belum ada'}))})"`);
+    const failing = run(`node -e "require('readline').createInterface({input:process.stdin}).on('line',l=>{const r=JSON.parse(l);console.log(JSON.stringify({id:r.id,error:'not implemented'}))})"`);
     expect(failing.status).toBe(1);
-    expect(failing.stdout).toContain("error: belum ada");
+    expect(failing.stdout).toContain("error: not implemented");
   });
 
-  it("TC-SD-058-05 adapter yang hanya sebagian benar gagal: satu kasus salah cukup", () => {
+  it("TC-SD-058-05 an adapter that is only partly right fails: one wrong case is enough", () => {
     // Jawaban adapter referensi, kecuali satu kasus yang diubah
     const dir = mkdtempSync(join(tmpdir(), "x207-conformance-"));
     const file = join(dir, "partial.mjs");

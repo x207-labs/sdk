@@ -12,12 +12,12 @@ const keys = JSON.parse(readFileSync(fileURLToPath(new URL("../../../spec/test-v
 const seed = (k: string) => Buffer.from(keys[k].seed, "hex");
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
-describe("SD-055 listing, penawaran, dan barter cepat", () => {
+describe("SD-055 listing, offer, and quick barter", () => {
   const v = vector("listing");
   const listing = v.listing as Listing;
   const offer = v.offer as Offer;
 
-  it("listing: JSON kanonik, hash, dan tanda tangan cocok dengan vector", () => {
+  it("listing: canonical JSON, hash, and signature match the vector", () => {
     expect(serializeListing(listing)).toBe(v.message);
     expect(listingHash(listing)).toBe(v.listingHash);
     expect(v.listingHash).toBe(sha256(v.message));
@@ -26,7 +26,7 @@ describe("SD-055 listing, penawaran, dan barter cepat", () => {
     expect(verifyListingSignature({ ...listing, discount_bps: 1001 }, v.signature, v.pubkey)).toBe(false);
   });
 
-  it("penawaran balik mengikat hash listing dan menolak tanda tangan akun lain", () => {
+  it("a counter-offer binds the listing hash and rejects the signature of another account", () => {
     expect(offer.listing_hash).toBe(v.listingHash);
     expect(serializeOffer(offer)).toBe(v.offerMessage);
     expect(offerHash(offer)).toBe(v.offerHash);
@@ -36,7 +36,7 @@ describe("SD-055 listing, penawaran, dan barter cepat", () => {
     expect(offerHash({ ...offer, round: 2 })).not.toBe(v.offerHash);
   });
 
-  it("barter cepat contoh note F9: 100, diskon 10, jatah pencari 3", () => {
+  it("quick barter example of note F9: 100, discount 10, seeker share 3", () => {
     const q = vector("quick_barter");
     expect(quickPay(q.params)).toMatchObject(q.expected.pay);
     expect(quickBarter(q.params)).toMatchObject(q.expected.barter);
@@ -47,31 +47,31 @@ describe("SD-055 listing, penawaran, dan barter cepat", () => {
     });
   });
 
-  it("pembagian adalah parameter, bukan angka tetap", () => {
+  it("the split is a parameter, not a fixed number", () => {
     const base = { value: "200000000", discountBps: 500, searcherShareBps: 100 };
     expect(quickPay(base)).toMatchObject({ counterpartyPays: "192000000", sellerReceives: "190000000", searcher: "2000000" });
     expect(quickBarter(base)).toMatchObject({ cashback: "8000000", sellerBears: "10000000" });
     expect(quickBarter({ ...base, searcherShareBps: 0 })).toMatchObject({ cashback: "10000000", searcher: "0" });
   });
 
-  it("jumlah tetap utuh: pay.sellerBears = cashback + pencari, dan pembulatan ke bawah", () => {
+  it("the total stays whole: pay.sellerBears = cashback + seeker, and rounding goes down", () => {
     const p = { value: "333333", discountBps: 1000, searcherShareBps: 333 };
     const b = quickBarter(p);
     expect(BigInt(b.cashback) + BigInt(b.searcher)).toBe(BigInt(b.sellerBears));
     expect(quickPay(p).counterpartyPays).toBe(String(333333n - 33333n + 11099n));
   });
 
-  it("menolak jatah pencari di atas diskon, bps di luar rentang, dan kelas aset X", () => {
-    expect(() => quickPay({ value: "100", discountBps: 100, searcherShareBps: 200 })).toThrow(/melebihi diskon/);
+  it("rejects a seeker share above the discount, bps out of range, and asset class X", () => {
+    expect(() => quickPay({ value: "100", discountBps: 100, searcherShareBps: 200 })).toThrow(/exceed the discount/);
     expect(() => quickBarter({ value: "100", discountBps: 10_001, searcherShareBps: 0 })).toThrow(BarterFormatError);
     expect(() => quickPay({ value: "0", discountBps: 0, searcherShareBps: 0 })).toThrow(/value/);
-    expect(() => serializeListing({ ...listing, offer: { ...listing.offer, asset_class: "X" as never } })).toThrow(/kelas yang sah A, B, C, atau D/);
+    expect(() => serializeListing({ ...listing, offer: { ...listing.offer, asset_class: "X" as never } })).toThrow(/valid classes are A, B, C, or D/);
     expect(() => serializeListing({ ...listing, discount_bps: 10_001 })).toThrow(/discount_bps/);
-    expect(() => serializeListing({ ...listing, detail: "tidak ascii é" })).toThrow(/detail/);
+    expect(() => serializeListing({ ...listing, detail: "not ascii é" })).toThrow(/detail/);
     expect(() => serializeOffer({ ...offer, mode: "swap" as never })).toThrow(/mode/);
   });
 
-  it("asset_type bebas selama sah, semua kelas A-D diterima", () => {
+  it("asset_type is free as long as it is valid, all classes A-D are accepted", () => {
     for (const asset_class of ["A", "B", "C", "D"] as const) {
       expect(() => serializeListing({ ...listing, want: { ...listing.want, asset_type: "gpu-hours.v2", asset_class } })).not.toThrow();
     }
@@ -79,7 +79,7 @@ describe("SD-055 listing, penawaran, dan barter cepat", () => {
 });
 
 describe("pembatalan listing", () => {
-  it("tanda tangan pembatalan hanya sah untuk listing dan pemasang itu", async () => {
+  it("a cancellation signature is valid only for that listing and poster", async () => {
     const { signCancelListing, verifyCancelSignature, listingHash: hashOf } = await import("@x207/core");
     const listing = vector("listing").listing as Listing;
     const signature = signCancelListing(listing, seed("kA"));
@@ -89,8 +89,8 @@ describe("pembatalan listing", () => {
   });
 });
 
-describe("ajakan pencari (SV-015)", () => {
-  it("vector referral: JSON kanonik, hash, hash penandatanganan dan tanda tangan pencari", async () => {
+describe("seeker referral (SV-015)", () => {
+  it("referral vector: canonical JSON, hash, signing hash, and seeker signature", async () => {
     const { serializeReferral, referralHash, signReferral, verifyReferralSignature, referralSigningHash } = await import("@x207/core");
     const v = vector("referral");
     expect(serializeReferral(v.referral)).toBe(v.message);
@@ -103,7 +103,7 @@ describe("ajakan pencari (SV-015)", () => {
     expect(verifyReferralSignature(v.referral, v.signature, vector("listing").pubkey)).toBe(false);
   });
 
-  it("validasi menolak ajakan ke diri sendiri, jatah di luar 0..10000, mode salah", async () => {
+  it("validation rejects a referral to oneself, a share outside 0..10000, a wrong mode", async () => {
     const { validateReferral, BarterFormatError: Err } = await import("@x207/core");
     const base = vector("referral").referral;
     expect(() => validateReferral(base)).not.toThrow();
@@ -112,7 +112,7 @@ describe("ajakan pencari (SV-015)", () => {
     }
   });
 
-  it("penolakan ajakan ditandatangani agent tujuan untuk hash dan lingkaran itu saja", async () => {
+  it("a referral rejection is signed by the target agent for that hash and circle only", async () => {
     const { signRefuseReferral, verifyRefuseReferral } = await import("@x207/core");
     const v = vector("referral");
     const sig = signRefuseReferral(v.referralHash, v.circle, seed("kB"));

@@ -65,7 +65,7 @@ async function rpcCall<T>(rpcUrl: string, method: string, params: unknown): Prom
 async function waitForRpc(rpcUrl: string, exited: () => boolean, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (exited()) throw new Error("near-sandbox berhenti sebelum siap");
+    if (exited()) throw new Error("near-sandbox exited before it was ready");
     try {
       const status = await rpcCall<{ sync_info: { latest_block_height: number } }>(rpcUrl, "status", []);
       if (status.sync_info.latest_block_height > 0) return;
@@ -74,7 +74,7 @@ async function waitForRpc(rpcUrl: string, exited: () => boolean, timeoutMs: numb
     }
     await new Promise((r) => setTimeout(r, 300));
   }
-  throw new Error("near-sandbox tidak siap tepat waktu");
+  throw new Error("near-sandbox was not ready in time");
 }
 
 export type TxResult = {
@@ -225,10 +225,10 @@ export class Sandbox {
 
 export async function startSandbox(timeoutMs = 180_000): Promise<Sandbox> {
   const bin = findSandboxBinary();
-  if (!bin) throw new Error("near-sandbox tidak ditemukan; set X207_SANDBOX_BIN atau jalankan `cargo test` di contracts");
+  if (!bin) throw new Error("near-sandbox not found; set X207_SANDBOX_BIN or run `cargo test` in contracts");
   const home = mkdtempSync(join(tmpdir(), "x207-sdk-sandbox-"));
   const init = spawnSync(bin, ["--home", home, "init", "--chain-id", "localnet"], { encoding: "utf8" });
-  if (init.status !== 0) throw new Error(`near-sandbox init gagal: ${init.stderr}`);
+  if (init.status !== 0) throw new Error(`near-sandbox init failed: ${init.stderr}`);
   const rpcPort = await freePort();
   const netPort = await freePort();
   const configPath = join(home, "config.json");

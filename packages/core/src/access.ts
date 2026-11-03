@@ -46,8 +46,8 @@ export const escrowGrantScope = (nftContract: AccountId, tokenId: string): strin
  * deposit 1 yoctoNEAR. Hanya NFT dan kontrak yang tertulis di scope (`escrowGrantScope`) yang diterima (`ERR_ESCROW_NFT_MISMATCH`).
  */
 export function buildNftEscrowDepositCall(input: { circleContract: AccountId; nftContract: AccountId; tokenId: string; grantId: GrantId }): ContractCall {
-  if (!Number.isSafeInteger(input.grantId) || input.grantId < 1) throw new AccessGrantError(`grantId harus bilangan bulat >= 1, dapat ${input.grantId}`);
-  if (input.tokenId.length < 1 || input.tokenId.length > 128) throw new AccessGrantError("tokenId harus 1 sampai 128 byte");
+  if (!Number.isSafeInteger(input.grantId) || input.grantId < 1) throw new AccessGrantError(`grantId must be an integer >= 1, got ${input.grantId}`);
+  if (input.tokenId.length < 1 || input.tokenId.length > 128) throw new AccessGrantError("tokenId must be 1 to 128 bytes");
   return {
     receiverId: input.nftContract,
     methodName: "nft_transfer_call",
@@ -58,7 +58,7 @@ export function buildNftEscrowDepositCall(input: { circleContract: AccountId; nf
 
 /**
  * Escrow kelas A untuk token fungible NEP-141 (interface 0.0.10, CT-090): jumlah persis yang dipegang kontrak lingkaran. Hasil view `get_ft_escrow`; `null`
- * bila grant tidak punya escrow token. Token dengan biaya transfer tidak didukung: kontrak memegang jumlah yang benar-benar tiba, dan jumlah itu harus
+ * bila grant tidak punya escrow token. Token dengan transfer fee are not supported: kontrak memegang jumlah yang benar-benar tiba, dan jumlah itu harus
  * sama dengan `amount` di `limits.scope`, jadi titipan dari token berbiaya ditolak.
  */
 export type FtEscrowView = Abi.FtEscrowView;
@@ -66,7 +66,7 @@ export type FtEscrowView = Abi.FtEscrowView;
 /**
  * Escrow kelas A untuk satu multi-token NEP-245 (interface 0.0.11, CT-092): jumlah persis dari satu `token_id` di satu kontrak multi-token, misalnya saldo
  * `nep141:<usdt>` di NEAR Intents atau share pool. Hasil view `get_mt_escrow`; `null` bila grant tidak punya escrow multi-token. Satu titipan hanya boleh
- * memuat satu token dan satu jumlah (`ERR_ESCROW_MT_BATCH` untuk titipan batch). Token berbiaya transfer tidak didukung seperti pada NEP-141.
+ * memuat satu token dan satu jumlah (`ERR_ESCROW_MT_BATCH` untuk titipan batch). Token bertransfer fee are not supported seperti pada NEP-141.
  */
 export type MtEscrowView = Abi.MtEscrowView;
 
@@ -75,8 +75,8 @@ export type MtEscrowView = Abi.MtEscrowView;
  * persis; kontrak, token, atau jumlah lain ditolak (`ERR_ESCROW_MT_MISMATCH`, `ERR_ESCROW_MT_AMOUNT`).
  */
 export const mtEscrowGrantScope = (mtContract: AccountId, tokenId: string, amount: U128String): string => {
-  if (tokenId.length === 0) throw new AccessGrantError("tokenId tidak boleh kosong");
-  if (!/^[1-9]\d*$/.test(amount)) throw new AccessGrantError(`amount harus string bilangan bulat > 0, dapat ${JSON.stringify(amount)}`);
+  if (tokenId.length === 0) throw new AccessGrantError("tokenId must not be empty");
+  if (!/^[1-9]\d*$/.test(amount)) throw new AccessGrantError(`amount must be an integer string > 0, got ${JSON.stringify(amount)}`);
   return JSON.stringify({ mt_contract: mtContract, token_id: tokenId, amount });
 };
 
@@ -100,13 +100,13 @@ export function buildMtEscrowDepositCall(input: { circleContract: AccountId; mtC
  * jumlah ini; kontrak token lain atau jumlah lain ditolak saat titip.
  */
 export const ftEscrowGrantScope = (ftContract: AccountId, amount: U128String): string => {
-  if (!/^[1-9]\d*$/.test(amount)) throw new AccessGrantError(`amount harus string bilangan bulat > 0, dapat ${JSON.stringify(amount)}`);
+  if (!/^[1-9]\d*$/.test(amount)) throw new AccessGrantError(`amount must be an integer string > 0, got ${JSON.stringify(amount)}`);
   return JSON.stringify({ ft_contract: ftContract, amount });
 };
 
 /** `msg` titipan token: `{"action":"escrow","grant_id":N}` (diterima `ft_on_transfer` dari token mana pun selain USDT lingkaran). */
 export function buildFtEscrowMsg(grantId: GrantId): string {
-  if (!Number.isSafeInteger(grantId) || grantId < 1) throw new AccessGrantError(`grantId harus bilangan bulat >= 1, dapat ${grantId}`);
+  if (!Number.isSafeInteger(grantId) || grantId < 1) throw new AccessGrantError(`grantId must be an integer >= 1, got ${grantId}`);
   return JSON.stringify({ action: "escrow", grant_id: grantId });
 }
 
@@ -138,10 +138,10 @@ export async function assertBuyerRegisteredAtToken(
   try {
     balance = await view(ftContract, "storage_balance_of", { account_id: buyer });
   } catch (error) {
-    throw new AccessGrantError(`storage_balance_of di ${ftContract} gagal untuk ${buyer}: ${(error as Error).message}`);
+    throw new AccessGrantError(`storage_balance_of at ${ftContract} failed for ${buyer}: ${(error as Error).message}`);
   }
   if (balance === null || balance === undefined) {
-    throw new AccessGrantError(`${buyer} belum terdaftar di ${ftContract} (storage_deposit): pembayaran token akan gagal dan dibatalkan`);
+    throw new AccessGrantError(`${buyer} is not registered at ${ftContract} (storage_deposit): the token payment would fail and be cancelled`);
   }
 }
 
@@ -218,9 +218,9 @@ export function parseGrantResource(resource: string): GrantId | null {
  * dasar `meter`.
  */
 export function meterGrant(grant: AccessGrant, usage: Usage): MeterCharge {
-  if (grant.status !== "active") throw new AccessGrantError(`grant ${grant.grant_id} berstatus ${grant.status}, bukan active`);
-  if (grant.grantee === null || grant.grantee === undefined) throw new AccessGrantError(`grant ${grant.grant_id} belum punya penerima`);
-  if (!Number.isSafeInteger(usage.quantity) || usage.quantity < 1) throw new AccessGrantError("quantity harus integer >= 1");
+  if (grant.status !== "active") throw new AccessGrantError(`grant ${grant.grant_id} has status ${grant.status}, not active`);
+  if (grant.grantee === null || grant.grantee === undefined) throw new AccessGrantError(`grant ${grant.grant_id} has no grantee yet`);
+  if (!Number.isSafeInteger(usage.quantity) || usage.quantity < 1) throw new AccessGrantError("quantity must be an integer >= 1");
   const amount = BigInt(grant.unit_price) * BigInt(usage.quantity);
   return { payer: grant.grantee, payee: grant.grantor, amount: amount.toString(), resource: grantResource(grant.grant_id) };
 }

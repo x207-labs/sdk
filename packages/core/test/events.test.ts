@@ -85,12 +85,12 @@ describe("SD-011 parseEventLog", () => {
     ["TC-SD-011-08", "limits_updated"],
     ["TC-SD-011-09", "params_updated"],
     ["TC-SD-011-10", "bundle_committed"],
-    ["event abi lain", "member_admitted"],
-    ["event abi lain", "clearing_submitted"],
-    ["event abi lain", "epoch_committed"],
-    ["event abi lain", "epoch_finalized"],
-    ["event abi lain", "residual_claimed"],
-    ["event abi lain", "residual_claim_failed"],
+    ["another abi event", "member_admitted"],
+    ["another abi event", "clearing_submitted"],
+    ["another abi event", "epoch_committed"],
+    ["another abi event", "epoch_finalized"],
+    ["another abi event", "residual_claimed"],
+    ["another abi event", "residual_claim_failed"],
     ["TC-SD-011-05", "clearing_applied"],
   ])("%s %s menjadi objek bertipe", (_id, name) => {
     const event = one(log(name, SAMPLES[name]));
@@ -98,7 +98,7 @@ describe("SD-011 parseEventLog", () => {
     expect(isKnownX207Event(event)).toBe(true);
   });
 
-  it("TC-SD-011-05 clearing_applied terpotong menghasilkan dua objek terpisah", () => {
+  it("TC-SD-011-05 a truncated clearing_applied gives two separate objects", () => {
     const base = SAMPLES.clearing_applied as Record<string, unknown>;
     const first = one(log("clearing_applied", { ...base, chunk: 0, chunks: 2 }));
     const second = one(log("clearing_applied", { ...base, chunk: 1, chunks: 2 }));
@@ -108,27 +108,27 @@ describe("SD-011 parseEventLog", () => {
     expect(edges.every((e) => BigInt(e.cleared) > 0n)).toBe(true);
   });
 
-  it("epoch_committed memuat peserta net 0 dengan role none dan status null (K-35)", () => {
+  it("epoch_committed contains participants with net 0, role none, and status null (K-35)", () => {
     const event = one(log("epoch_committed", SAMPLES.epoch_committed)) as Extract<X207Event, { event: "epoch_committed" }>;
     expect(event.positions[1]).toEqual({ account_id: B, net: "0", role: "none", status: null, amount: "0", outstanding_debt: "0" });
   });
 
-  it("TC-SD-011-11 data berisi dua objek mengembalikan dua objek", () => {
+  it("TC-SD-011-11 data with two objects returns two objects", () => {
     const events = parseEventLog(log("stake_added", [SAMPLES.stake_added, { ...(SAMPLES.stake_added as object), amount: "1" }]));
     expect(events).toHaveLength(2);
     expect(events![1]).toMatchObject({ event: "stake_added", amount: "1" });
   });
 
-  it("TC-SD-011-12 log bukan event menghasilkan null", () => {
+  it("TC-SD-011-12 a log that is not an event gives null", () => {
     expect(parseEventLog("Transfer 10 from a to b")).toBeNull();
     expect(parseEventLog("")).toBeNull();
   });
 
-  it("TC-SD-011-13 standar lain menghasilkan null", () => {
+  it("TC-SD-011-13 another standard gives null", () => {
     expect(parseEventLog('EVENT_JSON:{"standard":"nep141","version":"1.0.0","event":"ft_transfer","data":[{}]}')).toBeNull();
   });
 
-  it("TC-SD-011-14 versi minor lebih tinggi ditolak, patch lebih tinggi diterima", () => {
+  it("TC-SD-011-14 a higher minor version is rejected, a higher patch is accepted", () => {
     expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, "0.1.0"))).toThrow(EventParseError);
     expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, "1.0.0"))).toThrow(/versi/);
     expect(() => parseEventLog(log("stake_added", SAMPLES.stake_added, "0.0.2"))).not.toThrow();
@@ -144,17 +144,17 @@ describe("SD-011 parseEventLog", () => {
     expect(one(log("ft_escrow_held", { grant_id: 1, ft_contract: "rwa.near", amount: "10" }, "0.0.10"))).toMatchObject({ event: "ft_escrow_held", amount: "10" });
   });
 
-  it("TC-SD-011-15 field tak dikenal diabaikan", () => {
+  it("TC-SD-011-15 an unknown field is ignored", () => {
     const event = one(log("stake_added", { ...(SAMPLES.stake_added as object), extra_field: "x" }));
     expect(event).toEqual({ event: "stake_added", ...(SAMPLES.stake_added as object) });
     expect("extra_field" in event).toBe(false);
   });
 
-  it("TC-SD-011-16 JSON rusak melempar EventParseError", () => {
+  it("TC-SD-011-16 malformed JSON throws EventParseError", () => {
     expect(() => parseEventLog('EVENT_JSON:{"standard":')).toThrow(EventParseError);
   });
 
-  it("field wajib hilang atau salah tipe melempar EventParseError", () => {
+  it("a missing required field or a wrong type throws EventParseError", () => {
     const { amount: _amount, ...missing } = SAMPLES.stake_added as Record<string, unknown>;
     expect(() => parseEventLog(log("stake_added", missing))).toThrow(/amount/);
     expect(() => parseEventLog(log("stake_added", { ...(SAMPLES.stake_added as object), amount: 5 }))).toThrow(/amount/);
@@ -163,13 +163,13 @@ describe("SD-011 parseEventLog", () => {
     expect(() => parseEventLog('EVENT_JSON:[1]')).toThrow(EventParseError);
   });
 
-  it("event yang belum dikenal diteruskan apa adanya", () => {
+  it("an unknown event is passed through unchanged", () => {
     const event = one(log("future_event", { account_id: A, epoch: 42 }));
     expect(event).toEqual({ event: "future_event", data: { account_id: A, epoch: 42 } });
     expect(isKnownX207Event(event)).toBe(false);
   });
 
-  it("skema parser cocok dengan abi.json 0.0.12 untuk setiap event yang dikenal", () => {
+  it("the parser schema matches abi.json 0.0.12 for every known event", () => {
     const known = new Set(Object.keys(SAMPLES));
     const inAbi = abi.events.filter((e) => known.has(e.name));
     expect(inAbi.length).toBe(abi.events.length);

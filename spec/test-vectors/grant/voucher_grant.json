@@ -1,6 +1,6 @@
 {
   "name": "voucher_grant",
-  "description": "Endpoint grant F8 (SD-053): payTo = pemberi grant, extra.grantId, resource voucher = x207:grant:<grantId>. Kasus lain: payee akun broker dan resource URL.",
+  "description": "F8 grant endpoint (SD-053): payTo = the grantor, extra.grantId, voucher resource = x207:grant:<grantId>. Other cases: the broker account as payee, and a URL as resource.",
   "input": {
     "publicKey": "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9",
     "requirements": {
@@ -38,7 +38,7 @@
   "cases": [
     {
       "name": "payee_broker",
-      "description": "Voucher ber-payee akun broker sementara requirements.payTo = pemberi grant",
+      "description": "Voucher whose payee is the broker account while requirements.payTo is the grantor",
       "requirements": {
         "scheme": "batch-settlement",
         "network": "x207:agents-main",
@@ -69,7 +69,7 @@
     },
     {
       "name": "resource_url",
-      "description": "Voucher ber-resource URL broker, bukan x207:grant:<grantId>",
+      "description": "Voucher whose resource is the broker URL, not x207:grant:<grantId>",
       "requirements": {
         "scheme": "batch-settlement",
         "network": "x207:agents-main",
@@ -100,7 +100,7 @@
     },
     {
       "name": "resource_other_grant",
-      "description": "Voucher untuk grant lain (x207:grant:8)",
+      "description": "Voucher for another grant (x207:grant:8)",
       "requirements": {
         "scheme": "batch-settlement",
         "network": "x207:agents-main",

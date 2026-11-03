@@ -43,7 +43,7 @@ const borshString = (text: string): Uint8Array => {
 
 function assertSerializable(voucher: UnsignedVoucher): void {
   const result = validateUnsignedVoucher(voucher);
-  if (!result.ok) throw new Error(`voucher tidak bisa diserialisasi: ${result.field} ${result.message}`);
+  if (!result.ok) throw new Error(`voucher cannot be serialized: ${result.field} ${result.message}`);
 }
 
 /** JSON kanonik tanpa `signature`: urutan key tetap, tanpa spasi, `cumulativeAmount` string, `epoch` dan `seq` number. */
@@ -77,12 +77,12 @@ export const voucherSigningHash = (voucher: UnsignedVoucher): Uint8Array =>
 
 function seedOf(secretKey: VoucherSecretKey): Uint8Array {
   if (typeof secretKey !== "string") {
-    if (secretKey.length !== 32) throw new Error("seed kunci voucher harus 32 byte");
+    if (secretKey.length !== 32) throw new Error("voucher key seed must be 32 bytes");
     return secretKey;
   }
-  if (!secretKey.startsWith(ED25519_PREFIX)) throw new Error("kunci voucher harus ed25519:<base58>");
+  if (!secretKey.startsWith(ED25519_PREFIX)) throw new Error("voucher key must be ed25519:<base58>");
   const bytes = base58Decode(secretKey.slice(ED25519_PREFIX.length));
-  if (bytes.length !== 64) throw new Error("kunci voucher ed25519:<base58> harus 64 byte");
+  if (bytes.length !== 64) throw new Error("voucher key ed25519:<base58> must be 64 bytes");
   return bytes.slice(0, 32);
 }
 
@@ -105,7 +105,7 @@ export function generateVoucherKeypair(): { secretKey: `ed25519:${string}`; publ
 
 /** `sha256` dari payload NEP-413 untuk pesan apa pun: `u32 tag` + borsh `{ message, nonce[32], recipient, callback_url: None }`. */
 export function nep413SigningHash(message: string, nonce: Uint8Array, recipient: string): Uint8Array {
-  if (nonce.length !== 32) throw new Error("nonce NEP-413 harus 32 byte");
+  if (nonce.length !== 32) throw new Error("NEP-413 nonce must be 32 bytes");
   return sha256(
     Buffer.concat([u32le(NEP413_TAG), borshString(message), nonce, borshString(recipient), Uint8Array.of(0)]),
   );

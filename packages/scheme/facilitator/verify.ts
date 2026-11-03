@@ -1,4 +1,4 @@
-// Facilitator `verify`: 19 cek berurutan, berhenti di penolakan pertama, tanpa mengubah state
+// Facilitator `verify`: 19 cek berurutan, stops at the first rejection, tanpa mengubah state
 // (Spec Binding x402 bagian 7, x402 v2 §7).
 import type { PaymentPayload, PaymentRequirements, VerifyResponse } from "@x402/core/types";
 import {
@@ -93,7 +93,7 @@ export async function verifyPayment(
   if (voucher.circle !== extra.circleContract || extra.circleContract !== circle.circleContract) {
     return reject("circle_mismatch", payer);
   }
-  // 6 (unit dan resource ASCII sudah dijaga skema di cek 4)
+  // 6 (unit and resource ASCII sudah dijaga skema di cek 4)
   if (voucher.payee !== payTo) return reject("payee_mismatch", payer);
   // endpoint grant F8 (SD-053): voucher membayar grant yang disebut requirements, bukan URL broker
   if (extra.grantId !== undefined && voucher.resource !== grantResource(extra.grantId)) return reject("grant_resource_mismatch", payer);
@@ -102,7 +102,7 @@ export async function verifyPayment(
 
   // 8
   const epoch = await chain.getEpoch();
-  if (!epoch) throw new Error("view get_epoch mengembalikan null");
+  if (!epoch) throw new Error("view get_epoch returned null");
   if (voucher.epoch !== extra.epoch || extra.epoch !== epoch.epoch) return reject("epoch_mismatch", payer);
   // 9
   const cutoffMs = Number(BigInt(epoch.cutoff_at) / 1_000_000n);
@@ -136,7 +136,7 @@ export async function verifyPayment(
   // SD-048: voucher leg bundle diperiksa terhadap batas leg D8, bukan headroom bebas
   let legMax: bigint | undefined;
   if (bundleId !== undefined) {
-    if (!chain.bundle) throw new Error("VerifyChain.bundle wajib untuk voucher leg bundle");
+    if (!chain.bundle) throw new Error("VerifyChain.bundle is required for a bundle leg voucher");
     const bundle = await chain.bundle(bundleId);
     if (!bundle) return reject("bundle_unknown", payer);
     if (bundle.status !== "active" || bundle.epoch !== voucher.epoch) return reject("bundle_epoch_mismatch", payer);

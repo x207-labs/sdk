@@ -31,16 +31,16 @@ const pending = (payee: string, cumulativeAmount: string, epoch = 42, seq = 1) =
 });
 
 describe("SD-023 computeHeadroom", () => {
-  it("TC-SD-023-01 tanpa pending", async () => {
+  it("TC-SD-023-01 no pending", async () => {
     expect(await computeHeadroom(A, 42, sources({ onchainHeadroom: "100000" }))).toBe("100000");
   });
 
-  it("TC-SD-023-02 satu pending belum terdaftar", async () => {
+  it("TC-SD-023-02 one pending not registered yet", async () => {
     const s = sources({ onchainHeadroom: "100000", pending: [pending(B, "60000")] });
     expect(await computeHeadroom(A, 42, s)).toBe("40000");
   });
 
-  it("TC-SD-023-03 pending sebagian terdaftar: terdaftar tidak dihitung dua kali", async () => {
+  it("TC-SD-023-03 pending partly registered: the registered part is not counted twice", async () => {
     const s = sources({
       onchainHeadroom: "80000",
       pending: [pending(B, "60000")],
@@ -54,14 +54,14 @@ describe("SD-023 computeHeadroom", () => {
     expect(await computeHeadroom(A, 42, s)).toBe("20000");
   });
 
-  it("TC-SD-023-05 lolos on-chain, gagal setelah pending", async () => {
+  it("TC-SD-023-05 passes on-chain, fails after pending", async () => {
     const s = sources({ onchainHeadroom: "100000", pending: [pending(B, "90000")] });
     const headroom = await computeHeadroom(A, 42, s);
     expect(headroom).toBe("10000");
     expect(BigInt("20000") <= BigInt(headroom)).toBe(false);
   });
 
-  it("TC-SD-023-07 baris lunas tidak dihitung", async () => {
+  it("TC-SD-023-07 a settled row is not counted", async () => {
     const s = sources({
       onchainHeadroom: "100000",
       pending: [pending(B, "60000")],
@@ -70,19 +70,19 @@ describe("SD-023 computeHeadroom", () => {
     expect(await computeHeadroom(A, 42, s)).toBe("100000");
   });
 
-  it("TC-SD-023-08 epoch lain diabaikan", async () => {
+  it("TC-SD-023-08 another epoch is ignored", async () => {
     const s = sources({ onchainHeadroom: "100000", pending: [pending(B, "50000", 41)] });
     expect(await computeHeadroom(A, 42, s)).toBe("100000");
   });
 
-  it("TC-SD-023-09 tidak pernah negatif", async () => {
+  it("TC-SD-023-09 never negative", async () => {
     const zero = sources({ onchainHeadroom: "0", pending: [pending(B, "20000")] });
     expect(await computeHeadroom(A, 42, zero)).toBe("0");
     const over = sources({ onchainHeadroom: "30000", pending: [pending(B, "50000")] });
     expect(await computeHeadroom(A, 42, over)).toBe("0");
   });
 
-  it("pending lebih rendah dari terdaftar tidak menambah headroom", async () => {
+  it("pending lower than registered does not add headroom", async () => {
     const s = sources({
       onchainHeadroom: "50000",
       pending: [pending(B, "10000")],
@@ -91,7 +91,7 @@ describe("SD-023 computeHeadroom", () => {
     expect(await computeHeadroom(A, 42, s)).toBe("50000");
   });
 
-  it("aritmetika besar tanpa float", async () => {
+  it("big arithmetic without float", async () => {
     const s = sources({ onchainHeadroom: "9007199254740993", pending: [pending(B, "1")] });
     expect(await computeHeadroom(A, 42, s)).toBe("9007199254740992");
   });
@@ -111,7 +111,7 @@ describe("SD-023 computeHeadroom", () => {
 describe("SD-023 computeBase", () => {
   const last = (v: { seq: number; cumulativeAmount: string; source: string }) => v;
 
-  it("pending lebih dulu dari on-chain", async () => {
+  it("pending ahead of on-chain", async () => {
     const s = sources({
       onchainHeadroom: "0",
       pending: [pending(B, "60000", 42, 3)],
@@ -121,12 +121,12 @@ describe("SD-023 computeBase", () => {
     expect(last(await computeBase(A, B, 42, s))).toEqual({ seq: 3, cumulativeAmount: "60000", source: "pending" });
   });
 
-  it("tanpa pending memakai obligation on-chain", async () => {
+  it("without pending, uses the on-chain obligation", async () => {
     const s = sources({ onchainHeadroom: "0", obligations: [{ payee: B, cumulative: "20000" }], lastSeq: { [B]: 7 } });
     expect(last(await computeBase(A, B, 42, s))).toEqual({ seq: 7, cumulativeAmount: "20000", source: "onchain" });
   });
 
-  it("tidak ada keduanya: seq 0", async () => {
+  it("neither exists: seq 0", async () => {
     expect(last(await computeBase(A, B, 42, sources({ onchainHeadroom: "0" })))).toEqual({
       seq: 0,
       cumulativeAmount: "0",

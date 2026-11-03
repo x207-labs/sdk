@@ -78,7 +78,7 @@ describe("SD-062 harga terukur per request", () => {
       ["negative quantity", () => ({ unit: "GB", quantity: -1, unitPrice: 0.02 })],
       ["seven decimals", () => ({ unit: "GB", quantity: "0.1234567", unitPrice: 0.02 })],
       ["not a number", () => ({ unit: "GB", quantity: "lots", unitPrice: 0.02 })],
-      ["rejected by the function", () => { throw new MeterRejection("gb harus diisi"); }],
+      ["rejected by the function", () => { throw new MeterRejection("gb is required"); }],
     ];
     for (const [name, price] of cases) {
       const { run, handler } = metered(price);

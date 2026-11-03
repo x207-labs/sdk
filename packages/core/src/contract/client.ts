@@ -19,7 +19,7 @@ function assertVoucherPublicKey(key: string): void {
   } catch {
     bytes = undefined;
   }
-  if (bytes?.length !== 32) throw new Error(`pubkey_voucher harus ed25519:<base58 32 byte>, dapat ${JSON.stringify(key)}`);
+  if (bytes?.length !== 32) throw new Error(`pubkey_voucher must be ed25519:<base58 32 bytes>, got ${JSON.stringify(key)}`);
 }
 
 /** `join(circle_id, pubkey_voucher, terms_hash)` dengan deposit storage. `circleContract` = akun kontrak penerima. */
@@ -33,11 +33,11 @@ export function buildJoinCall(input: {
   deposit?: bigint;
 }): ContractCall {
   if (!TERMS_HASH.test(input.termsHash)) {
-    throw new Error("terms_hash harus 64 karakter hex huruf kecil (sha256)");
+    throw new Error("terms_hash must be 64 lowercase hex characters (sha256)");
   }
   assertVoucherPublicKey(input.pubkeyVoucher);
   const deposit = input.deposit ?? JOIN_STORAGE_DEPOSIT;
-  if (deposit < JOIN_STORAGE_DEPOSIT) throw new Error(`deposit kurang dari JOIN_STORAGE_DEPOSIT (${formatNear(JOIN_STORAGE_DEPOSIT)} NEAR)`);
+  if (deposit < JOIN_STORAGE_DEPOSIT) throw new Error(`deposit is below JOIN_STORAGE_DEPOSIT (${formatNear(JOIN_STORAGE_DEPOSIT)} NEAR)`);
   return {
     receiverId: input.circleContract,
     methodName: "join",
@@ -49,7 +49,7 @@ export function buildJoinCall(input: {
 /** `{"action":"stake"}`, atau dengan `member_id` untuk mendanai stake agent lain. */
 export function buildStakeMsg(input: { memberId?: AccountId } = {}): string {
   if (input.memberId === undefined) return JSON.stringify({ action: "stake" });
-  if (!isAccount(input.memberId)) throw new Error(`memberId bukan akun NEAR: ${input.memberId}`);
+  if (!isAccount(input.memberId)) throw new Error(`memberId is not a NEAR account: ${input.memberId}`);
   return JSON.stringify({ action: "stake", member_id: input.memberId });
 }
 
@@ -60,7 +60,7 @@ export function buildStakeTransferCall(input: {
   memberId?: AccountId;
   usdtTokenId?: AccountId;
 }): ContractCall {
-  if (!/^[1-9]\d*$/.test(input.amount)) throw new Error(`amount harus string bilangan bulat > 0, dapat ${input.amount}`);
+  if (!/^[1-9]\d*$/.test(input.amount)) throw new Error(`amount must be an integer string > 0, got ${input.amount}`);
   return {
     receiverId: input.usdtTokenId ?? USDT_TOKEN_ID,
     methodName: "ft_transfer_call",

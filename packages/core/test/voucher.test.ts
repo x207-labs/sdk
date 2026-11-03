@@ -32,14 +32,14 @@ const V: UnsignedVoucher = {
 const hex = (bytes: Uint8Array) => Buffer.from(bytes).toString("hex");
 const sha = (text: string) => createHash("sha256").update(text).digest();
 
-describe("SD-005 serialisasi kanonik dan tanda tangan", () => {
+describe("SD-005 canonical serialization and signature", () => {
   it("TC-SD-005-01 JSON kanonik", () => {
     expect(serializeVoucherMessage(V)).toBe(
       '{"circle":"x207-circle.near","payer":"translator.x207-circle.near","payee":"summarizer.x207-circle.near","epoch":42,"seq":137,"cumulativeAmount":"2740000","unit":"credit","resource":"https://summarizer.example/api/summarize"}',
     );
   });
 
-  it("TC-SD-005-02 urutan key input tidak berpengaruh", () => {
+  it("TC-SD-005-02 the order of the input keys has no effect", () => {
     const shuffled = Object.fromEntries(Object.entries(V).reverse()) as UnsignedVoucher;
     expect(serializeVoucherMessage(shuffled)).toBe(serializeVoucherMessage(V));
   });
@@ -73,14 +73,14 @@ describe("SD-005 serialisasi kanonik dan tanda tangan", () => {
     );
   });
 
-  it("TC-SD-005-06 tanda tangan sah", () => {
+  it("TC-SD-005-06 valid signature", () => {
     const signed = signVoucher(V, kA);
     expect(signed.signature).toMatch(/^ed25519:/);
     expect(base58Decode(signed.signature.slice(8))).toHaveLength(64);
     expect(verifyVoucher(signed, voucherPublicKey(kA))).toBe(true);
   });
 
-  it("TC-SD-005-07 satu dari delapan field diubah", () => {
+  it("TC-SD-005-07 one of the eight fields changed", () => {
     const signed = signVoucher(V, kA);
     const pub = voucherPublicKey(kA);
     const changes: Record<string, unknown> = {
@@ -98,7 +98,7 @@ describe("SD-005 serialisasi kanonik dan tanda tangan", () => {
     }
   });
 
-  it("TC-SD-005-08 kunci lain", () => {
+  it("TC-SD-005-08 another key", () => {
     expect(verifyVoucher(signVoucher(V, kZ), voucherPublicKey(kA))).toBe(false);
   });
 
@@ -115,27 +115,27 @@ describe("SD-005 serialisasi kanonik dan tanda tangan", () => {
     expect(signVoucher(V, kA).signature).toBe(signVoucher(V, kA).signature);
   });
 
-  it("TC-SD-005-11 nol di depan melempar", () => {
+  it("TC-SD-005-11 leading zeros throw", () => {
     expect(() => serializeVoucherMessage({ ...V, cumulativeAmount: "02740000" })).toThrow();
     expect(() => signVoucher({ ...V, cumulativeAmount: "02740000" }, kA)).toThrow();
   });
 
-  it("TC-SD-005-12 resource non-ASCII melempar", () => {
+  it("TC-SD-005-12 a non-ASCII resource throws", () => {
     expect(() => signVoucher({ ...V, resource: "https://é.example" }, kA)).toThrow();
   });
 
-  it("TC-SD-005-13 U128 besar tetap utuh", () => {
+  it("TC-SD-005-13 a large U128 stays whole", () => {
     const big = "340282366920938463463374607431768211455";
     expect(serializeVoucherMessage({ ...V, cumulativeAmount: big })).toContain(`"cumulativeAmount":"${big}"`);
   });
 
-  it("TC-SD-005-14 epoch dan seq number di message", () => {
+  it("TC-SD-005-14 epoch and seq are numbers in the message", () => {
     const parsed = JSON.parse(serializeVoucherMessage(V)) as Record<string, unknown>;
     expect(typeof parsed.epoch).toBe("number");
     expect(typeof parsed.seq).toBe("number");
   });
 
-  it("kunci ed25519 cocok dengan vektor RFC 8032 (seed 9d61b19d…)", () => {
+  it("the ed25519 key matches the RFC 8032 vector (seed 9d61b19d…)", () => {
     const rfcSeed = Buffer.from("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60", "hex");
     const pub = voucherPublicKey(rfcSeed);
     expect(hex(base58Decode(pub.slice(8)))).toBe(
@@ -143,13 +143,13 @@ describe("SD-005 serialisasi kanonik dan tanda tangan", () => {
     );
   });
 
-  it("generateVoucherKeypair menghasilkan pasangan yang saling cocok", () => {
+  it("generateVoucherKeypair produces a matching pair", () => {
     const { secretKey, publicKey } = generateVoucherKeypair();
     expect(voucherPublicKey(secretKey)).toBe(publicKey);
     expect(verifyVoucher(signVoucher(V, secretKey), publicKey)).toBe(true);
   });
 
-  it("base58 round-trip dengan nol di depan", () => {
+  it("base58 round-trip with leading zeros", () => {
     const bytes = Uint8Array.of(0, 0, 1, 2, 255);
     expect(base58Decode(base58Encode(bytes))).toEqual(bytes);
     expect(() => base58Decode("0OIl")).toThrow();

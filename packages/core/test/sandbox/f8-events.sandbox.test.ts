@@ -10,13 +10,13 @@ import { sandboxAvailable } from "../../../../test-support/sandbox.js";
 
 const OUT = fileURLToPath(new URL("../../../../spec/test-vectors/events/sandbox/", import.meta.url));
 
-describe.skipIf(!sandboxAvailable)("SD-050 event dan view F8 di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-050 F8 events and views on near-sandbox", () => {
   let fx: CircleFixture;
   afterAll(async () => {
     await fx?.stop();
   });
 
-  it("TC-SD-050-10 log nyata set_asset_class, offer_grant dan accept_grant ter-parse; get_grant cocok dengan AccessGrant", async () => {
+  it("TC-SD-050-10 real set_asset_class, offer_grant and accept_grant logs parse; get_grant matches AccessGrant", async () => {
     fx = await deployCircle();
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {

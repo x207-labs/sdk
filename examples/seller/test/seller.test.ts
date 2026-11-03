@@ -75,8 +75,8 @@ const exact = {
   createPaymentPayload: async (v: number) => ({ x402Version: v, payload: { signedDelegateAction: "AAAA" } }),
 };
 
-describe("SD-036 contoh penjual", () => {
-  it("TC-SD-036-01 tanpa bayar: 402 dengan entri x207 dan exact", async () => {
+describe("SD-036 seller example", () => {
+  it("TC-SD-036-01 no payment: 402 with x207 and exact entries", async () => {
     const response = await world()(URL_);
     expect(response.status).toBe(402);
     const required = decode(response.headers.get("PAYMENT-REQUIRED"));
@@ -84,7 +84,7 @@ describe("SD-036 contoh penjual", () => {
     expect(required.accepts[0]).toMatchObject({ payTo: B, amount: "20000", extra: { epoch: 42, circleContract: "x207-circle.near" } });
   });
 
-  it("TC-SD-036-02 anggota membayar voucher: 200 dan PAYMENT-RESPONSE x207", async () => {
+  it("TC-SD-036-02 a member pays with a voucher: 200 and x207 PAYMENT-RESPONSE", async () => {
     const routed = world();
     const client = new X207PaymentClient({
       payer: A, secretKey: Buffer.from(keys.kA.seed, "hex"),
@@ -92,11 +92,11 @@ describe("SD-036 contoh penjual", () => {
     });
     const response = await wrapFetchWithPayment(routed, client)(URL_);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ summary: "ringkasan" });
+    expect(await response.json()).toEqual({ summary: "summary text" });
     expect(decode(response.headers.get("PAYMENT-RESPONSE"))).toMatchObject({ success: true, network: NETWORK, transaction: `${A}:${B}:42:1` });
   });
 
-  it("TC-SD-036-03 non-anggota membayar exact: 200 dan PAYMENT-RESPONSE exact", async () => {
+  it("TC-SD-036-03 a non-member pays exact: 200 and exact PAYMENT-RESPONSE", async () => {
     const routed = world();
     const client = new X207PaymentClient({
       payer: "outsider.near", secretKey: Buffer.from(keys.kZ.seed, "hex"), headroom: async () => null,

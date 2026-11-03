@@ -98,7 +98,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
     if (hostname === "seller.test") {
       const response = await seller(request, async () => {
         state.handlerCalls += 1;
-        return state.handlerStatus === 200 ? Response.json({ summary: "ringkasan" }) : new Response("gagal", { status: state.handlerStatus });
+        return state.handlerStatus === 200 ? Response.json({ summary: "summary text" }) : new Response("failed", { status: state.handlerStatus });
       });
       if (state.dropNextSellerResponse && request.headers.has("PAYMENT-SIGNATURE")) {
         state.dropNextSellerResponse = false;
@@ -106,7 +106,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
       }
       return response;
     }
-    return new Response("tidak dikenal", { status: 404 });
+    return new Response("unknown", { status: 404 });
   }) as typeof fetch;
 
   const exact = {
@@ -140,7 +140,7 @@ const sig = (w: World, response: Response) => w.decode(response.headers.get("PAY
 const raw402 = (w: World) => w.routed()(URL_);
 
 describe("SD-033 round-trip x402", () => {
-  it("TC-SD-033-01 402 lalu bayar lalu 200 dengan commitment id dan registration pending", async () => {
+  it("TC-SD-033-01 402, then pay, then 200 with commitment id and registration pending", async () => {
     const w = makeWorld();
     const challenge = await raw402(w);
     expect(challenge.status).toBe(402);
@@ -156,14 +156,14 @@ describe("SD-033 round-trip x402", () => {
     expect(w.state.facilitatorCalls).toEqual(expect.arrayContaining(["/supported", "/verify", "/settle"]));
   });
 
-  it("TC-SD-033-02 dua panggilan berurutan: seq 1 lalu seq 2 dengan kumulatif naik", async () => {
+  it("TC-SD-033-02 two calls in a row: seq 1 then seq 2 with the cumulative rising", async () => {
     const w = makeWorld();
     const { fetch: paid } = w.buyer(A, SEED("kA"));
     expect(sig(w, await paid(URL_)).extensions.x207).toMatchObject({ seq: 1, cumulativeAmount: "20000" });
     expect(sig(w, await paid(URL_)).extensions.x207).toMatchObject({ seq: 2, cumulativeAmount: "40000" });
   });
 
-  it("TC-SD-033-03 tanda tangan dengan kunci lain ditolak dan handler tidak dipanggil", async () => {
+  it("TC-SD-033-03 a signature with another key is rejected and the handler is not called", async () => {
     const w = makeWorld();
     const { fetch: paid } = w.buyer(A, SEED("kZ"));
     const response = await paid(URL_);
@@ -172,7 +172,7 @@ describe("SD-033 round-trip x402", () => {
     expect(w.state.handlerCalls).toBe(0);
   });
 
-  it("TC-SD-033-04 replay header PAYMENT-SIGNATURE ditolak seq_not_increasing", async () => {
+  it("TC-SD-033-04 replay of the PAYMENT-SIGNATURE header is rejected with seq_not_increasing", async () => {
     const w = makeWorld();
     const seen: string[] = [];
     const spy = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -191,7 +191,7 @@ describe("SD-033 round-trip x402", () => {
     expect(w.state.handlerCalls).toBe(0);
   });
 
-  it("TC-SD-033-05 menjelang cutoff: epoch_closing dan accepts tetap memuat exact", async () => {
+  it("TC-SD-033-05 near cutoff: epoch_closing and accepts still holds exact", async () => {
     const w = makeWorld();
     const lateFetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const request = new Request(input, init);
@@ -206,7 +206,7 @@ describe("SD-033 round-trip x402", () => {
     expect(w.state.handlerCalls).toBe(0);
   });
 
-  it("TC-SD-033-06 headroom habis: insufficient_credit lalu klien membayar exact dan hasil akhir 200", async () => {
+  it("TC-SD-033-06 headroom used up: insufficient_credit, then the client pays exact and the final result is 200", async () => {
     const w = makeWorld();
     w.state.headroom.set(D, "30000");
     const { fetch: paid } = w.buyer(D, SEED("kD"));
@@ -217,7 +217,7 @@ describe("SD-033 round-trip x402", () => {
     expect(sig(w, second)).toMatchObject({ success: true, transaction: "EXACTTX", network: "near:mainnet" });
   });
 
-  it("TC-SD-033-07 payer yang sedang keluar: member_exiting lalu klien jatuh ke exact", async () => {
+  it("TC-SD-033-07 payer is exiting: member_exiting, then the client falls back to exact", async () => {
     const w = makeWorld();
     w.state.exiting.add(L);
     const { fetch: paid } = w.buyer(L, SEED("kC"));
@@ -226,7 +226,7 @@ describe("SD-033 round-trip x402", () => {
     expect(sig(w, response)).toMatchObject({ network: "near:mainnet" });
   });
 
-  it("TC-SD-033-08 registrasi gagal dua kali menolak voucher baru sampai registrasi pulih", async () => {
+  it("TC-SD-033-08 registration failing twice rejects new vouchers until registration recovers", async () => {
     const w = makeWorld();
     let failing = true;
     const chain: RegistrationChain = {
@@ -256,7 +256,7 @@ describe("SD-033 round-trip x402", () => {
     expect((await paid(URL_)).status).toBe(200);
   });
 
-  it("TC-SD-033-09 handler 500: tidak ada /settle dan seq berikutnya tetap 1", async () => {
+  it("TC-SD-033-09 handler 500: no /settle and the next seq stays 1", async () => {
     const w = makeWorld({ handlerStatus: 500 });
     const { fetch: paid } = w.buyer(A, SEED("kA"));
     const failed = await paid(URL_);
@@ -268,7 +268,7 @@ describe("SD-033 round-trip x402", () => {
     expect(sig(w, next).extensions.x207).toMatchObject({ seq: 1, cumulativeAmount: "20000" });
   });
 
-  it("TC-SD-033-10 respons hilang: klien menyelaraskan lewat pair-state dan berhasil dengan seq berikutnya", async () => {
+  it("TC-SD-033-10 response lost: the client resyncs through pair-state and succeeds with the next seq", async () => {
     const w = makeWorld();
     const client = new x402Client();
     client.register("x207:*", new X207SchemeClient({ payer: A, secretKey: SEED("kA"), confirmTimeoutMs: 50 }));
@@ -283,7 +283,7 @@ describe("SD-033 round-trip x402", () => {
     expect(sig(w, recovered).extensions.x207).toMatchObject({ seq: 2, cumulativeAmount: "40000" });
   });
 
-  it("TC-SD-033-11 setelah registrasi sukses, settle yang sama dijawab registration registered", async () => {
+  it("TC-SD-033-11 after a successful registration, the same settle is answered with registration registered", async () => {
     const w = makeWorld();
     const headers: string[] = [];
     const spy = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -308,7 +308,7 @@ describe("SD-033 round-trip x402", () => {
     expect(again).toMatchObject({ success: true, extensions: { x207: { seq: 1, registration: "registered" } } });
   });
 
-  it("TC-SD-033-12 ganti epoch: tantangan baru memuat extra.epoch 43 dan voucher seq 1", async () => {
+  it("TC-SD-033-12 epoch change: the new challenge holds extra.epoch 43 and the voucher seq 1", async () => {
     const w = makeWorld();
     const { fetch: paid } = w.buyer(A, SEED("kA"));
     expect(sig(w, await paid(URL_)).extensions.x207).toMatchObject({ epoch: 42, seq: 1 });
@@ -320,7 +320,7 @@ describe("SD-033 round-trip x402", () => {
     expect(sig(w, next).extensions.x207).toMatchObject({ epoch: 43, seq: 1, cumulativeAmount: "20000" });
   });
 
-  it("TC-SD-033-13 facilitator mati: 503 dengan Retry-After 5", async () => {
+  it("TC-SD-033-13 facilitator down: 503 with Retry-After 5", async () => {
     const w = makeWorld();
     w.state.facilitatorDown = true;
     const response = await raw402(w);

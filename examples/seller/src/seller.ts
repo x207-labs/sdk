@@ -38,6 +38,6 @@ export function createSeller(options: SellerOptions): Hono {
       return c.res;
     });
   });
-  app.get("/api/summarize", (c) => c.json({ summary: "ringkasan" }));
+  app.get("/api/summarize", (c) => c.json({ summary: "summary text" }));
   return app;
 }

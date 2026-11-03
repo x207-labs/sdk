@@ -79,11 +79,11 @@ function pay(
 
 // Fixture negatif bersama untuk TC-SD-025-15: [nama, payload, requirements, invalidReason, opsi setup]
 const NEGATIVES: [string, any, any, string, Parameters<typeof setup>[0]?][] = [
-  ["penjual memalsukan", pay({}, { signer: "kB" }), requirements(), "invalid_signature"],
-  ["cumulative diubah server", pay({}, { tamper: { cumulativeAmount: "10000" } }), requirements(), "invalid_signature"],
+  ["seller forges", pay({}, { signer: "kB" }), requirements(), "invalid_signature"],
+  ["cumulative changed by the server", pay({}, { tamper: { cumulativeAmount: "10000" } }), requirements(), "invalid_signature"],
   ["payer suspended", pay({ payer: S }), requirements(), "member_not_active"],
   ["payer pending", pay({ payer: P }), requirements(), "member_not_active"],
-  ["amount dinaikkan di requirements saja", pay(), requirements({ amount: "2000000" }), "invalid_payment_requirements"],
+  ["amount raised in requirements only", pay(), requirements({ amount: "2000000" }), "invalid_payment_requirements"],
   [
     "amount dinaikkan di kedua tempat",
     pay({}, { accepted: requirements({ amount: "2000000" }) }),
@@ -96,24 +96,24 @@ const NEGATIVES: [string, any, any, string, Parameters<typeof setup>[0]?][] = [
     requirements({ amount: "10000" }),
     "amount_mismatch",
   ],
-  ["payTo dialihkan server", pay(), requirements({}, 42, C), "invalid_payment_requirements"],
+  ["payTo redirected by the server", pay(), requirements({}, 42, C), "invalid_payment_requirements"],
   ["epoch masa depan", pay({ epoch: 43 }), requirements({}, 43), "epoch_mismatch"],
-  ["lewat cutoff", pay(), requirements(), "epoch_closing", { now: CUTOFF_MS + 1000 }],
+  ["past cutoff", pay(), requirements(), "epoch_closing", { now: CUTOFF_MS + 1000 }],
 ];
 
 describe("SD-025 suite test negatif verify", () => {
-  it("TC-SD-025-01 pemalsuan oleh penjual", async () => {
+  it("TC-SD-025-01 forgery by the seller", async () => {
     expect(await setup().facilitator.verify(pay({}, { signer: "kB" }), requirements() as any)).toMatchObject({
       isValid: false, invalidReason: "invalid_signature", payer: A,
     });
   });
 
-  it("TC-SD-025-02 field diubah setelah ditandatangani", async () => {
+  it("TC-SD-025-02 field changed after signing", async () => {
     const result = await setup().facilitator.verify(pay({}, { tamper: { cumulativeAmount: "10000" } }), requirements() as any);
     expect(result).toMatchObject({ isValid: false, invalidReason: "invalid_signature" });
   });
 
-  it("TC-SD-025-03 payer suspended dengan headroom 0: member_not_active, bukan insufficient_credit", async () => {
+  it("TC-SD-025-03 payer suspended with headroom 0: member_not_active, not insufficient_credit", async () => {
     const result = await setup().facilitator.verify(pay({ payer: S }), requirements() as any);
     expect(result).toMatchObject({ isValid: false, invalidReason: "member_not_active" });
   });
@@ -124,7 +124,7 @@ describe("SD-025 suite test negatif verify", () => {
     });
   });
 
-  it("TC-SD-025-05 replay payload yang sudah di-settle", async () => {
+  it("TC-SD-025-05 replay of an already settled payload", async () => {
     const { facilitator } = setup();
     const payload = pay();
     expect((await facilitator.settle(payload, requirements() as any)).success).toBe(true);
@@ -133,7 +133,7 @@ describe("SD-025 suite test negatif verify", () => {
     });
   });
 
-  it("TC-SD-025-06 di atas headroom termasuk pending", async () => {
+  it("TC-SD-025-06 above headroom including pending", async () => {
     const { facilitator } = setup({ headroomA: "100000" });
     expect((await facilitator.settle(pay({ payee: B, cumulativeAmount: "90000" }, { accepted: requirements({ amount: "90000" }, 42, B) }), requirements({ amount: "90000" }) as any)).success).toBe(true);
     const toC = pay({ payee: C }, { accepted: requirements({}, 42, C) });
@@ -142,17 +142,17 @@ describe("SD-025 suite test negatif verify", () => {
     });
   });
 
-  it("TC-SD-025-07 lewat cutoff sebelum close_epoch", async () => {
+  it("TC-SD-025-07 past cutoff before close_epoch", async () => {
     const result = await setup({ now: CUTOFF_MS + 1000 }).facilitator.verify(pay(), requirements() as any);
     expect(result).toMatchObject({ isValid: false, invalidReason: "epoch_closing" });
   });
 
-  it("TC-SD-025-08 server menaikkan amount di requirements", async () => {
+  it("TC-SD-025-08 the server raises amount in requirements", async () => {
     const result = await setup().facilitator.verify(pay(), requirements({ amount: "2000000" }) as any);
     expect(result).toMatchObject({ isValid: false, invalidReason: "invalid_payment_requirements" });
   });
 
-  it("TC-SD-025-09 server menaikkan amount di kedua tempat: tidak ada kewajiban baru", async () => {
+  it("TC-SD-025-09 the server raises amount in both places: no new obligation", async () => {
     const { facilitator, rows } = setup();
     const high = requirements({ amount: "2000000" });
     const result = await facilitator.verify(pay({}, { accepted: high }), high as any);
@@ -160,13 +160,13 @@ describe("SD-025 suite test negatif verify", () => {
     expect(rows.size).toBe(0);
   });
 
-  it("TC-SD-025-10 server menurunkan amount", async () => {
+  it("TC-SD-025-10 the server lowers amount", async () => {
     const low = requirements({ amount: "10000" });
     const result = await setup().facilitator.verify(pay({}, { accepted: low }), low as any);
     expect(result).toMatchObject({ isValid: false, invalidReason: "amount_mismatch" });
   });
 
-  it("TC-SD-025-11 amount tidak sah", async () => {
+  it("TC-SD-025-11 amount not valid", async () => {
     for (const amount of ["0", "-1", "0.5"]) {
       const bad = requirements({ amount });
       const result = await setup().facilitator.verify(pay({}, { accepted: bad }), bad as any);
@@ -174,13 +174,13 @@ describe("SD-025 suite test negatif verify", () => {
     }
   });
 
-  it("TC-SD-025-12 kewajiban = nilai bertanda tangan, bukan requirements.amount", async () => {
+  it("TC-SD-025-12 obligation = signed value, not requirements.amount", async () => {
     const { facilitator, rows } = setup();
     await facilitator.settle(pay({ seq: 1, cumulativeAmount: "20000" }), requirements() as any);
     expect(rows.get(`${A}|${B}|42`)?.cumulativeAmount).toBe("20000");
   });
 
-  it("TC-SD-025-13 payTo dialihkan server", async () => {
+  it("TC-SD-025-13 payTo redirected by the server", async () => {
     const { facilitator } = setup();
     expect(await facilitator.verify(pay(), requirements({}, 42, C) as any)).toMatchObject({
       invalidReason: "invalid_payment_requirements",
@@ -194,7 +194,7 @@ describe("SD-025 suite test negatif verify", () => {
     expect(result).toMatchObject({ isValid: false, invalidReason: "epoch_mismatch" });
   });
 
-  it("TC-SD-025-15 penolakan tidak menyimpan; /settle success false dengan alasan yang sama", async () => {
+  it("TC-SD-025-15 a rejection does not store; /settle success false with the same reason", async () => {
     for (const [name, payload, reqs, reason, options] of NEGATIVES) {
       const { facilitator, rows } = setup(options);
       expect(await facilitator.verify(payload, reqs), name).toMatchObject({ isValid: false, invalidReason: reason });

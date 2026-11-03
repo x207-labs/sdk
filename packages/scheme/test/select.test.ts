@@ -69,14 +69,14 @@ function setup(headroom: string | null | Error, options: { now?: () => number } 
 afterEach(() => vi.restoreAllMocks());
 
 describe("SD-019 pemilihan entri", () => {
-  it("TC-SD-019-01 headroom cukup memilih x207", async () => {
+  it("TC-SD-019-01 enough headroom picks x207", async () => {
     const { client, exact } = setup("40000000");
     const payload = await client.createPaymentPayload(required([REQ, EXACT]));
     expect(payload.accepted.network).toBe("x207:agents-main");
     expect(exact.createPaymentPayload).not.toHaveBeenCalled();
   });
 
-  it("TC-SD-019-02 headroom 0 memilih exact tanpa menandatangani voucher", async () => {
+  it("TC-SD-019-02 headroom 0 picks exact without signing a voucher", async () => {
     const spy = vi.spyOn(X207SchemeClient.prototype, "createPaymentPayload");
     const { client, store, exact } = setup("0");
     const payload = await client.createPaymentPayload(required([REQ, EXACT]));
@@ -86,17 +86,17 @@ describe("SD-019 pemilihan entri", () => {
     expect(await store.get({ payer: PAYER, payee: PAYEE, epoch: 42 })).toEqual({ seq: 0, cumulativeAmount: "0" });
   });
 
-  it("TC-SD-019-03 batas tepat memilih x207", async () => {
+  it("TC-SD-019-03 exact limit picks x207", async () => {
     const { client } = setup("20000");
     expect((await client.createPaymentPayload(required([REQ, EXACT]))).accepted.scheme).toBe("batch-settlement");
   });
 
-  it("TC-SD-019-04 bukan anggota memilih exact", async () => {
+  it("TC-SD-019-04 a non-member picks exact", async () => {
     const { client } = setup(null);
     expect((await client.createPaymentPayload(required([REQ, EXACT]))).accepted.scheme).toBe("exact");
   });
 
-  it("TC-SD-019-05 jatuh ke exact setelah insufficient_credit, satu fungsi fetch", async () => {
+  it("TC-SD-019-05 falls back to exact after insufficient_credit, one fetch function", async () => {
     const { client, exact } = setup("40000000");
     const paid: string[] = [];
     const server = vi.fn(async (input: Request) => {
@@ -115,14 +115,14 @@ describe("SD-019 pemilihan entri", () => {
     expect(server).toHaveBeenCalledTimes(3);
   });
 
-  it("TC-SD-019-06 hanya x207 dan headroom 0 melempar tanpa menandatangani", async () => {
+  it("TC-SD-019-06 only x207 and headroom 0 throws without signing", async () => {
     const spy = vi.spyOn(X207SchemeClient.prototype, "createPaymentPayload");
     const { client } = setup("0");
     await expect(client.createPaymentPayload(required([REQ]))).rejects.toBeInstanceOf(NoPayableRequirementsError);
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("TC-SD-019-07 headroom dari view, cache 60 detik, dikurangi pembayaran", async () => {
+  it("TC-SD-019-07 headroom from the view, 60 second cache, reduced by payments", async () => {
     let t = 1_000_000;
     const { client, source } = setup("50000", { now: () => t });
     const first = await client.createPaymentPayload(required([REQ, EXACT]));
@@ -146,7 +146,7 @@ describe("SD-019 pemilihan entri", () => {
     expect(source).toHaveBeenCalledTimes(2);
   });
 
-  it("view headroom gagal: tetap mencoba x207, server memutuskan", async () => {
+  it("headroom view fails: still tries x207, the server decides", async () => {
     const { client } = setup(new Error("rpc down"));
     expect((await client.createPaymentPayload(required([REQ, EXACT]))).accepted.scheme).toBe("batch-settlement");
   });

@@ -17,7 +17,7 @@ const listen = (fetchFn: (request: Request) => Response | Promise<Response>) =>
     const server = serve({ fetch: fetchFn, port: 0, hostname: "127.0.0.1" }, ({ port }) => resolve({ server, url: `http://127.0.0.1:${port}` }));
   });
 
-describe.skipIf(!sandboxAvailable)("E2E pembeli, penjual, facilitator, kontrak di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("E2E buyer, seller, facilitator, contract on near-sandbox", () => {
   let fx: CircleFixture;
   const servers: ServerType[] = [];
   afterAll(async () => {
@@ -25,7 +25,7 @@ describe.skipIf(!sandboxAvailable)("E2E pembeli, penjual, facilitator, kontrak d
     await fx?.stop();
   });
 
-  it("satu panggilan berbayar dengan voucher lalu registrasi on-chain", async () => {
+  it("one paid call with a voucher, then on-chain registration", async () => {
     fx = await deployCircle();
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {
@@ -59,7 +59,7 @@ describe.skipIf(!sandboxAvailable)("E2E pembeli, penjual, facilitator, kontrak d
     );
     servers.push(seller.server);
 
-    // TC-SD-016-10 (bagian tanpa lompat epoch): extra.epoch dari /supported = epoch kontrak.
+    // TC-SD-016-10 (bagian tanpa lompat epoch): extra.epoch dari /supported = contract epoch.
     const epoch = await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", {});
     const supported = (await (await fetch(`${facilitator.url}/supported`)).json()) as { kinds: Array<{ network: string; extra?: { epoch: number } }> };
     expect(supported.kinds.find((k) => k.network === "x207:agents-main")?.extra?.epoch).toBe(epoch.epoch);

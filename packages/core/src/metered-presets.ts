@@ -19,22 +19,22 @@ export type MeteredPreset = {
   warnings: readonly string[];
 };
 
-const RISK = "Penyedia bisa memberi hasil buruk atau tidak menjawab; pembeli paling banyak rugi satu satuan per kejadian karena bayar per pemakaian.";
-const JOB = "Job panjang dibayar bertahap dengan voucher kumulatif (MeteredJob) supaya risiko tiap pihak paling banyak satu potongan.";
+const RISK = "The provider may deliver a bad result or not answer; the buyer loses at most one unit per event because payment is per use.";
+const JOB = "A long job is paid in steps with a cumulative voucher (MeteredJob) so each party's risk is at most one piece.";
 
 export const METERED_PRESETS: Readonly<Record<MeteredKind, MeteredPreset>> = {
   cpu: { assetType: "compute:cpu-idle", catalogNo: 31, units: ["minute", "job"], warnings: [RISK, JOB] },
   gpu: { assetType: "compute:gpu-hours", catalogNo: 32, units: ["minute", "job"], warnings: [RISK, JOB] },
-  storage: { assetType: "storage:capacity", catalogNo: 33, units: ["GB", "day"], warnings: [RISK, "Penyimpanan tidak dijamin tersedia atau tidak hilang; simpan salinan lain untuk data penting."] },
+  storage: { assetType: "storage:capacity", catalogNo: 33, units: ["GB", "day"], warnings: [RISK, "Storage is not guaranteed to stay available or to avoid loss; keep another copy of important data."] },
   cdn: { assetType: "cdn:static-cache", catalogNo: 34, units: ["GB", "request"], warnings: [RISK] },
-  inference: { assetType: "model:inference", catalogNo: 35, units: ["request", "call"], warnings: [RISK, "Keluaran model tidak dijamin benar; uji acak dan reputasi yang menilai penyedia, bukan protokol."] },
-  "fine-tuning": { assetType: "model:fine-tuning", catalogNo: 36, units: ["job"], warnings: [RISK, JOB, "Data latih yang dikirim ke penyedia bisa dibaca penyedia; jangan kirim data rahasia atau data pribadi pihak ketiga."] },
-  "data-feed": { assetType: "oracle:data-feed", catalogNo: 44, units: ["call", "request"], warnings: [RISK, "Nilai umpan data tidak diverifikasi protokol."] },
-  "iot-sensor": { assetType: "iot:sensor-data", catalogNo: 45, units: ["call", "day"], warnings: [RISK, "Data sensor tidak boleh memuat data pribadi pihak ketiga."] },
+  inference: { assetType: "model:inference", catalogNo: 35, units: ["request", "call"], warnings: [RISK, "Model output is not guaranteed to be correct; random tests and reputation judge the provider, not the protocol."] },
+  "fine-tuning": { assetType: "model:fine-tuning", catalogNo: 36, units: ["job"], warnings: [RISK, JOB, "Training data sent to the provider can be read by the provider; do not send secret data or personal data of third parties."] },
+  "data-feed": { assetType: "oracle:data-feed", catalogNo: 44, units: ["call", "request"], warnings: [RISK, "The data feed value is not verified by the protocol."] },
+  "iot-sensor": { assetType: "iot:sensor-data", catalogNo: 45, units: ["call", "day"], warnings: [RISK, "Sensor data must not contain personal data of third parties."] },
   "gas-relayer": { assetType: "gas:relayer", catalogNo: 47, units: ["request", "call"], warnings: [RISK] },
   "priority-slot": { assetType: "queue:priority-slot", catalogNo: 49, units: ["request", "day"], warnings: [RISK] },
-  "proxy-bandwidth": { assetType: "network:proxy-bandwidth", catalogNo: 55, units: ["GB", "request"], warnings: [RISK, "Proxy dan bandwidth tunduk pada hukum setempat; penyedia dan pembeli bertanggung jawab atas lalu lintas yang lewat."] },
-  "home-device": { assetType: "compute:home-device", catalogNo: 90, units: ["minute", "day", "job"], warnings: [RISK, "Listrik, keamanan jaringan, dan perangkat keras ditanggung pemiliknya sendiri."] },
+  "proxy-bandwidth": { assetType: "network:proxy-bandwidth", catalogNo: 55, units: ["GB", "request"], warnings: [RISK, "Proxy and bandwidth are subject to local law; the provider and the buyer are responsible for the traffic that passes."] },
+  "home-device": { assetType: "compute:home-device", catalogNo: 90, units: ["minute", "day", "job"], warnings: [RISK, "Electricity, network security, and hardware are borne by the owner."] },
 };
 
 /** Batas atas per request bila pemanggil tidak menyebutnya: cukup untuk satu pemakaian wajar, dan menolak tagihan raksasa sebelum 402. */
@@ -55,28 +55,28 @@ export const WILDCARD_DNS: readonly string[] = ["nip.io", "sslip.io", "xip.io", 
  */
 export function publicHostProblem(hostname: string): string | null {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
-  if (host.startsWith("[") || IPV4.test(host)) return "endpoint harus memakai nama host, bukan alamat IP";
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || !host.includes(".")) return "endpoint harus nama host publik";
-  if (/(^|\.)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\.|$)/.test(host) || WILDCARD_DNS.some((d) => host === d || host.endsWith(`.${d}`))) return "endpoint tidak boleh memakai nama yang membawa alamat IP atau DNS wildcard";
+  if (host.startsWith("[") || IPV4.test(host)) return "endpoint must use a host name, not an IP address";
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal") || !host.includes(".")) return "endpoint must be a public host name";
+  if (/(^|\.)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\.|$)/.test(host) || WILDCARD_DNS.some((d) => host === d || host.endsWith(`.${d}`))) return "endpoint must not use a name that carries an IP address or wildcard DNS";
   return null;
 }
 
 /** Alasan endpoint ditolak sebagai alamat listing sumber daya, atau `null` bila https tanpa kredensial. Aturan yang sama dengan backend (BE-050, `endpointProblem`). */
 export function endpointProblem(endpoint: unknown): string | null {
-  if (typeof endpoint !== "string" || endpoint.length === 0 || endpoint.length > MAX_URL) return `endpoint harus teks 1 sampai ${MAX_URL} karakter`;
-  if (!/^[\x21-\x7e]+$/.test(endpoint)) return "endpoint harus ASCII tanpa spasi";
+  if (typeof endpoint !== "string" || endpoint.length === 0 || endpoint.length > MAX_URL) return `endpoint must be text of 1 to ${MAX_URL} characters`;
+  if (!/^[\x21-\x7e]+$/.test(endpoint)) return "endpoint must be ASCII without spaces";
   let url: URL;
   try {
     url = new URL(endpoint);
   } catch {
-    return "endpoint bukan URL";
+    return "endpoint is not a URL";
   }
-  if (url.protocol !== "https:") return "endpoint harus https";
-  if (url.username !== "" || url.password !== "") return "endpoint tidak boleh memuat nama pengguna atau kata sandi";
-  if (url.hash !== "") return "endpoint tidak boleh memuat fragmen";
+  if (url.protocol !== "https:") return "endpoint must be https";
+  if (url.username !== "" || url.password !== "") return "endpoint must not contain a user name or password";
+  if (url.hash !== "") return "endpoint must not contain a fragment";
   const hostProblem = publicHostProblem(url.hostname);
   if (hostProblem !== null) return hostProblem;
-  for (const name of url.searchParams.keys()) if (SECRET_PARAM.test(name)) return `endpoint tidak boleh memuat kredensial di query (${name})`;
+  for (const name of url.searchParams.keys()) if (SECRET_PARAM.test(name)) return `endpoint must not contain credentials in the query (${name})`;
   return null;
 }
 

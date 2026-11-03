@@ -17,7 +17,7 @@ const paywallOptions: X207MiddlewareOptions = {
 };
 
 describe("SD-051 EndpointAdapter", () => {
-  it("TC-SD-051-01 lima fungsi: price, prove, deliver, meter (payee pemberi), revoke mencatat dan memanggil onRevoke", async () => {
+  it("TC-SD-051-01 five functions: price, prove, deliver, meter (granting payee), revoke records and calls onRevoke", async () => {
     const seen: string[] = [];
     const adapter: AccessAssetAdapter<{ endpoint: string }> = new EndpointAdapter({
       endpoint: "https://summarizer.example/api/summarize", paywall: paywallOptions, onRevoke: (g, reason) => void seen.push(`${g.grant_id}:${reason}`),
@@ -32,7 +32,7 @@ describe("SD-051 EndpointAdapter", () => {
     expect(seen).toEqual(["4:defaulted"]);
   });
 
-  it("TC-SD-051-02 paywall(): 402 dan header PAYMENT-REQUIRED identik dengan x207Middleware langsung", async () => {
+  it("TC-SD-051-02 paywall(): 402 and the PAYMENT-REQUIRED header are identical to x207Middleware used directly", async () => {
     const direct = x207Middleware(paywallOptions);
     const wrapped = new EndpointAdapter({ endpoint: "/api/summarize", paywall: paywallOptions }).paywall();
     const next = () => new Response("unreachable");

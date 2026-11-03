@@ -53,16 +53,16 @@ const verify = (c: VerifyChain, cumulative: string, bundleId?: number) =>
   new X207SchemeFacilitator({ network: NETWORK, circleContract: CIRCLE, verify: { chain: c, now: () => NOW } }).verify(payload(cumulative, bundleId), requirements(cumulative));
 
 describe("SD-048 verify voucher leg bundle", () => {
-  it("TC-SD-048-01 leg sah lolos walau headroom bebas nol, dan voucher yang sama tanpa bundle ditolak", async () => {
+  it("TC-SD-048-01 a valid leg passes even with zero free headroom, and the same voucher without a bundle is rejected", async () => {
     expect(await verify(chain({ headroom: "0" }), "100000000", 7)).toEqual({ isValid: true, payer: A });
     expect(await verify(chain({ headroom: "0" }), "100000000")).toMatchObject({ isValid: false, invalidReason: "insufficient_credit" });
   });
 
-  it("TC-SD-048-02 melebihi batas leg ditolak", async () => {
+  it("TC-SD-048-02 exceeding the leg limit is rejected", async () => {
     expect(await verify(chain(), "100000001", 7)).toMatchObject({ isValid: false, invalidReason: "bundle_leg_exceeded", payer: A });
   });
 
-  it("TC-SD-048-03 bundle tidak dikenal, epoch lain, tidak aktif, pasangan bukan leg", async () => {
+  it("TC-SD-048-03 unknown bundle, other epoch, not active, pair is not a leg", async () => {
     expect(await verify(chain({ bundles: {} }), "20000000", 7)).toMatchObject({ invalidReason: "bundle_unknown" });
     expect(await verify(chain({ bundles: { 7: bundle({ epoch: 41 }) } }), "20000000", 7)).toMatchObject({ invalidReason: "bundle_epoch_mismatch" });
     expect(await verify(chain({ bundles: { 7: bundle({ status: "settled" as "active" }) } }), "20000000", 7)).toMatchObject({ invalidReason: "bundle_epoch_mismatch" });
@@ -70,17 +70,17 @@ describe("SD-048 verify voucher leg bundle", () => {
     expect(await verify(chain({ bundles: { 7: other } }), "20000000", 7)).toMatchObject({ invalidReason: "not_a_bundle_leg" });
   });
 
-  it("TC-SD-048-04 chain tanpa view bundle melempar, bukan lolos diam-diam", async () => {
+  it("TC-SD-048-04 a chain without a bundle view throws instead of passing silently", async () => {
     await expect(verify(chain({ noBundleView: true }), "20000000", 7)).rejects.toThrow(/VerifyChain\.bundle/);
   });
 
-  it("TC-SD-048-05 skema payload: bundleId harus integer >= 0", () => {
+  it("TC-SD-048-05 payload schema: bundleId must be an integer >= 0", () => {
     const ok = payload("20000000", 7).payload;
     expect(validateX207Payload(ok).ok).toBe(true);
     for (const bad of ["7", -1, 1.5]) expect(validateX207Payload({ ...ok, bundleId: bad }).ok).toBe(false);
   });
 
-  it("TC-SD-048-06 pending leg bundle tidak mengurangi headroom bebas", async () => {
+  it("TC-SD-048-06 a pending bundle leg does not reduce free headroom", async () => {
     const sources = {
       headroom: async () => "50000000",
       obligation: async () => null,
@@ -101,7 +101,7 @@ describe("SD-048 klien", () => {
       return (await client.createPaymentPayload(2, reqs)).payload as any;
     })();
 
-  it("TC-SD-048-07 payload membawa bundleId untuk leg dan tidak untuk pembayaran biasa; bytes voucher sama", async () => {
+  it("TC-SD-048-07 the payload carries bundleId for a leg and not for a normal payment; voucher bytes are the same", async () => {
     const leg = new X207SchemeClient({ payer: A, secretKey: seed("kA"), bundleFor: (payee, epoch) => (payee === B && epoch === 42 ? 7 : undefined) });
     const plain = new X207SchemeClient({ payer: A, secretKey: seed("kA") });
     const withBundle = await unsignedFor(leg);
@@ -112,7 +112,7 @@ describe("SD-048 klien", () => {
     expect(withBundle.signature).toBe(without.signature);
   });
 
-  it("TC-SD-048-08 pemilihan memilih x207 untuk leg walau headroom bebas habis", async () => {
+  it("TC-SD-048-08 selection picks x207 for a leg even when free headroom is used up", async () => {
     const estimator = new HeadroomEstimator({ payer: A, source: async () => "0", now: () => NOW });
     await estimator.ensureFresh(CIRCLE);
     const exact = { ...requirements("20000"), scheme: "exact", network: "near:mainnet", extra: {} } as PaymentRequirements;

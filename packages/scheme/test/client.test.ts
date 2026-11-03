@@ -75,7 +75,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     });
   });
 
-  it("TC-SD-018-02 dua request berurutan", async () => {
+  it("TC-SD-018-02 two requests in a row", async () => {
     const { pay, ok } = setup();
     await ok(await pay());
     const second = voucherOf(await pay());
@@ -83,7 +83,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect(second.cumulativeAmount).toBe("40000");
   });
 
-  it("TC-SD-018-03 commit hanya setelah sukses", async () => {
+  it("TC-SD-018-03 commit only after success", async () => {
     const { pay, respond, store } = setup();
     const first = await pay();
     await respond(first, { error: new Error("koneksi putus") });
@@ -92,7 +92,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect([retry.seq, retry.cumulativeAmount]).toEqual([1, "20000"]);
   });
 
-  it("TC-SD-018-03 tanpa respons sama sekali: antrian dilepas setelah batas waktu", async () => {
+  it("TC-SD-018-03 no response at all: the queue is released after the timeout", async () => {
     vi.useFakeTimers();
     const { pay, store } = setup({ confirmTimeoutMs: 60_000 });
     await pay();
@@ -107,7 +107,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect(await store.get(key())).toEqual({ seq: 0, cumulativeAmount: "0" });
   });
 
-  it("TC-SD-018-04 epoch baru mereset", async () => {
+  it("TC-SD-018-04 a new epoch resets", async () => {
     const { pay, store } = setup();
     await store.commit(key(42), { seq: 5, cumulativeAmount: "100000" });
     const voucher = voucherOf(await pay(req({ epoch: 43 })));
@@ -129,7 +129,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect(verifyVoucher({ ...voucher, signature }, PUBKEY)).toBe(true);
   });
 
-  it("TC-SD-018-07 cocok dengan vector", async () => {
+  it("TC-SD-018-07 matches the vector", async () => {
     const vector = readVector("payload/client_seq1_seq2.json");
     const { pay, ok } = setup();
     const first = await pay(vector.input.requirements, vector.input.resource);
@@ -141,7 +141,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect(encodePaymentSignatureHeader(second)).toBe(vector.expected.seq2.header);
   });
 
-  it("TC-SD-018-08 satu voucher belum terkonfirmasi per (payer, payee)", async () => {
+  it("TC-SD-018-08 one unconfirmed voucher per (payer, payee)", async () => {
     const { pay, ok } = setup();
     const firstPromise = pay();
     const secondPromise = pay();
@@ -156,7 +156,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect([voucherOf(second).seq, voucherOf(second).cumulativeAmount]).toEqual([2, "40000"]);
   });
 
-  it("TC-SD-018-08 payee berbeda tidak saling menunggu", async () => {
+  it("TC-SD-018-08 different payees do not wait for each other", async () => {
     const { pay } = setup();
     await pay(req({ payTo: PAYEE_B }));
     const other = await Promise.race([
@@ -175,7 +175,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     extensions: { x207: { epoch, lastSeq: 137, lastCumulativeAmount: "2740000" } },
   });
 
-  it("TC-SD-018-09 resinkronisasi: satu kali coba ulang", async () => {
+  it("TC-SD-018-09 resync: one retry", async () => {
     const { pay, respond, store } = setup();
     const rejected = await pay();
     const recovered = await respond(rejected, { settleResponse: resync() });
@@ -190,7 +190,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect(second).toBeUndefined();
   });
 
-  it("TC-SD-018-09 penolakan biasa tidak mengubah state dan tidak memicu coba ulang", async () => {
+  it("TC-SD-018-09 an ordinary rejection does not change state and does not trigger a retry", async () => {
     const { pay, respond, store } = setup();
     const payload = await pay();
     const result = await respond(payload, {
@@ -200,20 +200,20 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect(await store.get(key())).toEqual({ seq: 0, cumulativeAmount: "0" });
   });
 
-  it("TC-SD-018-10 aritmetika besar", async () => {
+  it("TC-SD-018-10 big arithmetic", async () => {
     const { pay, store } = setup();
     await store.commit(key(), { seq: 9, cumulativeAmount: "9007199254740993" });
     const voucher = voucherOf(await pay());
     expect([voucher.seq, voucher.cumulativeAmount]).toEqual([10, "9007199254760993"]);
   });
 
-  it("menolak requirements bukan x207 atau amount tidak sah", async () => {
+  it("rejects requirements that are not x207 or an amount that is not valid", async () => {
     const { pay } = setup();
     await expect(pay({ ...req(), amount: "0" })).rejects.toThrow();
     await expect(pay({ ...req(), asset: "usdt.tether-token.near" })).rejects.toThrow();
   });
 
-  it("kegagalan menandatangani melepas antrian", async () => {
+  it("a signing failure releases the queue", async () => {
     const { pay, scheme } = setup();
     await expect(pay(req(), "https://münchen.example/ü")).rejects.toThrow(/ASCII/);
     const voucher = voucherOf(await pay());

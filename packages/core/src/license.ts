@@ -45,7 +45,7 @@ const NODE = Uint8Array.of(1);
 
 /** Akar Merkle gaya RFC 6962: daun `sha256(0x00 ‖ potongan)`, simpul `sha256(0x01 ‖ kiri ‖ kanan)`, pecahan di pangkat dua terbesar yang kurang dari jumlah daun. */
 export function merkleRoot(leaves: readonly Uint8Array[]): Uint8Array {
-  if (leaves.length === 0) return fail("cipher_bad_format", "Merkle butuh paling sedikit satu daun");
+  if (leaves.length === 0) return fail("cipher_bad_format", "Merkle needs at least one leaf");
   if (leaves.length === 1) return leaves[0]!;
   let k = 1;
   while (k * 2 < leaves.length) k *= 2;
@@ -110,20 +110,20 @@ export type LicenseDocument = {
 };
 
 export function normalizeLicense(doc: LicenseDocument): Required<LicenseDocument> {
-  for (const [name, value] of [["circle", doc.circle], ["seller", doc.seller]] as const) if (!isAccount(value)) fail("license_bad_account", `${name} bukan akun NEAR: ${JSON.stringify(value)}`);
-  for (const [name, value] of [["content_hash", doc.content_hash], ["license_hash", doc.license_hash]] as const) if (!HASH.test(value)) fail("license_bad_hash", `${name} harus 64 heksadesimal huruf kecil`);
+  for (const [name, value] of [["circle", doc.circle], ["seller", doc.seller]] as const) if (!isAccount(value)) fail("license_bad_account", `${name} is not a NEAR account: ${JSON.stringify(value)}`);
+  for (const [name, value] of [["content_hash", doc.content_hash], ["license_hash", doc.license_hash]] as const) if (!HASH.test(value)) fail("license_bad_hash", `${name} must be 64 lowercase hex characters`);
   const preview = doc.preview_hash ?? null;
-  if (preview !== null && !HASH.test(preview)) fail("license_bad_hash", "preview_hash harus 64 heksadesimal huruf kecil");
-  if (!/^[a-z0-9.-]{1,32}$/.test(doc.license_id)) fail("license_bad_license_id", "license_id harus 1 sampai 32 karakter [a-z0-9.-]");
-  if (typeof doc.exclusive !== "boolean") fail("license_bad_hash", "exclusive harus boolean");
-  if (typeof doc.nonce !== "string" || !/^[A-Za-z0-9._-]{1,32}$/.test(doc.nonce)) fail("license_bad_nonce", "nonce harus 1 sampai 32 karakter [A-Za-z0-9._-]");
+  if (preview !== null && !HASH.test(preview)) fail("license_bad_hash", "preview_hash must be 64 lowercase hex characters");
+  if (!/^[a-z0-9.-]{1,32}$/.test(doc.license_id)) fail("license_bad_license_id", "license_id must be 1 to 32 characters [a-z0-9.-]");
+  if (typeof doc.exclusive !== "boolean") fail("license_bad_hash", "exclusive must be a boolean");
+  if (typeof doc.nonce !== "string" || !/^[A-Za-z0-9._-]{1,32}$/.test(doc.nonce)) fail("license_bad_nonce", "nonce must be 1 to 32 characters [A-Za-z0-9._-]");
   return { circle: doc.circle, seller: doc.seller, content_hash: doc.content_hash, license_id: doc.license_id, license_hash: doc.license_hash, preview_hash: preview, exclusive: doc.exclusive, nonce: doc.nonce };
 }
 /** JSON kanonik: kunci `circle, seller, content_hash, license_id, license_hash, preview_hash, exclusive, nonce`. */
 export const serializeLicense = (doc: LicenseDocument): string => JSON.stringify(normalizeLicense(doc));
 export const licenseDocumentHash = (doc: LicenseDocument): string => bytesToHex(sha256(utf8(serializeLicense(doc))));
 export function licenseResource(hash: string): string {
-  if (!HASH.test(hash)) return fail("license_bad_resource", "hash lisensi harus 64 heksadesimal huruf kecil");
+  if (!HASH.test(hash)) return fail("license_bad_resource", "license hash must be 64 lowercase hex characters");
   return `${LICENSE_RESOURCE_PREFIX}${hash}`;
 }
 export function parseLicenseResource(resource: string): string | null {
@@ -153,8 +153,8 @@ const finalAad = (final: boolean): Uint8Array => Uint8Array.of(final ? 1 : 0);
 export function encryptContent(plain: Uint8Array, options: { key?: Uint8Array; prefix?: Uint8Array } = {}): { ciphertext: Uint8Array; key: Uint8Array } {
   const key = options.key ?? randomBytes(32);
   const prefix = options.prefix ?? randomBytes(PREFIX);
-  if (key.length !== 32) fail("license_bad_key", "kunci berkas harus 32 byte");
-  if (prefix.length !== PREFIX) fail("cipher_bad_format", `prefiks nonce harus ${PREFIX} byte`);
+  if (key.length !== 32) fail("license_bad_key", "file key must be 32 bytes");
+  if (prefix.length !== PREFIX) fail("cipher_bad_format", `nonce prefix must be ${PREFIX} bytes`);
   const count = Math.max(1, Math.ceil(plain.length / CONTENT_CHUNK));
   const parts: Uint8Array[] = [MAGIC, prefix];
   for (let i = 0; i < count; i++) {
@@ -165,8 +165,8 @@ export function encryptContent(plain: Uint8Array, options: { key?: Uint8Array; p
 
 /** Mendekripsi; melempar `cipher_bad_format` bila bukan format ini, terpotong, atau salah satu potongan gagal diautentikasi (kunci salah atau ciphertext diubah). */
 export function decryptContent(ciphertext: Uint8Array, key: Uint8Array): Uint8Array {
-  if (key.length !== 32) fail("license_bad_key", "kunci berkas harus 32 byte");
-  if (ciphertext.length < HEADER + TAG || !MAGIC.every((b, i) => ciphertext[i] === b)) fail("cipher_bad_format", "bukan ciphertext X207ENC1");
+  if (key.length !== 32) fail("license_bad_key", "file key must be 32 bytes");
+  if (ciphertext.length < HEADER + TAG || !MAGIC.every((b, i) => ciphertext[i] === b)) fail("cipher_bad_format", "not an X207ENC1 ciphertext");
   const prefix = ciphertext.subarray(MAGIC.length, HEADER);
   const body = ciphertext.subarray(HEADER);
   const full = CONTENT_CHUNK + TAG;
@@ -179,7 +179,7 @@ export function decryptContent(ciphertext: Uint8Array, key: Uint8Array): Uint8Ar
     try {
       out.push(xchacha20poly1305(key, chunkNonce(prefix, i), finalAad(i === count - 1)).decrypt(piece));
     } catch {
-      return fail("cipher_bad_format", `potongan ${i + 1} gagal diautentikasi: kunci salah atau ciphertext berubah`);
+      return fail("cipher_bad_format", `chunk ${i + 1} failed authentication: wrong key or the ciphertext changed`);
     }
   }
   return concatBytes(...out);
@@ -189,15 +189,15 @@ export function decryptContent(ciphertext: Uint8Array, key: Uint8Array): Uint8Ar
 
 const ED = "ed25519:";
 function edSeed(secretKey: string): Uint8Array {
-  if (!secretKey.startsWith(ED)) return fail("license_bad_key", "kunci voucher harus ed25519:<base58>");
+  if (!secretKey.startsWith(ED)) return fail("license_bad_key", "voucher key must be ed25519:<base58>");
   const bytes = base58Decode(secretKey.slice(ED.length));
-  if (bytes.length !== 32 && bytes.length !== 64) return fail("license_bad_key", "kunci voucher harus 32 atau 64 byte");
+  if (bytes.length !== 32 && bytes.length !== 64) return fail("license_bad_key", "voucher key must be 32 or 64 bytes");
   return bytes.slice(0, 32);
 }
 function edPublic(publicKey: string): Uint8Array {
-  if (!publicKey.startsWith(ED)) return fail("license_bad_key", "kunci publik harus ed25519:<base58>");
+  if (!publicKey.startsWith(ED)) return fail("license_bad_key", "public key must be ed25519:<base58>");
   const bytes = base58Decode(publicKey.slice(ED.length));
-  if (bytes.length !== 32) return fail("license_bad_key", "kunci publik harus 32 byte");
+  if (bytes.length !== 32) return fail("license_bad_key", "public key must be 32 bytes");
   return bytes;
 }
 /** Kunci publik `ed25519:<base58>` dari kunci voucher rahasia. */
@@ -209,7 +209,7 @@ const BOX_NONCE = new Uint8Array(24); // the box key is unique per ephemeral key
 
 /** Menyegel kunci berkas ke kunci publik ed25519 pembeli: `ephemeral x25519 pub (32) ‖ ciphertext kunci (32 + 16)`; kunci kotak berasal dari X25519 dengan pembeli. */
 export function sealKey(contentKey: Uint8Array, buyerPublicKey: string, ephemeralSecret?: Uint8Array): Uint8Array {
-  if (contentKey.length !== 32) fail("license_bad_key", "kunci berkas harus 32 byte");
+  if (contentKey.length !== 32) fail("license_bad_key", "file key must be 32 bytes");
   const recipient = ed25519.utils.toMontgomery(edPublic(buyerPublicKey));
   const secret = ephemeralSecret ?? x25519.utils.randomSecretKey();
   const ephemeralPub = x25519.getPublicKey(secret);
@@ -219,7 +219,7 @@ export function sealKey(contentKey: Uint8Array, buyerPublicKey: string, ephemera
 
 /** Kunci kotak (simetris) untuk `sealed`, dari kunci voucher pembeli: dipakai membuka kunci dan, bila perlu, diserahkan sebagai bagian bukti curang. */
 export function deriveBoxKey(sealed: Uint8Array, buyerSecretKey: string): Uint8Array {
-  if (sealed.length !== 32 + 32 + TAG) fail("release_bad_key", "kunci tersegel harus 80 byte");
+  if (sealed.length !== 32 + 32 + TAG) fail("release_bad_key", "sealed key must be 80 bytes");
   const seed = edSeed(buyerSecretKey);
   const mine = ed25519.utils.toMontgomerySecret(seed);
   const ephemeralPub = sealed.subarray(0, 32);
@@ -227,11 +227,11 @@ export function deriveBoxKey(sealed: Uint8Array, buyerSecretKey: string): Uint8A
 }
 /** Membuka kunci tersegel dengan kunci kotak; melempar `release_bad_key` bila gagal diautentikasi. */
 export function openSealedWithBoxKey(sealed: Uint8Array, boxKey: Uint8Array): Uint8Array {
-  if (sealed.length !== 32 + 32 + TAG || boxKey.length !== 32) fail("release_bad_key", "kunci tersegel atau kunci kotak tidak sah");
+  if (sealed.length !== 32 + 32 + TAG || boxKey.length !== 32) fail("release_bad_key", "invalid sealed key or box key");
   try {
     return xchacha20poly1305(boxKey, BOX_NONCE).decrypt(sealed.subarray(32));
   } catch {
-    return fail("release_bad_key", "kunci tersegel tidak bisa dibuka dengan kunci kotak ini");
+    return fail("release_bad_key", "the sealed key cannot be opened with this box key");
   }
 }
 export const openSealedKey = (sealed: Uint8Array, buyerSecretKey: string): Uint8Array => openSealedWithBoxKey(sealed, deriveBoxKey(sealed, buyerSecretKey));
@@ -254,13 +254,13 @@ const serializeRelease = (r: LicenseRelease): string =>
   });
 
 function checkRelease(r: LicenseRelease): void {
-  if (!isAccount(r.circle) || !isAccount(r.buyer)) fail("license_bad_account", "circle dan buyer harus akun NEAR");
-  for (const h of [r.license_hash, r.content_hash, r.cipher_hash]) if (!HASH.test(h)) fail("license_bad_hash", "hash rilis harus 64 heksadesimal huruf kecil");
-  if (!/^(?:[0-9a-f]{2}){80}$/.test(r.sealed_key)) fail("release_bad_key", "sealed_key harus 80 byte heks");
-  if (!Number.isSafeInteger(r.at) || r.at <= 0) fail("license_bad_nonce", "at harus detik unix");
-  if (!HASH.test(r.key_commitment)) fail("license_bad_hash", "key_commitment harus 64 heksadesimal huruf kecil");
-  if (typeof r.purchase_id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(r.purchase_id)) fail("license_bad_nonce", "purchase_id harus 1 sampai 64 karakter [A-Za-z0-9_-]");
-  for (const n of [r.content_size, r.cipher_size]) if (!Number.isSafeInteger(n) || n < 0) fail("license_bad_hash", "content_size dan cipher_size harus bilangan bulat >= 0");
+  if (!isAccount(r.circle) || !isAccount(r.buyer)) fail("license_bad_account", "circle and buyer must be NEAR accounts");
+  for (const h of [r.license_hash, r.content_hash, r.cipher_hash]) if (!HASH.test(h)) fail("license_bad_hash", "release hash must be 64 lowercase hex characters");
+  if (!/^(?:[0-9a-f]{2}){80}$/.test(r.sealed_key)) fail("release_bad_key", "sealed_key must be 80 bytes in hex");
+  if (!Number.isSafeInteger(r.at) || r.at <= 0) fail("license_bad_nonce", "at must be unix seconds");
+  if (!HASH.test(r.key_commitment)) fail("license_bad_hash", "key_commitment must be 64 lowercase hex characters");
+  if (typeof r.purchase_id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(r.purchase_id)) fail("license_bad_nonce", "purchase_id must be 1 to 64 characters [A-Za-z0-9_-]");
+  for (const n of [r.content_size, r.cipher_size]) if (!Number.isSafeInteger(n) || n < 0) fail("license_bad_hash", "content_size and cipher_size must be integers >= 0");
 }
 const NEP413_TAG = 2147484061;
 const u32le = (n: number): Uint8Array => {
@@ -345,8 +345,8 @@ export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseR
 /** Membuat bukti curang dari kiriman; melempar `proof_not_possible` bila kirimannya benar atau kesalahannya tidak bisa dibuktikan. */
 export function makeCheatProof(args: Parameters<typeof verifyDelivery>[0]): CheatProof {
   const verdict = verifyDelivery(args);
-  if (verdict.ok) return fail("proof_not_possible", "berkas benar: tidak ada yang dibuktikan");
-  if (!("proof" in verdict)) return fail("proof_not_possible", `kesalahan ini tidak bisa dibuktikan sebagai kecurangan penjual (${verdict.reason})`);
+  if (verdict.ok) return fail("proof_not_possible", "the file is correct: nothing to prove");
+  if (!("proof" in verdict)) return fail("proof_not_possible", `this error cannot be proven as seller cheating (${verdict.reason})`);
   return verdict.proof;
 }
 
@@ -387,13 +387,13 @@ type FetchLike = (input: string, init?: { signal?: AbortSignal; redirect?: "foll
 async function readBody(res: Response, options: FetchOptions): Promise<Uint8Array> {
   const max = options.maxBytes ?? DEFAULT_MAX_BYTES;
   const declared = Number(res.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > max) fail("source_too_large", `sumber menyatakan ${declared} byte, batas ${max}`);
+  if (Number.isFinite(declared) && declared > max) fail("source_too_large", `source declares ${declared} bytes, limit ${max}`);
   const parts: Uint8Array[] = [];
   let received = 0;
   const reader = res.body?.getReader();
   if (!reader) {
     const all = new Uint8Array(await res.arrayBuffer());
-    if (all.length > max) fail("source_too_large", `sumber mengirim lebih dari ${max} byte`);
+    if (all.length > max) fail("source_too_large", `source sent more than ${max} bytes`);
     options.onProgress?.(all.length);
     return all;
   }
@@ -403,7 +403,7 @@ async function readBody(res: Response, options: FetchOptions): Promise<Uint8Arra
     received += value.length;
     if (received > max) {
       void reader.cancel();
-      fail("source_too_large", `sumber mengirim lebih dari ${max} byte`);
+      fail("source_too_large", `source sent more than ${max} bytes`);
     }
     parts.push(value);
     options.onProgress?.(received);
@@ -417,10 +417,10 @@ export function httpsRefProblem(ref: string): string | null {
   try {
     url = new URL(ref);
   } catch {
-    return "ref bukan URL";
+    return "ref is not a URL";
   }
-  if (url.protocol !== "https:") return "ref harus https";
-  if (url.username !== "" || url.password !== "" || url.hash !== "") return "ref tidak boleh memuat kredensial atau fragmen";
+  if (url.protocol !== "https:") return "ref must be https";
+  if (url.username !== "" || url.password !== "" || url.hash !== "") return "ref must not contain credentials or a fragment";
   // F10 (review BE-062): a name of the own network (localhost, .internal, an IP, a name that carries an IP) is not a place to fetch a ciphertext from
   const host = publicHostProblem(url.hostname);
   return host === null ? null : host.replace("endpoint", "ref");
@@ -437,26 +437,26 @@ export function httpsSource(options: { fetch?: FetchLike; maxRedirects?: number 
       for (let hop = 0; ; hop++) {
         // every address, the first and each redirect, goes through the same check; redirects are followed by hand (F10, review BE-062)
         const problem = httpsRefProblem(current);
-        if (problem !== null) fail("source_forbidden", hop === 0 ? problem : `pengalihan ke alamat yang ditolak: ${problem}`);
+        if (problem !== null) fail("source_forbidden", hop === 0 ? problem : `redirect to a rejected address: ${problem}`);
         let res: Response;
         try {
           res = await doFetch(current, { ...(opts.signal ? { signal: opts.signal } : {}), redirect: "manual" });
         } catch (e) {
-          return fail("source_failed", `unduhan gagal: ${e instanceof Error ? e.message : String(e)}`);
+          return fail("source_failed", `download failed: ${e instanceof Error ? e.message : String(e)}`);
         }
-        if (res.type === "opaqueredirect") fail("source_forbidden", "browser menyembunyikan tujuan pengalihan: sumber dengan pengalihan tidak bisa diperiksa, pakai alamat langsung");
+        if (res.type === "opaqueredirect") fail("source_forbidden", "the browser hides the redirect target: a source with a redirect cannot be checked, use a direct address");
         if (res.status >= 300 && res.status < 400) {
           const location = res.headers.get("location");
-          if (hop >= maxRedirects) return fail("source_forbidden", `lebih dari ${maxRedirects} pengalihan`);
-          if (location === null) return fail("source_forbidden", "pengalihan tanpa Location");
+          if (hop >= maxRedirects) return fail("source_forbidden", `more than ${maxRedirects} redirects`);
+          if (location === null) return fail("source_forbidden", "redirect without Location");
           try {
             current = new URL(location, current).href;
           } catch {
-            return fail("source_forbidden", "Location pengalihan bukan URL");
+            return fail("source_forbidden", "redirect Location is not a URL");
           }
           continue;
         }
-        if (!res.ok) fail("source_failed", `sumber menjawab HTTP ${res.status}`);
+        if (!res.ok) fail("source_failed", `source answered HTTP ${res.status}`);
         return readBody(res, opts);
       }
     },
@@ -470,7 +470,7 @@ function base32Decode(text: string): Uint8Array {
   const out: number[] = [];
   for (const ch of text) {
     const idx = B32.indexOf(ch);
-    if (idx < 0) return fail("source_bad_ref", "CID bukan base32 huruf kecil");
+    if (idx < 0) return fail("source_bad_ref", "CID is not lowercase base32");
     value = (value << 5) | idx;
     bits += 5;
     if (bits >= 8) {
@@ -489,20 +489,20 @@ function varint(bytes: Uint8Array, at: number): [number, number] {
     if ((bytes[i]! & 0x80) === 0) return [result, i + 1];
     shift += 7;
   }
-  return fail("source_bad_ref", "CID rusak (varint)");
+  return fail("source_bad_ref", "malformed CID (varint)");
 }
 
 /** CID yang bisa diverifikasi: CIDv1 (base32), kodek raw (0x55), multihash sha2-256. Selain itu `source_cid_unsupported` (CIDv0 dan dag-pb butuh penelusuran DAG). */
 export function parseRawCid(cid: string): { digest: Uint8Array } {
-  if (/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid)) return fail("source_cid_unsupported", "CIDv0 (dag-pb) tidak bisa diverifikasi tanpa penelusuran DAG; pakai CIDv1 raw atau sumber https");
-  if (!cid.startsWith("b")) return fail("source_bad_ref", "CID harus CIDv1 base32 (diawali b)");
+  if (/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid)) return fail("source_cid_unsupported", "CIDv0 (dag-pb) cannot be verified without walking the DAG; use a CIDv1 raw or an https source");
+  if (!cid.startsWith("b")) return fail("source_bad_ref", "CID must be CIDv1 base32 (starting with b)");
   const bytes = base32Decode(cid.slice(1));
-  if (bytes[0] !== 1) return fail("source_bad_ref", "CID bukan versi 1");
+  if (bytes[0] !== 1) return fail("source_bad_ref", "CID is not version 1");
   const [codec, at] = varint(bytes, 1);
   const [hashCode, at2] = varint(bytes, at);
   const [length, at3] = varint(bytes, at2);
-  if (codec !== 0x55) return fail("source_cid_unsupported", `kodek CID 0x${codec.toString(16)} tidak didukung; hanya raw (0x55)`);
-  if (hashCode !== 0x12 || length !== 32 || bytes.length - at3 !== 32) return fail("source_cid_unsupported", "hanya multihash sha2-256 yang didukung");
+  if (codec !== 0x55) return fail("source_cid_unsupported", `CID codec 0x${codec.toString(16)} is not supported; only raw (0x55)`);
+  if (hashCode !== 0x12 || length !== 32 || bytes.length - at3 !== 32) return fail("source_cid_unsupported", "only sha2-256 multihash is supported");
   return { digest: bytes.slice(at3) };
 }
 
@@ -532,20 +532,20 @@ export function ipfsSource(options: { gateways: readonly string[]; fetch?: Fetch
     kind: "ipfs",
     async fetch(ref, opts = {}) {
       const { digest } = parseRawCid(ref);
-      let last = "tidak ada gateway";
+      let last = "no gateway";
       for (const gateway of options.gateways) {
         const problem = httpsRefProblem(gateway);
         if (problem !== null) fail("source_forbidden", `gateway: ${problem}`);
         try {
           const bytes = await httpsSource({ fetch: doFetch }).fetch(`${gateway.replace(/\/+$/, "")}/ipfs/${ref}`, opts);
           if (bytesToHex(sha256(bytes)) === bytesToHex(digest)) return bytes;
-          last = "gateway mengirim byte yang tidak cocok dengan CID";
+          last = "gateway sent bytes that do not match the CID";
         } catch (e) {
           if (e instanceof LicenseError && (e.code === "source_too_large" || e.code === "source_forbidden")) throw e;
           last = e instanceof Error ? e.message : String(e);
         }
       }
-      return fail("source_cid_mismatch", `tidak ada gateway yang mengirim byte yang cocok dengan CID: ${last}`);
+      return fail("source_cid_mismatch", `no gateway sent bytes that match the CID: ${last}`);
     },
   };
 }
@@ -553,9 +553,9 @@ export function ipfsSource(options: { gateways: readonly string[]; fetch?: Fetch
 /** Mengunduh dari sumber yang sesuai dengan `ref.kind` lalu memeriksa `cipher_hash`. Kiriman yang tidak cocok ditolak `cipher_hash_mismatch` (salah sumber, bukan bukti curang). */
 export async function fetchCiphertext(ref: ContentRef, cipherHash: string, sources: Partial<Record<ContentRef["kind"], ContentSource>>, options: FetchOptions = {}): Promise<Uint8Array> {
   const source = sources[ref.kind];
-  if (!source) return fail("source_bad_ref", `tidak ada sumber untuk jenis ${JSON.stringify(ref.kind)}`);
+  if (!source) return fail("source_bad_ref", `no source for kind ${JSON.stringify(ref.kind)}`);
   const bytes = await source.fetch(ref.ref, options);
-  if (contentHash(bytes) !== cipherHash) fail("cipher_hash_mismatch", "byte dari sumber tidak cocok dengan cipher_hash");
+  if (contentHash(bytes) !== cipherHash) fail("cipher_hash_mismatch", "bytes from the source do not match cipher_hash");
   return bytes;
 }
 
@@ -568,8 +568,8 @@ export const canaryLine = (o: CanaryOptions, i: number): string => `${CANARY_PRE
 
 /** Menyisipkan `count` baris canary khas pembeli di posisi yang diturunkan dari HMAC. Dataset asli tidak boleh sudah memuat baris berawalan canary. */
 export function addCanaries(lines: readonly string[], o: CanaryOptions): string[] {
-  if (!HASH.test(o.baseContentHash) || !Number.isSafeInteger(o.count) || o.count < 1 || o.count > 64) fail("canary_bad_input", "baseContentHash harus hash heks dan count 1 sampai 64");
-  if (lines.some((l) => l.startsWith(CANARY_PREFIX))) fail("canary_bad_input", "dataset sudah memuat baris canary");
+  if (!HASH.test(o.baseContentHash) || !Number.isSafeInteger(o.count) || o.count < 1 || o.count > 64) fail("canary_bad_input", "baseContentHash must be a hex hash and count 1 to 64");
+  if (lines.some((l) => l.startsWith(CANARY_PREFIX))) fail("canary_bad_input", "dataset already contains a canary line");
   const out = [...lines];
   for (let i = 0; i < o.count; i++) {
     const position = new DataView(canaryBytes(o, i).buffer).getUint32(24) % (out.length + 1);

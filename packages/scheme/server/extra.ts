@@ -1,4 +1,4 @@
-// Sumber `extra` x207 untuk server: `GET /supported` facilitator, cache maksimal 60 detik (Spec Binding 5.3).
+// Sumber `extra` x207 untuk server: `GET /supported` facilitator, cache of at most 60 seconds (Spec Binding 5.3).
 import { CREDIT_DECIMALS, CREDIT_UNIT, validateX207Extra, type X207Extra } from "@x207/core";
 import { X207_SCHEME } from "../shared/circle.js";
 
@@ -31,18 +31,18 @@ export class X207ExtraSource {
   async get(network: string): Promise<X207Extra> {
     const body = await this.supported();
     const kind = body.kinds?.find((k) => k.scheme === X207_SCHEME && k.network === network);
-    if (!kind) throw new Error(`facilitator tidak mendukung ${X207_SCHEME} di ${network}`);
+    if (!kind) throw new Error(`facilitator does not support ${X207_SCHEME} on ${network}`);
     const extra = (kind.extra ?? {}) as Partial<X207Extra>;
     const full = { circleContract: extra.circleContract, unit: CREDIT_UNIT, decimals: CREDIT_DECIMALS, epoch: extra.epoch };
     const checked = validateX207Extra(full);
-    if (!checked.ok) throw new Error(`extra /supported untuk ${network} tidak sah: ${checked.field} ${checked.message}`);
+    if (!checked.ok) throw new Error(`extra /supported for ${network} not valid: ${checked.field} ${checked.message}`);
     return checked.value;
   }
 
   private async supported(): Promise<SupportedKinds> {
     if (this.cache && this.now() - this.cache.at < this.cacheMs) return this.cache.body;
     const response = await this.fetchFn(`${this.url}/supported`);
-    if (!response.ok) throw new Error(`GET /supported gagal: HTTP ${response.status}`);
+    if (!response.ok) throw new Error(`GET /supported failed: HTTP ${response.status}`);
     const body = (await response.json()) as SupportedKinds;
     this.cache = { at: this.now(), body };
     return body;

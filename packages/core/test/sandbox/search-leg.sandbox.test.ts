@@ -8,7 +8,7 @@ import { sandboxAvailable } from "../../../../test-support/sandbox.js";
 
 const CREDIT = 1_000_000n;
 
-describe.skipIf(!sandboxAvailable)("SD-047 search_leg di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-047 search_leg on near-sandbox", () => {
   let fx: CircleFixture;
   beforeAll(async () => {
     fx = await deployCircle();
@@ -17,7 +17,7 @@ describe.skipIf(!sandboxAvailable)("SD-047 search_leg di near-sandbox", () => {
     await fx?.stop();
   });
 
-  it("TC-SD-047-20 terms_hash kontrak sama dengan SDK dengan dan tanpa search_leg; batas bagian pencari dan tanda tangan atas search_leg ditegakkan", async () => {
+  it("TC-SD-047-20 the contract terms_hash equals the SDK with and without search_leg; the seeker share limit and the signature over search_leg are enforced", async () => {
     expect(await fx.sandbox.view<string>(fx.circle.accountId, "interface_version", {})).toBe(ContractAbi.X207_CIRCLE_ABI_VERSION);
     const view = createCircleViewFn({ circleContract: fx.circle.accountId, rpcUrls: [fx.sandbox.rpcUrl] });
     const onboard = async (name: string) => {

@@ -11,8 +11,8 @@ const read = (path: string) =>
     readFileSync(fileURLToPath(new URL(`../../../spec/test-vectors/${path}`, import.meta.url)), "utf8"),
   ) as any;
 
-describe("SD-007 test vector voucher di @x207/scheme", () => {
-  it("klien menghasilkan voucher dan tanda tangan yang sama dengan voucher/valid.json", async () => {
+describe("SD-007 voucher test vectors in @x207/scheme", () => {
+  it("the client produces the same voucher and signature as voucher/valid.json", async () => {
     const { input } = read("voucher/valid.json");
     const { signature, ...unsigned } = input.voucher as Voucher;
     const seed = Buffer.from(read("keys.json").keys.kA.seed, "hex");
@@ -36,7 +36,7 @@ describe("SD-007 test vector voucher di @x207/scheme", () => {
     expect(verifyVoucher({ ...made.voucher, signature: made.signature }, input.publicKey)).toBe(true);
   });
 
-  it("header PAYMENT-SIGNATURE vector terbaca scheme dan sama setelah dibangun ulang", () => {
+  it("the vector PAYMENT-SIGNATURE header is read by the scheme and is the same after a rebuild", () => {
     const { input, expected } = read("payload/payment_signature_agents_main.json");
     expect(decodePaymentSignatureHeader(expected.header)).toEqual(input.paymentPayload);
     expect(validatePaymentPayload(input.paymentPayload).ok).toBe(true);

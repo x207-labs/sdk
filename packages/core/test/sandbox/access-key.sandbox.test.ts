@@ -5,13 +5,13 @@ import { KeyPair } from "near-api-js";
 import { createViewAccessKeyFn, verifyFunctionCallKey, type AccessGrant } from "@x207/core";
 import { sandboxAvailable, startSandbox, type Sandbox } from "../../../../test-support/sandbox.js";
 
-describe.skipIf(!sandboxAvailable)("SD-052 prove kelas B di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-052 prove class B on near-sandbox", () => {
   let sandbox: Sandbox | undefined;
   afterAll(async () => {
     await sandbox?.stop();
   });
 
-  it("TC-SD-052-09 kunci function-call nyata: cocok valid, melenceng invalid", async () => {
+  it("TC-SD-052-09 a real function-call key: a match is valid, a deviation is invalid", async () => {
     sandbox = await startSandbox();
     const rent = await sandbox.createAccount("rent1", "20");
     const view = createViewAccessKeyFn({ rpcUrls: [sandbox.rpcUrl], finality: "optimistic" });

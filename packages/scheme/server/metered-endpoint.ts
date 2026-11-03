@@ -47,9 +47,9 @@ export type MeteredEndpoint = {
 /** Satu baris konfigurasi per jenis: lihat `METERED_PRESETS` untuk dua belas jenis. Melempar `MeterRejection` untuk jenis, satuan, atau harga yang tidak sah. */
 export function createMeteredEndpoint(options: MeteredEndpointOptions): MeteredEndpoint {
   const preset = (METERED_PRESETS as Record<string, MeteredPreset | undefined>)[options.kind];
-  if (!preset) throw new MeterRejection(`jenis tidak dikenal: ${JSON.stringify(options.kind)}; pilih salah satu dari ${METERED_KINDS.join(", ")}`);
+  if (!preset) throw new MeterRejection(`unknown kind: ${JSON.stringify(options.kind)}; choose one of ${METERED_KINDS.join(", ")}`);
   const unit = options.unit ?? preset.units[0];
-  if (!preset.units.includes(unit)) throw new MeterRejection(`satuan ${JSON.stringify(unit)} tidak cocok untuk ${options.kind}; pilih ${preset.units.join(" atau ")}`);
+  if (!preset.units.includes(unit)) throw new MeterRejection(`unit ${JSON.stringify(unit)} does not fit ${options.kind}; choose ${preset.units.join(" or ")}`);
   const unitPriceAtomic = (() => {
     try {
       return priceToAmount(options.unitPrice);

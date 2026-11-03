@@ -43,7 +43,7 @@ for await (const line of lines) {
   const { id, op, input } = JSON.parse(line);
   try {
     const handler = ops[op];
-    if (!handler) throw new Error(`op tidak dikenal: ${op}`);
+    if (!handler) throw new Error(`unknown op: ${op}`);
     process.stdout.write(`${JSON.stringify({ id, output: handler(input) })}\n`);
   } catch (error) {
     process.stdout.write(`${JSON.stringify({ id, error: error instanceof Error ? error.message : String(error) })}\n`);

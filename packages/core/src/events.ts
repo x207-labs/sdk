@@ -217,10 +217,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 function readField(value: unknown, kind: Kind, path: string): unknown {
   const fail = (expected: string): never => {
-    throw new EventParseError(`field ${path} harus ${expected}`);
+    throw new EventParseError(`field ${path} must be ${expected}`);
   };
   if (typeof kind === "object" && "enum" in kind) {
-    return kind.enum.includes(value as string | null) ? value : fail(`salah satu dari ${JSON.stringify(kind.enum)}`);
+    return kind.enum.includes(value as string | null) ? value : fail(`one of ${JSON.stringify(kind.enum)}`);
   }
   if (typeof kind === "object" && "list" in kind) {
     if (!Array.isArray(value)) return fail("array");
@@ -230,16 +230,16 @@ function readField(value: unknown, kind: Kind, path: string): unknown {
     case "str": return typeof value === "string" ? value : fail("string");
     case "int": return Number.isSafeInteger(value) ? value : fail("integer");
     case "bool": return typeof value === "boolean" ? value : fail("boolean");
-    case "strnull": return value === null || typeof value === "string" ? value : fail("string atau null");
+    case "strnull": return value === null || typeof value === "string" ? value : fail("string or null");
     case "strarr": return Array.isArray(value) && value.every((v) => typeof v === "string") ? value : fail("array string");
     case "params": return isRecord(value) ? value : fail("objek Params");
-    case "bundleid": return typeof value === "string" || Number.isSafeInteger(value) ? value : fail("string atau integer");
+    case "bundleid": return typeof value === "string" || Number.isSafeInteger(value) ? value : fail("string or integer");
   }
 }
 
 /** Ambil hanya field yang dikenal; field tambahan diabaikan (Spec 1, butir 3). */
 function readObject(value: unknown, schema: Schema, path: string): Record<string, unknown> {
-  if (!isRecord(value)) throw new EventParseError(`${path} harus objek`);
+  if (!isRecord(value)) throw new EventParseError(`${path} must be an object`);
   const out: Record<string, unknown> = {};
   for (const [name, kind] of Object.entries(schema)) {
     if (!(name in value)) throw new EventParseError(`field ${path}.${name} hilang`);
@@ -250,12 +250,12 @@ function readObject(value: unknown, schema: Schema, path: string): Record<string
 
 function checkVersion(version: unknown): void {
   if (typeof version !== "string" || !/^\d+\.\d+\.\d+$/.test(version)) {
-    throw new EventParseError(`version event tidak sah: ${JSON.stringify(version)}`);
+    throw new EventParseError(`invalid event version: ${JSON.stringify(version)}`);
   }
   const [major, minor] = version.split(".").map(Number) as [number, number];
   const [knownMajor, knownMinor] = KNOWN_EVENT_VERSION.split(".").map(Number) as [number, number];
   if (major !== knownMajor || minor > knownMinor) {
-    throw new EventParseError(`versi event ${version} lebih tinggi dari yang dikenal (${KNOWN_EVENT_VERSION})`);
+    throw new EventParseError(`event version ${version} is higher than the known version (${KNOWN_EVENT_VERSION})`);
   }
 }
 
@@ -275,19 +275,19 @@ export function parseEventLog(log: string): (X207Event | UnknownX207Event)[] | n
   try {
     envelope = JSON.parse(log.slice(EVENT_PREFIX.length));
   } catch (error) {
-    throw new EventParseError(`JSON event rusak: ${(error as Error).message}`);
+    throw new EventParseError(`malformed event JSON: ${(error as Error).message}`);
   }
-  if (!isRecord(envelope)) throw new EventParseError("event harus objek JSON");
+  if (!isRecord(envelope)) throw new EventParseError("event must be a JSON object");
   if (envelope.standard !== EVENT_STANDARD) return null;
   checkVersion(envelope.version);
   const name = envelope.event;
   if (typeof name !== "string") throw new EventParseError("field event hilang");
   if (!Array.isArray(envelope.data) || envelope.data.length === 0) {
-    throw new EventParseError("data harus array berisi minimal satu objek");
+    throw new EventParseError("data must be an array with at least one object");
   }
   return envelope.data.map((item, i): X207Event | UnknownX207Event => {
     if (!isKnownName(name)) {
-      if (!isRecord(item)) throw new EventParseError(`data[${i}] harus objek`);
+      if (!isRecord(item)) throw new EventParseError(`data[${i}] must be an object`);
       return { event: name, data: item };
     }
     return { event: name, ...readObject(item, SCHEMAS[name], `data[${i}]`) } as X207Event;

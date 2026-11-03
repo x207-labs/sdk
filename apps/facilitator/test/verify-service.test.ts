@@ -76,36 +76,36 @@ const appFor = (rpcUrl: string, pending = new PendingStore(":memory:")) => {
 const post = (app: ReturnType<typeof createApp>, body: unknown) =>
   app.request("/verify", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
-describe("SD-024 /verify di apps/facilitator", () => {
-  it("jalur sukses lewat RPC dan pending store nyata", async () => {
+describe("SD-024 /verify in apps/facilitator", () => {
+  it("success path through RPC and a real pending store", async () => {
     const app = appFor(await listen(chainNode));
     const res = await post(app, BODY);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ isValid: true, payer: A });
   });
 
-  it("baris pending dihitung: voucher yang sama setelah settle ditolak seq_not_increasing", async () => {
+  it("a pending row is counted: the same voucher after settle is rejected with seq_not_increasing", async () => {
     const pending = new PendingStore(":memory:");
     pending.upsert("x207-circle.near", voucher as never, signature as never);
     const res = await post(appFor(await listen(chainNode), pending), BODY);
     expect(await res.json()).toMatchObject({ isValid: false, invalidReason: "seq_not_increasing" });
   });
 
-  it("network x207 yang tidak dikonfigurasi menjawab invalid_network", async () => {
+  it("an x207 network that is not configured answers invalid_network", async () => {
     const other = { ...REQ, network: "x207:other-circle" };
     const body = { ...BODY, paymentRequirements: other, paymentPayload: { ...BODY.paymentPayload, accepted: other } };
     const res = await post(appFor(await listen(chainNode)), body);
     expect(await res.json()).toMatchObject({ isValid: false, invalidReason: "invalid_network" });
   });
 
-  it("TC-SD-024-32 kedua RPC gagal: HTTP 503 chain_unavailable, bukan isValid false", async () => {
+  it("TC-SD-024-32 both RPCs fail: HTTP 503 chain_unavailable, not isValid false", async () => {
     const res = await post(appFor(await listen(down)), BODY);
     expect(res.status).toBe(503);
     expect(res.headers.get("retry-after")).toBe("5");
     expect(await res.json()).toMatchObject({ error: "chain_unavailable" });
   });
 
-  it("TC-SD-024-31 verify tidak menambah baris pending", async () => {
+  it("TC-SD-024-31 verify does not add a pending row", async () => {
     const pending = new PendingStore(":memory:");
     const app = appFor(await listen(chainNode), pending);
     for (let i = 0; i < 3; i++) await post(app, BODY);

@@ -52,8 +52,8 @@ export class SpendLimitError extends Error {
   constructor(limit: "per_call" | "per_epoch", amount: bigint, max: bigint, spent: bigint) {
     super(
       limit === "per_call"
-        ? `batas belanja per panggilan terlampaui: ${amount} > ${max}`
-        : `batas belanja per epoch terlampaui: ${spent} terpakai + ${amount} > ${max}`,
+        ? `spend limit per call exceeded: ${amount} > ${max}`
+        : `spend limit per epoch exceeded: ${spent} spent + ${amount} > ${max}`,
     );
     this.name = "SpendLimitError";
     this.limit = limit;
@@ -180,14 +180,14 @@ export class X207SchemeClient implements SchemeNetworkClient {
     x402Version: number,
     requirements: PaymentRequirements,
   ): Promise<PaymentPayloadResult> {
-    if (x402Version !== 2) throw new Error(`x402Version ${x402Version} tidak didukung, harus 2`);
+    if (x402Version !== 2) throw new Error(`x402Version ${x402Version} is not supported, must be 2`);
     const checked = validatePaymentRequirements(requirements);
-    if (!checked.ok) throw new Error(`requirements x207 tidak sah: ${checked.field} ${checked.message}`);
+    if (!checked.ok) throw new Error(`x207 requirements not valid: ${checked.field} ${checked.message}`);
     const { payTo, amount, extra } = checked.value;
     // Endpoint grant (SD-053): resource voucher = `x207:grant:<grantId>`, payee = payTo pemberi (bukan akun broker yang melayani URL-nya)
     const resource = extra.grantId === undefined ? this.resources.get(requirements) : grantResource(extra.grantId);
     if (resource === undefined) {
-      throw new Error("resource.url tidak diketahui: buat payload lewat x402Client agar hook terpasang");
+      throw new Error("resource.url unknown: build the payload through x402Client so the hook is installed");
     }
 
     this.meter?.authorize((requirements.extra as { meter?: MeterAnnouncement } | undefined)?.meter, amount);

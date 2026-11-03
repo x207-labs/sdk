@@ -16,40 +16,40 @@ const fc = (patch: Partial<{ allowance: string | null; receiver_id: string; meth
 const viewing = (key: AccessKeyView | null): ViewAccessKeyFn => async () => key;
 
 describe("SD-052 verifyFunctionCallKey", () => {
-  it("TC-SD-052-01 kunci yang cocok dengan grant: valid (subset method dan allowance sama atau lebih kecil)", async () => {
+  it("TC-SD-052-01 a key that matches the grant: valid (method subset and allowance equal or smaller)", async () => {
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc()))).toEqual({ valid: true });
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc({ method_names: ["get", "list"] })))).toEqual({ valid: true });
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc({ allowance: "1" })))).toEqual({ valid: true });
   });
 
-  it("TC-SD-052-02 method tambahan atau daftar kosong (semua method): invalid method_not_allowed", async () => {
+  it("TC-SD-052-02 an extra method or an empty list (all methods): invalid method_not_allowed", async () => {
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc({ method_names: ["get", "transfer"] })))).toEqual({ valid: false, reason: "method_not_allowed" });
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc({ method_names: [] })))).toEqual({ valid: false, reason: "method_not_allowed" });
   });
 
-  it("TC-SD-052-03 receiver_id lain: invalid receiver_mismatch", async () => {
+  it("TC-SD-052-03 another receiver_id: invalid receiver_mismatch", async () => {
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc({ receiver_id: "other.near" })))).toEqual({ valid: false, reason: "receiver_mismatch" });
   });
 
-  it("TC-SD-052-04 allowance lebih besar atau tanpa batas: invalid allowance_exceeded", async () => {
+  it("TC-SD-052-04 a larger or unlimited allowance: invalid allowance_exceeded", async () => {
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc({ allowance: "1000000000000000000000001" })))).toEqual({ valid: false, reason: "allowance_exceeded" });
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(fc({ allowance: null })))).toEqual({ valid: false, reason: "allowance_exceeded" });
   });
 
-  it("TC-SD-052-05 kunci akses penuh, kunci tidak ada, grant bukan kelas B, scope rusak", async () => {
+  it("TC-SD-052-05 a full-access key, a missing key, a grant that is not class B, a broken scope", async () => {
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing({ nonce: 1, permission: "FullAccess" }))).toEqual({ valid: false, reason: "full_access_key" });
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant(), viewing(null))).toEqual({ valid: false, reason: "key_not_found" });
     expect(await verifyFunctionCallKey(ACCOUNT, KEY, grant({ class: "D" }), viewing(fc()))).toEqual({ valid: false, reason: "not_class_b" });
-    const bad = await verifyFunctionCallKey(ACCOUNT, KEY, grant({ limits: { scope: "bukan json", quota: null, expires_at: "1" } }), viewing(fc()));
+    const bad = await verifyFunctionCallKey(ACCOUNT, KEY, grant({ limits: { scope: "not json", quota: null, expires_at: "1" } }), viewing(fc()));
     expect(bad).toMatchObject({ valid: false });
     expect((bad as { reason: string }).reason).toMatch(/^bad_scope/);
   });
 
-  it("TC-SD-052-06 RPC tidak terjangkau dilempar, bukan dianggap kunci salah", async () => {
-    await expect(verifyFunctionCallKey(ACCOUNT, KEY, grant(), async () => { throw new Error("semua endpoint RPC gagal"); })).rejects.toThrow(/RPC/);
+  it("TC-SD-052-06 an unreachable RPC is thrown, not treated as a wrong key", async () => {
+    await expect(verifyFunctionCallKey(ACCOUNT, KEY, grant(), async () => { throw new Error("all RPC endpoints failed"); })).rejects.toThrow(/RPC/);
   });
 
-  it("TC-SD-052-07 parseFunctionCallKeyScope menolak bentuk tidak sah", () => {
+  it("TC-SD-052-07 parseFunctionCallKeyScope rejects an invalid shape", () => {
     expect(parseFunctionCallKeyScope(JSON.stringify(scope))).toEqual(scope);
     for (const bad of ['{"receiver_id":"a.near"}', '{"receiver_id":"a.near","method_names":[],"allowance":"1"}', '{"receiver_id":"a.near","method_names":["x"],"allowance":1}', '[]', 'x']) {
       expect(() => parseFunctionCallKeyScope(bad), bad).toThrow();
@@ -59,7 +59,7 @@ describe("SD-052 verifyFunctionCallKey", () => {
 
 describe("SD-052 createViewAccessKeyFn", () => {
   const reply = (body: unknown, ok = true) => async () => ({ ok, status: ok ? 200 : 503, json: async () => body }) as Response;
-  it("TC-SD-052-08 membaca permission, kunci tidak ada menjadi null, error RPC dilempar, failover ke endpoint berikutnya", async () => {
+  it("TC-SD-052-08 reads the permission, a missing key becomes null, an RPC error is thrown, failover to the next endpoint", async () => {
     const requests: unknown[] = [];
     const okFetch = (async (_u: string, init: RequestInit) => {
       requests.push(JSON.parse(String(init.body)));
@@ -83,6 +83,6 @@ describe("SD-052 createViewAccessKeyFn", () => {
     });
     expect(await flaky(ACCOUNT, KEY)).toMatchObject({ nonce: 5 });
     expect(calls).toBe(2);
-    await expect(createViewAccessKeyFn({ rpcUrls: ["http://a"], fetch: reply({}, false) as unknown as typeof fetch })(ACCOUNT, KEY)).rejects.toThrow(/semua endpoint RPC gagal/);
+    await expect(createViewAccessKeyFn({ rpcUrls: ["http://a"], fetch: reply({}, false) as unknown as typeof fetch })(ACCOUNT, KEY)).rejects.toThrow(/all RPC endpoints failed/);
   });
 });

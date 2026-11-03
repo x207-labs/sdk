@@ -16,12 +16,12 @@ function* sources(dir: string): Generator<string> {
 }
 
 describe("SD-041 penamaan publik", () => {
-  it("scheme dan network memakai nama merek, bukan nama internal", () => {
+  it("scheme and network use the brand name, not the internal name", () => {
     expect(X207_SCHEME).toBe("batch-settlement");
     expect(X207_NETWORK_FAMILY).toBe("x207:*");
   });
 
-  it("mutual-credit tidak dipakai sebagai nama scheme atau network di README, spec, docs, dan API publik", () => {
+  it("mutual-credit is not used as a scheme or network name in the README, spec, docs and public API", () => {
     const files = [join(root, "README.md"), ...sources(join(root, "spec")), ...sources(join(root, "docs")), ...sources(join(root, "packages/scheme"))];
     const offenders: string[] = [];
     for (const file of files) {

@@ -7,7 +7,7 @@ import type { MemberView } from "./types.generated.js";
 
 export class OnboardTimeoutError extends Error {
   constructor(readonly status: string | null, timeoutMs: number) {
-    super(`anggota belum active setelah ${timeoutMs} ms (status terakhir: ${status ?? "bukan anggota"})`);
+    super(`member is not active after ${timeoutMs} ms (last status: ${status ?? "not a member"})`);
     this.name = "OnboardTimeoutError";
   }
 }
@@ -15,7 +15,7 @@ export class OnboardTimeoutError extends Error {
 /** `ft_transfer_call` mengembalikan jumlah yang dipakai kontrak; kurang dari `amount` berarti sebagian di-refund. */
 export class StakeRejectedError extends Error {
   constructor(readonly used: string, readonly amount: string) {
-    super(`stake ditolak kontrak: terpakai ${used} dari ${amount} (sisanya di-refund; cek status anggota dan msg)`);
+    super(`stake rejected by the contract: used ${used} of ${amount} (the rest is refunded; check the member status and msg)`);
     this.name = "StakeRejectedError";
   }
 }
@@ -70,7 +70,7 @@ export async function onboardMember(deps: OnboardDeps, input: OnboardInput): Pro
 
   const member = await waitUntilActive(deps, input.accountId);
   if (member.pubkey_voucher !== publicKey) {
-    throw new Error(`pubkey_voucher di kontrak (${member.pubkey_voucher}) bukan kunci yang dibuat (${publicKey})`);
+    throw new Error(`pubkey_voucher in the contract (${member.pubkey_voucher}) is not the key that was created (${publicKey})`);
   }
   return { secretKey, publicKey, member };
 }

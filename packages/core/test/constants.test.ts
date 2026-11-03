@@ -35,7 +35,7 @@ describe("SD-003 konstanta @x207/core", () => {
     expect(CREDIT_UNIT).toBe("credit");
   });
 
-  it("TC-SD-003-03 akun kontrak eksternal", () => {
+  it("TC-SD-003-03 external contract accounts", () => {
     expect(USDT_TOKEN_ID).toBe("usdt.tether-token.near");
     expect(INTENTS_ID).toBe("intents.near");
     expect(SPUTNIK_DAO_FACTORY).toBe("sputnik-dao.near");
@@ -53,7 +53,7 @@ describe("SD-003 konstanta @x207/core", () => {
     expect(NEAR_AI_CLOUD_URL).toBe("https://cloud-api.near.ai/v1");
   });
 
-  it("TC-SD-003-06 satu sumber definisi", () => {
+  it("TC-SD-003-06 one source of definition", () => {
     const literals = ["usdt.tether-token.near", "intents.near", "rpc.mainnet.fastnear.com"];
     const roots = ["packages", "apps"].map((dir) => join(SDK_ROOT, dir));
     const hits = roots
@@ -68,7 +68,7 @@ describe("SD-003 konstanta @x207/core", () => {
     ]);
   });
 
-  it("TC-SD-003-07 konstanta di test vector", () => {
+  it("TC-SD-003-07 constants in the test vector", () => {
     const vector = JSON.parse(
       readFileSync(join(SDK_ROOT, "spec", "test-vectors", "constants.json"), "utf8"),
     ) as Record<string, unknown>;

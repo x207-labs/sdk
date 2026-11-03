@@ -12,7 +12,7 @@ const X207_NAMESPACE = "x207:";
 export class CircleIdError extends Error {
   constructor(network: string) {
     super(
-      `network "${network}" bukan x207:<circleId> yang sah (regex CAIP-2 ^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$, tanpa titik)`,
+      `network "${network}" is not a valid x207:<circleId> (CAIP-2 regex ^[-a-z0-9]{3,8}:[-_a-zA-Z0-9]{1,32}$, no dot)`,
     );
     this.name = "CircleIdError";
   }
@@ -38,7 +38,7 @@ export function defineCircleConfig(input: { network: string; circleContract: Acc
 /** Kerangka SD-015: method yang isinya dikerjakan item lain melempar error ini. */
 export class NotImplementedError extends Error {
   constructor(method: string, itemId: string) {
-    super(`${method} belum diimplementasikan (${itemId})`);
+    super(`${method} is not implemented yet (${itemId})`);
     this.name = "NotImplementedError";
   }
 }

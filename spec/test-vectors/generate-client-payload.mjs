@@ -46,7 +46,7 @@ writeFileSync(
   `${JSON.stringify(
     {
       name: "client_seq1_seq2",
-      description: "Klien kA membayar dua kali ke penjual yang sama di epoch 42; state kosong, lalu satu commit. Harga 20000 per panggilan.",
+      description: "Client kA pays the same seller twice in epoch 42; empty state, then one commit. Price 20000 per call.",
       input: { key: "kA", requirements: accepted, resource: RESOURCE },
       expected: { seq1: step(1, "20000"), seq2: step(2, "40000") },
     },

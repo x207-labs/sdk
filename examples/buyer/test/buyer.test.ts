@@ -62,15 +62,15 @@ function world() {
     }
     if (hostname === "facilitator.test") return facilitator.fetch(request);
     if (hostname === "seller.test") {
-      return seller(request, async () => Response.json({ summary: "ringkasan" }));
+      return seller(request, async () => Response.json({ summary: "summary text" }));
     }
-    return new Response("tidak dikenal", { status: 404 });
+    return new Response("unknown", { status: 404 });
   }) as typeof fetch;
   return { pending, fetch: routerFetch };
 }
 
-describe("SD-035 contoh pembeli", () => {
-  it("membayar panggilan berbayar dengan voucher dan membaca PAYMENT-RESPONSE", async () => {
+describe("SD-035 buyer example", () => {
+  it("pays a paid call with a voucher and reads PAYMENT-RESPONSE", async () => {
     const { fetch: routed, pending } = world();
     const paidFetch = createBuyerFetch({
       accountId: A, secretKey: Buffer.from(keys.kA.seed, "hex"), rpcUrls: ["http://rpc.test"], fetch: routed,
@@ -78,7 +78,7 @@ describe("SD-035 contoh pembeli", () => {
 
     const first = await paidFetch("https://seller.test/api/summarize");
     expect(first.status).toBe(200);
-    expect(await first.json()).toEqual({ summary: "ringkasan" });
+    expect(await first.json()).toEqual({ summary: "summary text" });
     const settled = JSON.parse(Buffer.from(first.headers.get("PAYMENT-RESPONSE")!, "base64").toString("utf8"));
     expect(settled).toMatchObject({
       success: true, transaction: `${A}:${B}:42:1`, network: NETWORK,
@@ -91,14 +91,14 @@ describe("SD-035 contoh pembeli", () => {
     expect(pending.get({ circleContract: CIRCLE, payer: A, payee: B, epoch: 42 })).toMatchObject({ seq: 2, cumulativeAmount: "40000" });
   });
 
-  it("TC-SD-035-02 kode minimal: satu wrapper @x402/fetch dan tanpa signVoucher langsung", () => {
+  it("TC-SD-035-02 minimal code: one @x402/fetch wrapper and no direct signVoucher", () => {
     const dir = fileURLToPath(new URL("../src/", import.meta.url));
     const source = readdirSync(dir).filter((f) => f.endsWith(".ts")).map((f) => readFileSync(`${dir}${f}`, "utf8")).join("\n");
     expect(source.match(/wrapFetchWithPayment\(/g)).toHaveLength(1);
     expect(source).not.toMatch(/signVoucher/);
   });
 
-  it("TC-SD-035-03 variabel hilang: pesan menyebut nama variabel", () => {
+  it("TC-SD-035-03 a missing variable: the message names the variable", () => {
     const base = { ACCOUNT_ID: A, VOUCHER_SECRET_KEY: `ed25519:${"1".repeat(44)}`, SELLER_URL: "http://seller.test/x" };
     for (const name of Object.keys(base)) {
       expect(() => readBuyerEnv({ ...base, [name]: undefined })).toThrow(new RegExp(name));

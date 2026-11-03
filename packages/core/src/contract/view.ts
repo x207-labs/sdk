@@ -37,16 +37,16 @@ export function createCircleViewFn(options: CircleViewOptions): CircleViewFn {
           continue;
         }
         const body = (await response.json()) as { result?: { result: number[]; error?: string }; error?: unknown };
-        if (body.error) throw new Error(`RPC error pada view ${methodName}: ${JSON.stringify(body.error)}`);
-        if (body.result?.error) throw new Error(`view ${methodName} gagal: ${body.result.error}`);
+        if (body.error) throw new Error(`RPC error in view ${methodName}: ${JSON.stringify(body.error)}`);
+        if (body.result?.error) throw new Error(`view ${methodName} failed: ${body.result.error}`);
         const bytes = body.result?.result;
-        if (!bytes) throw new Error(`view ${methodName}: jawaban RPC tanpa result`);
+        if (!bytes) throw new Error(`view ${methodName}: RPC answer without result`);
         return JSON.parse(Buffer.from(bytes).toString("utf8")) as unknown;
       } catch (error) {
         if ((error as Error).message.startsWith("RPC error") || (error as Error).message.startsWith("view ")) throw error;
         failures.push(`${url}: ${(error as Error).message}`);
       }
     }
-    throw new Error(`semua endpoint RPC gagal (${failures.join("; ")})`);
+    throw new Error(`all RPC endpoints failed (${failures.join("; ")})`);
   };
 }

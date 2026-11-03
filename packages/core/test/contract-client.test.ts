@@ -18,8 +18,8 @@ const KA = vector("keys.json").keys.kA.publicKey as string;
 const HASH = "a".repeat(64);
 const A = "translator.x207-circle.near";
 
-describe("SD-012 client kontrak", () => {
-  it("TC-SD-012-01 argumen join dan deposit, sama dengan vector", () => {
+describe("SD-012 contract client", () => {
+  it("TC-SD-012-01 join arguments and deposit, equal to the vector", () => {
     const call = buildJoinCall({ circleContract: "x207-circle.near", circleId: "agents-main", pubkeyVoucher: KA, termsHash: HASH });
     expect(call.methodName).toBe("join");
     expect(call.receiverId).toBe("x207-circle.near");
@@ -36,7 +36,7 @@ describe("SD-012 client kontrak", () => {
     expect(v.input.pubkeyVoucher).toBe(KA);
   });
 
-  it("TC-SD-012-02 terms_hash salah format melempar sebelum transaksi", () => {
+  it("TC-SD-012-02 a malformed terms_hash throws before the transaction", () => {
     const base = { circleContract: "x207-circle.near", circleId: "agents-main", pubkeyVoucher: KA };
     expect(() => buildJoinCall({ ...base, termsHash: "a".repeat(63) })).toThrow(/terms_hash/);
     expect(() => buildJoinCall({ ...base, termsHash: "A".repeat(64) })).toThrow(/terms_hash/);
@@ -53,7 +53,7 @@ describe("SD-012 client kontrak", () => {
     expect(formatNear(1n)).toBe("0.000000000000000000000001");
   });
 
-  it("TC-SD-012-03 builder msg stake dan ft_transfer_call", () => {
+  it("TC-SD-012-03 msg builders for stake and ft_transfer_call", () => {
     expect(buildStakeMsg()).toBe('{"action":"stake"}');
     expect(buildStakeMsg({ memberId: A })).toBe('{"action":"stake","member_id":"translator.x207-circle.near"}');
     const call = buildStakeTransferCall({ circleContract: "x207-circle.near", amount: "50000000", memberId: A });
@@ -86,12 +86,12 @@ describe("SD-012 client kontrak", () => {
     expect(result).toMatchObject({ status: "active", limit: "40000000", exit_requested_epoch: null });
   });
 
-  it("TC-SD-012-06 view member null bukan error", async () => {
+  it("TC-SD-012-06 a null member view is not an error", async () => {
     expect(await getMember(async () => null, "stranger.near")).toBeNull();
     expect(await getMember(async () => undefined, "stranger.near")).toBeNull();
   });
 
-  it("TC-SD-012-07 (unit) kode error diambil dari pesan panic", () => {
+  it("TC-SD-012-07 (unit) the error code is taken from the panic message", () => {
     expect(contractErrorCode(new Error("Smart contract panicked: ERR_ALREADY_MEMBER: a.near"))).toBe("ERR_ALREADY_MEMBER");
     expect(contractErrorCode("ERR_BAD_MSG: expected value")).toBe("ERR_BAD_MSG");
     expect(contractErrorCode(new Error("network down"))).toBeNull();

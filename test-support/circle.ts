@@ -65,7 +65,7 @@ export async function deployCircle(params: object = SHORT_PARAMS, options: Deplo
       intents = await sandbox.createAccount("intents", "10");
       await sandbox.deploy(intents, MOCK_INTENTS_WASM);
       const initialized = await intents.call({ receiverId: intents.accountId, methodName: "new", args: {}, deposit: 0n });
-      if (initialized.failures.length > 0) throw new Error(`mock_intents new gagal: ${initialized.failures.join("; ")}`);
+      if (initialized.failures.length > 0) throw new Error(`mock_intents new failed: ${initialized.failures.join("; ")}`);
     }
 
     const circle = await sandbox.createAccount("x207-circle", "100");
@@ -79,7 +79,7 @@ export async function deployCircle(params: object = SHORT_PARAMS, options: Deplo
       },
       deposit: 0n,
     });
-    if (created.failures.length > 0) throw new Error(`new gagal: ${created.failures.join("; ")}`);
+    if (created.failures.length > 0) throw new Error(`new failed: ${created.failures.join("; ")}`);
 
     const members = new Map<string, SandboxAccount>();
     return {
@@ -92,7 +92,7 @@ export async function deployCircle(params: object = SHORT_PARAMS, options: Deplo
           receiverId: usdt.accountId, methodName: "mint",
           args: { account_id: account.accountId, amount: (1000n * CREDIT).toString() }, deposit: 0n,
         });
-        if (minted.failures.length > 0) throw new Error(`mint gagal: ${minted.failures.join("; ")}`);
+        if (minted.failures.length > 0) throw new Error(`mint failed: ${minted.failures.join("; ")}`);
         members.set(name, account);
         return account;
       },

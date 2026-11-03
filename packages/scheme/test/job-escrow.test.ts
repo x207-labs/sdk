@@ -60,10 +60,10 @@ describe("SD-067 escrow of job credit with a bundle", () => {
   });
 
   it("TC-SD-067-02 invalid parties, epoch and chunks are refused", () => {
-    expect(fails(() => budget({ buyer: SELLER }))).toMatch(/berbeda/);
+    expect(fails(() => budget({ buyer: SELLER }))).toMatch(/different accounts/);
     expect(fails(() => budget({ epoch: 0 }))).toMatch(/epoch/);
     expect(fails(() => budget({ chunks: 0 }))).toMatch(/chunks/);
-    expect(fails(() => budget({ unitPrice: "abc" }))).toMatch(/harga|price|tidak sah/);
+    expect(fails(() => budget({ unitPrice: "abc" }))).toMatch(/price|not valid/);
   });
 
   it("TC-SD-067-03 a job that runs to the end pays the whole budget in six steps, and the seller never works a chunk that is not paid", () => {
@@ -78,7 +78,7 @@ describe("SD-067 escrow of job credit with a bundle", () => {
     expect(sellerWork).toEqual([1, 2, 3]);
     expect(seller.summary()).toMatchObject({ status: "waiting", completedChunks: 3, paidChunks: 3, cumulativePaid: "300000", unpaidWork: "0" });
     expect(seller.next()).toBeNull();
-    expect(fails(() => seller.start())).toMatch(/belum dibayar/);
+    expect(fails(() => seller.start())).toMatch(/not paid yet/);
   });
 
   it("TC-SD-067-05 the seller stops in the middle of chunk 4: the buyer paid for four chunks, got three, and loses one chunk at most; it signs nothing more", () => {
@@ -87,7 +87,7 @@ describe("SD-067 escrow of job credit with a bundle", () => {
     const s = buyer.summary();
     expect(s).toMatchObject({ status: "waiting_delivery", confirmedChunks: 3, signedChunks: 4, cumulativeSigned: "400000", atRisk: "100000" });
     expect(buyer.nextVoucherAmount()).toBeNull();
-    expect(fails(() => buyer.signNext(keys.secretKey))).toMatch(/setelah potongan sebelumnya diterima/);
+    expect(fails(() => buyer.signNext(keys.secretKey))).toMatch(/after the previous chunk is received/);
     expect(seller.summary()).toMatchObject({ status: "running", completedChunks: 3 });
     expect(buyer.abort().status).toBe("aborted");
   });
@@ -98,7 +98,7 @@ describe("SD-067 escrow of job credit with a bundle", () => {
     const first = buyer.signNext(keys.secretKey);
     expect(first.voucher.cumulativeAmount).toBe("100000");
     expect(buyer.nextVoucherAmount()).toBeNull(); // waiting for chunk 1
-    expect(fails(() => buyer.confirm(2))).toMatch(/tidak sedang ditunggu/);
+    expect(fails(() => buyer.confirm(2))).toMatch(/is not being awaited/);
     const seller = new SellerJob(b);
     seller.accept(first.voucher);
     const ahead = { ...first.voucher, seq: 2, cumulativeAmount: "200000" };
@@ -116,7 +116,7 @@ describe("SD-067 escrow of job credit with a bundle", () => {
     expect(fails(() => seller.accept({ ...v, payee: "y.x207-circle.near" }))).toMatch(/wrong_leg/);
     expect(fails(() => seller.accept({ ...v, epoch: 43 }))).toMatch(/wrong_leg/);
     expect(fails(() => seller.accept({ ...v, circle: "other.near" }))).toMatch(/wrong_leg/);
-    expect(fails(() => seller.accept({ ...v, cumulativeAmount: "01" }))).toMatch(/bilangan bulat desimal/);
+    expect(fails(() => seller.accept({ ...v, cumulativeAmount: "01" }))).toMatch(/decimal integer/);
     expect(fails(() => seller.accept({ ...v, cumulativeAmount: "700000" }))).toMatch(/over_budget/);
     seller.accept(v);
     expect(seller.accept(v).cumulativePaid).toBe("100000"); // repeated: no effect
@@ -126,7 +126,7 @@ describe("SD-067 escrow of job credit with a bundle", () => {
     seller.accept({ ...v, seq: 2, cumulativeAmount: "200000" });
     expect(fails(() => seller.accept({ ...v, seq: 3, cumulativeAmount: "100000" }))).toMatch(/cumulative_decreased/);
     expect(seller.abort().status).toBe("aborted");
-    expect(fails(() => seller.accept({ ...v, seq: 4, cumulativeAmount: "300000" }))).toMatch(/dihentikan/);
+    expect(fails(() => seller.accept({ ...v, seq: 4, cumulativeAmount: "300000" }))).toMatch(/already been stopped/);
   });
 
   it("TC-SD-067-08 the voucher of a chunk is a normal voucher: signed by the buyer key, cumulative, seq per chunk, unit credit, resource names the job; bundleId travels with it", () => {
@@ -138,7 +138,7 @@ describe("SD-067 escrow of job credit with a bundle", () => {
     expect(signed.voucher).toMatchObject({ circle: CIRCLE, payer: BUYER, payee: SELLER, epoch: 42, seq: 1, cumulativeAmount: "100000", unit: "credit", resource: "job:j1" });
     expect(verifyVoucher(signed.voucher, keys.publicKey)).toBe(true);
     expect(b.voucherFor(3)).toMatchObject({ seq: 3, cumulativeAmount: "300000" });
-    expect(fails(() => b.voucherFor(7))).toMatch(/potongan harus 1 sampai 6/);
+    expect(fails(() => b.voucherFor(7))).toMatch(/chunk must be 1 to 6/);
   });
 
   it("TC-SD-067-09 the voucher of a pair is cumulative for the pair: a job that starts after other payments continues from the state of the pair, and a voucher that restarts at zero is refused", () => {

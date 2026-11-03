@@ -30,7 +30,7 @@ afterEach(() => {
 });
 
 describe("SD-022 PendingStore", () => {
-  it("TC-SD-022-01 hanya seq tertinggi", () => {
+  it("TC-SD-022-01 only the highest seq", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 5), SIG);
     store.upsert(CIRCLE, v(A, B, 42, 7), SIG);
@@ -39,7 +39,7 @@ describe("SD-022 PendingStore", () => {
     expect(rows[0]).toMatchObject({ seq: 7, cumulativeAmount: "140000" });
   });
 
-  it("TC-SD-022-02 seq lebih rendah diabaikan, updated_at tetap", () => {
+  it("TC-SD-022-02 a lower seq is ignored, updated_at stays", () => {
     let t = 1000;
     const store = memory(() => t);
     store.upsert(CIRCLE, v(A, B, 42, 7), SIG);
@@ -48,12 +48,12 @@ describe("SD-022 PendingStore", () => {
     expect(store.get(key(A, B, 42))).toMatchObject({ seq: 7, updatedAt: 1000 });
   });
 
-  it("TC-SD-022-03 seq sama tidak mengubah apa pun", () => {
+  it("TC-SD-022-03 the same seq changes nothing", () => {
     let t = 1000;
     const store = memory(() => t);
     store.upsert(CIRCLE, v(A, B, 42, 7), SIG);
     t = 2000;
-    expect(store.upsert(CIRCLE, v(A, B, 42, 7, "999"), "ed25519:other"), "tidak berubah").toBe(false);
+    expect(store.upsert(CIRCLE, v(A, B, 42, 7, "999"), "ed25519:other"), "unchanged").toBe(false);
     expect(store.get(key(A, B, 42))).toMatchObject({ cumulativeAmount: "140000", signature: SIG, updatedAt: 1000 });
   });
 
@@ -77,7 +77,7 @@ describe("SD-022 PendingStore", () => {
     });
   });
 
-  it("TC-SD-022-05 kunci utama (payer, payee, epoch)", () => {
+  it("TC-SD-022-05 primary key (payer, payee, epoch)", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 1), SIG);
     store.upsert(CIRCLE, v(A, C, 42, 1), SIG);
@@ -86,7 +86,7 @@ describe("SD-022 PendingStore", () => {
     expect(store.listByPayer(CIRCLE, A, 43)).toHaveLength(1);
   });
 
-  it("TC-SD-022-06 catatan percobaan lalu sukses", () => {
+  it("TC-SD-022-06 attempt record, then success", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 3), SIG);
     store.recordFailure(key(A, B, 42), "ERR_X");
@@ -99,7 +99,7 @@ describe("SD-022 PendingStore", () => {
     expect(row.registeredSeq).toBe(row.seq);
   });
 
-  it("TC-SD-022-07 query per payer dan epoch", () => {
+  it("TC-SD-022-07 query by payer and epoch", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 1), SIG);
     store.upsert(CIRCLE, v(A, C, 42, 1), SIG);
@@ -108,7 +108,7 @@ describe("SD-022 PendingStore", () => {
     expect(rows.map((r) => [r.payee, r.epoch])).toEqual([[C, 42], [B, 42]].sort((x, y) => String(x[0]).localeCompare(String(y[0]))));
   });
 
-  it("TC-SD-022-08 tulis berurutan seq 8 lalu 9 (atau terbalik) berakhir seq 9", () => {
+  it("TC-SD-022-08 writing seq 8 then 9 (or reversed) ends at seq 9", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 9), SIG);
     store.upsert(CIRCLE, v(A, B, 42, 8), SIG);
@@ -119,7 +119,7 @@ describe("SD-022 PendingStore", () => {
     expect(other.get(key(A, B, 42))?.seq).toBe(9);
   });
 
-  it("TC-SD-022-10 jumlah U128 di atas 2^64 tersimpan tepat", () => {
+  it("TC-SD-022-10 a U128 amount above 2^64 is stored exactly", () => {
     const store = memory();
     const big = "18446744073709551617";
     store.upsert(CIRCLE, v(A, B, 42, 1, big), SIG);
@@ -130,7 +130,7 @@ describe("SD-022 PendingStore", () => {
     expect(store.get(key(A, B, 42))?.cumulativeAmount).toBe("340282366920938463463374607431768211455");
   });
 
-  it("baris baru setelah gagal tetap retrying dan menyimpan registered_*", () => {
+  it("a new row after a failure stays retrying and keeps registered_*", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 1), SIG);
     store.recordRegistered(key(A, B, 42), 1, "20000");
@@ -145,7 +145,7 @@ describe("SD-022 PendingStore", () => {
 });
 
 describe("SD-048 kolom bundle_id", () => {
-  it("TC-SD-048-10 bundle_id tersimpan, naik bersama seq, dan null untuk voucher biasa", () => {
+  it("TC-SD-048-10 bundle_id is stored, rises with seq, and is null for a normal voucher", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 1), SIG, 7);
     store.upsert(CIRCLE, v(A, C, 42, 1), SIG);
@@ -156,7 +156,7 @@ describe("SD-048 kolom bundle_id", () => {
     expect(store.listByPayer(CIRCLE, A, 42).map((r) => r.bundleId)).toEqual([null, 7]);
   });
 
-  it("TC-SD-048-11 basis data lama tanpa kolom bundle_id dimigrasi saat dibuka", () => {
+  it("TC-SD-048-11 an old database without the bundle_id column is migrated when opened", () => {
     const dir = mkdtempSync(join(tmpdir(), "x207-pending-"));
     dirs.push(dir);
     const path = join(dir, "pending.sqlite");

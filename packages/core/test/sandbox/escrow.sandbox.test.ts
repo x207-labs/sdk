@@ -12,13 +12,13 @@ import { MOCK_NFT_WASM, sandboxAvailable } from "../../../../test-support/sandbo
 const OUT = fileURLToPath(new URL("../../../../spec/test-vectors/events/sandbox/", import.meta.url));
 const PRICE = "10000000";
 
-describe.skipIf(!sandboxAvailable)("SD-050 escrow kelas A di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-050 class A escrow on near-sandbox", () => {
   let fx: CircleFixture;
   afterAll(async () => {
     await fx?.stop();
   });
 
-  it("TC-SD-050-11 log nyata escrow_held dan escrow_failed ter-parse; get_escrow cocok dengan EscrowView", async () => {
+  it("TC-SD-050-11 real escrow_held and escrow_failed logs parse; get_escrow matches EscrowView", async () => {
     fx = await deployCircle();
     const lines = new Map<string, string>();
     const collect = (logs: string[]) => {

@@ -30,7 +30,7 @@ const keys = Object.fromEntries(
 );
 write("keys.json", {
   name: "keys",
-  description: "Seed ed25519 32 byte: 0x01 kA (translator), 0x02 kB, 0x03 kC, 0x04 kD, 0x05 kunci S/P/X/L, 0x0f kZ (penyerang, tidak terdaftar).",
+  description: "32-byte ed25519 seeds: 0x01 kA (translator), 0x02 kB, 0x03 kC, 0x04 kD, 0x05 the S/P/X/L keys, 0x0f kZ (attacker, not registered).",
   keys,
 });
 
@@ -108,7 +108,7 @@ seqCase("seq_backwards", 136, 137);
 
 write("voucher/past_cutoff.json", {
   name: "past_cutoff",
-  description: "epoch belum di-close_epoch: get_epoch tanpa argumen masih epoch 42 fase cutoff (K-28).",
+  description: "epoch not yet closed with close_epoch: get_epoch without an argument still answers epoch 42 in phase cutoff (K-28).",
   input: {
     voucher: signed,
     publicKey,

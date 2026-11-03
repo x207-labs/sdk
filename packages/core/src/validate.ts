@@ -86,124 +86,124 @@ const nested = (prefix: string, found: Issue | null): Issue | null =>
 /** Voucher menolak key asing: field di luar byte kanonik tidak ikut ditandatangani. */
 function checkKeys(value: Record<string, unknown>, allowed: readonly string[]): Issue | null {
   const unknownKey = Object.keys(value).find((key) => !allowed.includes(key));
-  return unknownKey === undefined ? null : issue(unknownKey, "field tidak dikenal");
+  return unknownKey === undefined ? null : issue(unknownKey, "unknown field");
 }
 
 function checkVoucherFields(v: Record<string, unknown>): Issue | null {
   return firstIssue([
-    ["circle", isAccountId(v.circle), "harus akun NEAR"],
-    ["payer", isAccountId(v.payer), "harus akun NEAR"],
-    ["payee", isAccountId(v.payee), "harus akun NEAR"],
-    ["epoch", isSafeUint(v.epoch, 1), "harus integer >= 1"],
-    ["seq", isSafeUint(v.seq, 1), "harus integer >= 1"],
-    ["cumulativeAmount", isU128String(v.cumulativeAmount), "harus string U128 desimal tanpa nol di depan"],
-    ["unit", v.unit === CREDIT_UNIT, 'harus "credit"'],
-    ["resource", typeof v.resource === "string" && ASCII.test(v.resource), "harus string ASCII"],
+    ["circle", isAccountId(v.circle), "must be a NEAR account"],
+    ["payer", isAccountId(v.payer), "must be a NEAR account"],
+    ["payee", isAccountId(v.payee), "must be a NEAR account"],
+    ["epoch", isSafeUint(v.epoch, 1), "must be an integer >= 1"],
+    ["seq", isSafeUint(v.seq, 1), "must be an integer >= 1"],
+    ["cumulativeAmount", isU128String(v.cumulativeAmount), "must be a decimal U128 string with no leading zeros"],
+    ["unit", v.unit === CREDIT_UNIT, 'must be "credit"'],
+    ["resource", typeof v.resource === "string" && ASCII.test(v.resource), "must be an ASCII string"],
   ]);
 }
 
 const checkUnsignedVoucher: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   return checkVoucherFields(value) ?? checkKeys(value, UNSIGNED_VOUCHER_KEYS);
 };
 
 const checkVoucher: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   return (
     checkVoucherFields(value) ??
-    firstIssue([["signature", isSignatureString(value.signature), "harus ed25519:<base58>"]]) ??
+    firstIssue([["signature", isSignatureString(value.signature), "must be ed25519:<base58>"]]) ??
     checkKeys(value, VOUCHER_KEYS)
   );
 };
 
 const checkExtra: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   return firstIssue([
-    ["circleContract", isAccountId(value.circleContract), "harus akun NEAR"],
-    ["unit", value.unit === CREDIT_UNIT, 'harus "credit"'],
-    ["decimals", value.decimals === CREDIT_DECIMALS, "harus 6"],
-    ["epoch", isSafeUint(value.epoch, 1), "harus integer >= 1"],
-    ["grantId", value.grantId === undefined || isSafeUint(value.grantId, 1), "harus integer >= 1 bila ada"],
+    ["circleContract", isAccountId(value.circleContract), "must be a NEAR account"],
+    ["unit", value.unit === CREDIT_UNIT, 'must be "credit"'],
+    ["decimals", value.decimals === CREDIT_DECIMALS, "must be 6"],
+    ["epoch", isSafeUint(value.epoch, 1), "must be an integer >= 1"],
+    ["grantId", value.grantId === undefined || isSafeUint(value.grantId, 1), "must be an integer >= 1 if present"],
   ]);
 };
 
 const checkRequirements: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   return (
     firstIssue([
-      ["scheme", value.scheme === "batch-settlement", 'harus "batch-settlement"'],
-      ["network", isCircleNetwork(value.network), "harus x207:<circleId> yang lolos regex CAIP-2"],
-      ["amount", isU128String(value.amount) && value.amount !== "0", "harus string bilangan bulat > 0"],
-      ["asset", value.asset === "USD", 'harus "USD"'],
-      ["payTo", isAccountId(value.payTo), "harus akun NEAR"],
-      ["maxTimeoutSeconds", isSafeUint(value.maxTimeoutSeconds, 1), "harus integer >= 1"],
+      ["scheme", value.scheme === "batch-settlement", 'must be "batch-settlement"'],
+      ["network", isCircleNetwork(value.network), "must be x207:<circleId> matching the CAIP-2 regex"],
+      ["amount", isU128String(value.amount) && value.amount !== "0", "must be an integer string > 0"],
+      ["asset", value.asset === "USD", 'must be "USD"'],
+      ["payTo", isAccountId(value.payTo), "must be a NEAR account"],
+      ["maxTimeoutSeconds", isSafeUint(value.maxTimeoutSeconds, 1), "must be an integer >= 1"],
     ]) ?? nested("extra", checkExtra(value.extra))
   );
 };
 
 const checkPayload: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   return (
     nested("voucher", checkUnsignedVoucher(value.voucher)) ??
     firstIssue([
-      ["signature", isSignatureString(value.signature), "harus ed25519:<base58>"],
-      ["bundleId", value.bundleId === undefined || isSafeUint(value.bundleId, 0), "harus integer >= 0 bila ada"],
+      ["signature", isSignatureString(value.signature), "must be ed25519:<base58>"],
+      ["bundleId", value.bundleId === undefined || isSafeUint(value.bundleId, 0), "must be an integer >= 0 if present"],
     ])
   );
 };
 
 const checkPaymentPayload: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   return (
-    firstIssue([["x402Version", value.x402Version === 2, "harus 2"]]) ??
+    firstIssue([["x402Version", value.x402Version === 2, "must be 2"]]) ??
     nested("accepted", checkRequirements(value.accepted)) ??
     nested("payload", checkPayload(value.payload))
   );
 };
 
 const checkSettleExtension = (value: unknown, success: boolean): Issue | null => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   if (success || "registration" in value) {
     return firstIssue([
-      ["epoch", isSafeUint(value.epoch, 1), "harus integer >= 1"],
-      ["seq", isSafeUint(value.seq, 1), "harus integer >= 1"],
-      ["cumulativeAmount", isU128String(value.cumulativeAmount), "harus string U128"],
-      ["registration", includes(REGISTRATION_STATES, value.registration), "harus pending, registered, atau retrying"],
+      ["epoch", isSafeUint(value.epoch, 1), "must be an integer >= 1"],
+      ["seq", isSafeUint(value.seq, 1), "must be an integer >= 1"],
+      ["cumulativeAmount", isU128String(value.cumulativeAmount), "must be a U128 string"],
+      ["registration", includes(REGISTRATION_STATES, value.registration), "must be pending, registered, or retrying"],
     ]);
   }
   return firstIssue([
-    ["epoch", isSafeUint(value.epoch, 1), "harus integer >= 1"],
-    ["lastSeq", isSafeUint(value.lastSeq, 0), "harus integer >= 0"],
-    ["lastCumulativeAmount", isU128String(value.lastCumulativeAmount), "harus string U128"],
+    ["epoch", isSafeUint(value.epoch, 1), "must be an integer >= 1"],
+    ["lastSeq", isSafeUint(value.lastSeq, 0), "must be an integer >= 0"],
+    ["lastCumulativeAmount", isU128String(value.lastCumulativeAmount), "must be a U128 string"],
   ]);
 };
 
 const checkSettleResponse: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   const success = value.success === true;
   const found = firstIssue([
-    ["success", typeof value.success === "boolean", "harus boolean"],
-    ["network", isCircleNetwork(value.network), "harus x207:<circleId>"],
+    ["success", typeof value.success === "boolean", "must be a boolean"],
+    ["network", isCircleNetwork(value.network), "must be x207:<circleId>"],
     [
       "transaction",
       success
         ? typeof value.transaction === "string" && COMMITMENT_ID.test(value.transaction)
         : typeof value.transaction === "string",
-      success ? "harus commitment id <payer>:<payee>:<epoch>:<seq>" : "harus string",
+      success ? "must be the commitment id <payer>:<payee>:<epoch>:<seq>" : "must be a string",
     ],
-    ["payer", value.payer === undefined || isAccountId(value.payer), "harus akun NEAR"],
-    ["errorReason", success || typeof value.errorReason === "string", "wajib saat success false"],
+    ["payer", value.payer === undefined || isAccountId(value.payer), "must be a NEAR account"],
+    ["errorReason", success || typeof value.errorReason === "string", "required when success is false"],
   ]);
   if (found) return found;
   if (value.extensions === undefined) {
-    return success ? issue("extensions.x207", "wajib saat success true") : null;
+    return success ? issue("extensions.x207", "required when success is true") : null;
   }
-  if (!isRecord(value.extensions)) return issue("extensions", "harus objek");
+  if (!isRecord(value.extensions)) return issue("extensions", "must be an object");
   return nested("extensions.x207", checkSettleExtension(value.extensions.x207, success));
 };
 
 const checkReportMember: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   const optionalU128 = (field: unknown) => field === undefined || isU128String(field);
   const status = value.status;
   const settlement = value.settlement;
@@ -213,35 +213,35 @@ const checkReportMember: Check = (value) => {
     : status === 202 ? [undefined, "claimable"]
     : [undefined, "defaulted"];
   return firstIssue([
-    ["account", isAccountId(value.account), "harus akun NEAR"],
-    ["status", isReportMemberStatus(status), "harus 200, 402, 202, atau 409"],
-    ["net", typeof value.net === "string" && SIGNED_STRING.test(value.net), "harus string bilangan bulat bertanda"],
-    ["settlement", settlementOf.includes(settlement), "tidak cocok dengan status"],
-    ["cleared", optionalU128(value.cleared), "harus string U128"],
-    ["amount", optionalU128(value.amount), "harus string U128"],
-    ["haircut", optionalU128(value.haircut), "harus string U128"],
-    ["due", status !== 402 || typeof value.due === "string", "wajib saat status 402"],
-    ["claimable", status !== 202 || typeof value.claimable === "boolean", "wajib saat status 202"],
-    ["stakeSlashed", status !== 409 || isU128String(value.stakeSlashed), "wajib saat status 409"],
+    ["account", isAccountId(value.account), "must be a NEAR account"],
+    ["status", isReportMemberStatus(status), "must be 200, 402, 202, or 409"],
+    ["net", typeof value.net === "string" && SIGNED_STRING.test(value.net), "must be a signed integer string"],
+    ["settlement", settlementOf.includes(settlement), "does not match status"],
+    ["cleared", optionalU128(value.cleared), "must be a U128 string"],
+    ["amount", optionalU128(value.amount), "must be a U128 string"],
+    ["haircut", optionalU128(value.haircut), "must be a U128 string"],
+    ["due", status !== 402 || typeof value.due === "string", "required when status is 402"],
+    ["claimable", status !== 202 || typeof value.claimable === "boolean", "required when status is 202"],
+    ["stakeSlashed", status !== 409 || isU128String(value.stakeSlashed), "required when status is 409"],
   ]);
 };
 
 const checkClearingReport: Check = (value) => {
-  if (!isRecord(value)) return issue("", "harus objek");
+  if (!isRecord(value)) return issue("", "must be an object");
   const found = firstIssue([
-    ["epoch", isSafeUint(value.epoch, 1), "harus integer >= 1"],
-    ["cleared", value.cleared === null || isU128String(value.cleared), "harus string U128 atau null"],
+    ["epoch", isSafeUint(value.epoch, 1), "must be an integer >= 1"],
+    ["cleared", value.cleared === null || isU128String(value.cleared), "must be a U128 string or null"],
     [
       "clearedRatio",
       value.clearedRatio === null ||
         (typeof value.clearedRatio === "number" && value.clearedRatio >= 0 && value.clearedRatio <= 1),
-      "harus angka 0..1 atau null",
+      "must be a number 0..1 or null",
     ],
-    ["phase", value.phase === undefined || isEpochPhase(value.phase), "bukan EpochPhase"],
-    ["network", value.network === undefined || isCircleNetwork(value.network), "harus x207:<circleId>"],
-    ["unit", value.unit === undefined || value.unit === CREDIT_UNIT, 'harus "credit"'],
-    ["decimals", value.decimals === undefined || value.decimals === CREDIT_DECIMALS, "harus 6"],
-    ["members", Array.isArray(value.members), "harus array"],
+    ["phase", value.phase === undefined || isEpochPhase(value.phase), "is not an EpochPhase"],
+    ["network", value.network === undefined || isCircleNetwork(value.network), "must be x207:<circleId>"],
+    ["unit", value.unit === undefined || value.unit === CREDIT_UNIT, 'must be "credit"'],
+    ["decimals", value.decimals === undefined || value.decimals === CREDIT_DECIMALS, "must be 6"],
+    ["members", Array.isArray(value.members), "must be an array"],
   ]);
   if (found) return found;
   const members = value.members as unknown[];

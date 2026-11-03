@@ -33,8 +33,8 @@ export class DailyRent {
   #stopped = false;
 
   constructor(options: DailyRentOptions) {
-    if (!isAmount(options.dailyPrice) || BigInt(options.dailyPrice) === 0n) fail("rent_bad_cap", "dailyPrice harus bilangan bulat desimal > 0");
-    if (options.dailyCap !== undefined && !isAmount(options.dailyCap)) fail("rent_bad_cap", "dailyCap harus bilangan bulat desimal");
+    if (!isAmount(options.dailyPrice) || BigInt(options.dailyPrice) === 0n) fail("rent_bad_cap", "dailyPrice must be a decimal integer > 0");
+    if (options.dailyCap !== undefined && !isAmount(options.dailyCap)) fail("rent_bad_cap", "dailyCap must be a decimal integer");
     this.#o = options;
   }
 
@@ -55,14 +55,14 @@ export class DailyRent {
    * langsung ke penyedia (`directCheck`, mis. mencoba masuk) berhasil: akses yang dicabut lebih awal tidak dibayar lagi.
    */
   async checkBeforeNextDay(view: AccessView, directCheck?: () => Promise<boolean>): Promise<void> {
-    if (this.#stopped) fail("rent_stopped", "sewa sudah dihentikan");
+    if (this.#stopped) fail("rent_stopped", "the rent has already been stopped");
     await checkAccessBeforeNextDay({ grantId: this.#o.grantId, view, nowMs: this.#o.now(), ...(directCheck ? { directCheck } : {}) });
   }
 
   /** Voucher untuk satu hari sewa di atas keadaan pasangan di `epoch`; `day` (mis. `2026-11-04`) mencegah membayar hari yang sama dua kali. */
   signDay(args: { day: string; epoch: number; state: { seq: number; cumulativeAmount: U128String } }): Voucher {
-    if (this.#stopped) fail("rent_stopped", "sewa sudah dihentikan");
-    if (this.#lastDay === args.day) fail("rent_day_already_paid", `hari ${args.day} sudah dibayar`);
+    if (this.#stopped) fail("rent_stopped", "the rent has already been stopped");
+    if (this.#lastDay === args.day) fail("rent_day_already_paid", `day ${args.day} is already paid`);
     const voucher: UnsignedVoucher = {
       circle: this.#o.circle, payer: this.#o.payer, payee: this.#o.payee, epoch: args.epoch, seq: args.state.seq + 1,
       cumulativeAmount: (BigInt(args.state.cumulativeAmount) + BigInt(this.#o.dailyPrice)).toString(), unit: CREDIT_UNIT, resource: `x207:grant:${this.#o.grantId}`,
@@ -79,13 +79,13 @@ export class DailyRent {
    * Mengembalikan jumlah yang boleh ditandatangani.
    */
   checkBill(billed: U128String): U128String {
-    if (!isAmount(billed)) fail("rent_bad_state", `tagihan harus bilangan bulat desimal, dapat ${JSON.stringify(billed)}`);
+    if (!isAmount(billed)) fail("rent_bad_state", `bill must be a decimal integer, got ${JSON.stringify(billed)}`);
     const cap = this.#o.dailyCap;
     if (BigInt(billed) === 0n) return billed;
-    if (cap === undefined) return fail("rent_bill_over_cap", "akses ini tanpa batas harian, jadi tidak boleh ditagih biaya nyata");
+    if (cap === undefined) return fail("rent_bill_over_cap", "this access has no daily limit, so a real charge must not be billed");
     if (BigInt(billed) > BigInt(cap)) {
       this.#stopped = true;
-      return fail("rent_bill_over_cap", `tagihan ${billed} di atas batas harian ${cap}: tidak ditandatangani, sewa dihentikan`);
+      return fail("rent_bill_over_cap", `bill ${billed} is above the daily limit ${cap}: not signed, rent stopped`);
     }
     return billed;
   }

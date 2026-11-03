@@ -54,14 +54,14 @@ export class MeteredJob {
   #aborted = false;
 
   constructor(options: MeteredJobOptions) {
-    if (!Number.isSafeInteger(options.chunks) || options.chunks < 1) throw new MeterRejection(`chunks harus bilangan bulat >= 1, dapat ${options.chunks}`);
+    if (!Number.isSafeInteger(options.chunks) || options.chunks < 1) throw new MeterRejection(`chunks must be an integer >= 1, got ${options.chunks}`);
     const maxUnpaid = options.maxUnpaidChunks ?? 1;
-    if (!Number.isSafeInteger(maxUnpaid) || maxUnpaid < 1) throw new MeterRejection("maxUnpaidChunks harus bilangan bulat >= 1");
+    if (!Number.isSafeInteger(maxUnpaid) || maxUnpaid < 1) throw new MeterRejection("maxUnpaidChunks must be an integer >= 1");
     const text = typeof options.chunkQuantity === "number" ? options.chunkQuantity.toFixed(6) : options.chunkQuantity.trim();
     const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(text.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, ""));
-    if (!match) throw new MeterRejection(`chunkQuantity harus angka desimal > 0 dengan paling banyak 6 desimal, dapat ${JSON.stringify(options.chunkQuantity)}`);
+    if (!match) throw new MeterRejection(`chunkQuantity must be a decimal number > 0 with at most 6 decimals, got ${JSON.stringify(options.chunkQuantity)}`);
     const quantityMicro = BigInt(match[1]!) * 10n ** BigInt(CREDIT_DECIMALS) + BigInt((match[2] ?? "").padEnd(6, "0"));
-    if (quantityMicro <= 0n) throw new MeterRejection("chunkQuantity harus > 0");
+    if (quantityMicro <= 0n) throw new MeterRejection("chunkQuantity must be > 0");
     this.jobId = options.jobId;
     this.unit = options.unit;
     this.totalChunks = options.chunks;
@@ -76,7 +76,7 @@ export class MeteredJob {
 
   /** Jumlah kumulatif voucher yang melunasi potongan ke-`k` (1 sampai total): bahan voucher berikutnya di sisi klien. */
   cumulativeFor(chunk: number): string {
-    if (!Number.isSafeInteger(chunk) || chunk < 1 || chunk > this.totalChunks) throw new MeterRejection(`potongan harus 1 sampai ${this.totalChunks}, dapat ${chunk}`);
+    if (!Number.isSafeInteger(chunk) || chunk < 1 || chunk > this.totalChunks) throw new MeterRejection(`chunk must be 1 to ${this.totalChunks}, got ${chunk}`);
     return (this.chunkAmount * BigInt(chunk)).toString();
   }
 
@@ -85,11 +85,11 @@ export class MeteredJob {
    * di atas harga seluruh job ditolak (`overpayment`).
    */
   pay(cumulativeAmount: string): MeteredJobSummary {
-    if (this.#aborted) throw new MeterRejection("job sudah dihentikan");
-    if (!/^(0|[1-9]\d*)$/.test(cumulativeAmount)) throw new MeterRejection(`cumulativeAmount harus bilangan bulat desimal, dapat ${JSON.stringify(cumulativeAmount)}`);
+    if (this.#aborted) throw new MeterRejection("the job has already been stopped");
+    if (!/^(0|[1-9]\d*)$/.test(cumulativeAmount)) throw new MeterRejection(`cumulativeAmount must be a decimal integer, got ${JSON.stringify(cumulativeAmount)}`);
     const amount = BigInt(cumulativeAmount);
-    if (amount < this.#cumulative) throw new MeterRejection("cumulative_decreased: voucher lebih kecil dari yang sudah diterima");
-    if (amount > this.chunkAmount * BigInt(this.totalChunks)) throw new MeterRejection("overpayment: voucher di atas harga seluruh job");
+    if (amount < this.#cumulative) throw new MeterRejection("cumulative_decreased: voucher is smaller than what was already received");
+    if (amount > this.chunkAmount * BigInt(this.totalChunks)) throw new MeterRejection("overpayment: voucher is above the price of the whole job");
     this.#cumulative = amount;
     return this.summary();
   }
@@ -105,15 +105,15 @@ export class MeteredJob {
   /** Mulai potongan `next()`; melempar bila tidak boleh dimulai. */
   start(): number {
     const chunk = this.next();
-    if (chunk === null) throw new MeterRejection(`potongan berikut tidak boleh dimulai (status ${this.status()})`);
+    if (chunk === null) throw new MeterRejection(`the next chunk must not start (status ${this.status()})`);
     this.#started = chunk;
     return chunk;
   }
 
   /** Potongan yang sedang dikerjakan selesai. */
   complete(chunk: number): void {
-    if (this.#aborted) throw new MeterRejection("job sudah dihentikan");
-    if (chunk !== this.#started || this.#completed >= this.#started) throw new MeterRejection(`potongan ${chunk} tidak sedang dikerjakan`);
+    if (this.#aborted) throw new MeterRejection("the job has already been stopped");
+    if (chunk !== this.#started || this.#completed >= this.#started) throw new MeterRejection(`chunk ${chunk} is not being worked on`);
     this.#completed = chunk;
   }
 
