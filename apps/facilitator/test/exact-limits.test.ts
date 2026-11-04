@@ -93,7 +93,7 @@ describe("exact route limits", () => {
     const real = await signedBody();
     const forged = structuredClone(real);
     const raw = Buffer.from((forged.paymentPayload.payload as { signedDelegateAction: string }).signedDelegateAction, "base64");
-    raw[raw.length - 1] ^= 0xff; // break the signature, the sender id stays the victim's
+    raw[raw.length - 1]! ^= 0xff; // break the signature, the sender id stays the victim's
     (forged.paymentPayload.payload as { signedDelegateAction: string }).signedDelegateAction = raw.toString("base64");
     expect(verifiedExactPayer(forged.paymentPayload)).toBeUndefined();
     for (let i = 0; i < 3; i += 1) await post(app, "/settle", forged);
