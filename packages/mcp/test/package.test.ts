@@ -28,3 +28,24 @@ describe("SD-045: what npm publishes of @x207/mcp", () => {
     if (existsSync(new URL("dist/cli.js", root))) expect(readFileSync(new URL("dist/cli.js", root), "utf8").startsWith("#!/usr/bin/env node")).toBe(true);
   });
 });
+
+describe("UM-140: the entry for the official MCP Registry", () => {
+  const server = JSON.parse(readFileSync(new URL("server.json", root), "utf8")) as {
+    name: string; version: string; description: string;
+    packages: Array<{ registryType: string; identifier: string; version: string; transport: { type: string } }>;
+    remotes: Array<{ type: string; url: string }>;
+  };
+  const named = JSON.parse(readFileSync(new URL("package.json", root), "utf8")) as { name: string; mcpName?: string };
+
+  it("server.json names the same server as mcpName and the same version as package.json", () => {
+    expect(named.mcpName).toBe("io.github.x207-labs/x207-mcp");
+    expect(server.name).toBe(named.mcpName);
+    expect(server.version).toBe(pkg.version);
+    expect(server.packages[0]).toMatchObject({ registryType: "npm", identifier: named.name, version: pkg.version, transport: { type: "stdio" } });
+  });
+
+  it("the description fits the 100 characters of the registry and the remote is Streamable HTTP", () => {
+    expect(server.description.length).toBeLessThanOrEqual(100);
+    expect(server.remotes).toEqual([{ type: "streamable-http", url: "https://x207-mcp-production.up.railway.app/mcp" }]);
+  });
+});
