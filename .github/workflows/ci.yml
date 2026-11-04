@@ -10,4 +10,4 @@ permissions:
 
 jobs:
   ci:
-    uses: x207-labs/x207/.github/workflows/ci-node.yml@520bd51b764feadccdb546d3af4ef3d3a2034c0d # OP-001
+    uses: x207-labs/x207/.github/workflows/ci-node.yml@ce9eb3772f676392c6c168c995afdfa3a53456d3 # OP-001
