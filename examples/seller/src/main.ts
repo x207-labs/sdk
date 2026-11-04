@@ -1,4 +1,4 @@
-// Menjalankan penjual: `FACILITATOR_URL=… CIRCLE_ID=… PAY_TO=… npm run start -w @x207/example-seller`.
+// Runs the seller: `FACILITATOR_URL=… CIRCLE_ID=… PAY_TO=… npm run start -w @x207/example-seller`.
 import { serve } from "@hono/node-server";
 import { createSeller } from "./seller.js";
 
