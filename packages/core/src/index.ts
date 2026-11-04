@@ -26,3 +26,4 @@ export * from "./grantee-proof.js";
 export * from "./rent-check.js";
 export * from "./clearing-hash.js";
 export * from "./contract/proposal.js";
+export * from "./transfer.js";
