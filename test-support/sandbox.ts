@@ -52,11 +52,12 @@ const freePort = () =>
     });
   });
 
-async function rpcCall<T>(rpcUrl: string, method: string, params: unknown): Promise<T> {
+async function rpcCall<T>(rpcUrl: string, method: string, params: unknown, timeoutMs?: number): Promise<T> {
   const response = await fetch(rpcUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: "x", method, params }),
+    ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
   });
   const body = (await response.json()) as { result?: T; error?: unknown };
   if (body.error) throw new Error(`RPC ${method}: ${JSON.stringify(body.error)}`);
@@ -208,7 +209,17 @@ export class Sandbox {
 
   /** Advance `blocks` blocks at once (`sandbox_fast_forward`); block time advances too. */
   async fastForward(blocks: number): Promise<void> {
-    await rpcCall(this.rpcUrl, "sandbox_fast_forward", { delta_height: blocks });
+    // UM-134: on the shared CI runner a `sandbox_fast_forward` call sometimes never answered (UND_ERR_HEADERS_TIMEOUT after 5 minutes, then the whole file failed
+    // after 12 to 15 minutes). A call that does not answer in 90 seconds is sent again; advanceTo() measures the block time again, so a repeat never overshoots by more than one step.
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        await rpcCall(this.rpcUrl, "sandbox_fast_forward", { delta_height: blocks }, 90_000);
+        return;
+      } catch (error) {
+        if (attempt >= 4) throw error;
+        console.warn(`sandbox_fast_forward(${blocks}) attempt ${attempt} failed (${error instanceof Error ? (error.cause as { code?: string } | undefined)?.code ?? error.name : String(error)}); trying again`);
+      }
+    }
   }
 
   /** Advance until the block time reaches `targetMs` (unix ms). */
