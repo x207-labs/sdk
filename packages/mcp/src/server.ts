@@ -39,7 +39,7 @@ export interface ServerOptions {
 
 /** One MCP server with the tools of `transport`. The read tools read views of the contract and the read API and send nothing. The write tools exist only on stdio with a write configuration. */
 export function createX207McpServer(config: McpConfig, transport: Transport, options: ServerOptions = {}): McpServer {
-  const server = new McpServer({ name: "x207", version: options.version ?? "0.0.1" });
+  const server = new McpServer({ name: "x207", version: options.version ?? "0.0.2" });
   const ctx = contextFrom(config);
   const writeCfg = transport === "stdio" ? (options.write ?? null) : null;
   let tools: ToolDef[] = toolsFor(transport);

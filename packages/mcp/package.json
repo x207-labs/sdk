@@ -1,6 +1,6 @@
 {
   "name": "@x207/mcp",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MCP server for x207: read tools for a mutual-credit circle on NEAR (circle, members, epochs, clearing simulation, listings, orders) over stdio and Streamable HTTP",
   "keywords": [
     "mcp",
@@ -26,7 +26,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "x207-mcp": "./dist/cli.js"
+    "x207-mcp": "dist/cli.js"
   },
   "exports": {
     ".": {
