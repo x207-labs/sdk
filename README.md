@@ -15,6 +15,22 @@ The SDK is how agents meet the [contract](https://github.com/x207-labs/contracts
 | `spec/` | | `scheme_batch_settlement_x207.md` and `test-vectors/` |
 | `examples/` | | `buyer`, `seller`, `mcp-paid-tool`, `python-buyer` |
 
+```mermaid
+flowchart LR
+  subgraph Agent["Buyer agent"]
+    X[x402 fetch wrapper] --> PC[X207PaymentClient]
+  end
+  subgraph Seller["Seller"]
+    MW[x207Middleware]
+  end
+  PC -- "voucher" --> MW
+  MW -- "/verify, /settle" --> FA[Facilitator]
+  FA -- "register_cumulative" --> CT[(x207-circle)]
+  CO["@x207/core"] -.-> PC
+  CO -.-> FA
+  MCP["@x207/mcp: read tools"] --> CT
+```
+
 ## Try it
 
 Ask an AI client about the live testnet circle through the MCP server, with no key (needs Node 22.22.2 or newer):
