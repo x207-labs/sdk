@@ -1,6 +1,7 @@
 """NEP-413 style payload, sha256 signing hash and ed25519 signatures with the voucher key (ADR-06). Same bytes as `@x207/core`."""
 import hashlib
 import json
+import os
 import struct
 from typing import Union
 
@@ -53,6 +54,14 @@ def seed_of(secret_key: SecretKey) -> bytes:
 
 def public_key_of(secret_key: SecretKey) -> str:
     return PREFIX + b58encode(ed25519.public_key(seed_of(secret_key)))
+
+
+def generate_voucher_keypair() -> dict:
+    """A new voucher keypair, like `generateVoucherKeypair` of `@x207/core`: `{"secretKey": "ed25519:<base58 of seed + public key>", "publicKey": "ed25519:…"}`.
+    This key is not a NEAR access key (ADR-06). The seed comes from `os.urandom`."""
+    seed = os.urandom(32)
+    public = ed25519.public_key(seed)
+    return {"secretKey": PREFIX + b58encode(seed + public), "publicKey": PREFIX + b58encode(public)}
 
 
 def sign_hash(digest: bytes, secret_key: SecretKey) -> str:

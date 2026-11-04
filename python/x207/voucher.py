@@ -1,10 +1,28 @@
 """Credit voucher (ADR-17): canonical message, nonce, signing hash, signature. Format: `spec/voucher-format.md`."""
+import re
+
 from . import signing
-from ._check import is_account, is_int, is_uint_string, need, num
+from ._check import MAX_SAFE_INTEGER, is_account, is_int, is_uint_string, need, num
 from .signing import SecretKey, canonical_json, nep413_signing_hash, sha256
 
 UNSIGNED_KEYS = ("circle", "payer", "payee", "epoch", "seq", "cumulativeAmount", "unit", "resource")
 CREDIT_UNIT = "credit"
+_GRANT_RESOURCE = re.compile(r"^x207:grant:(0|[1-9]\d*)$", re.ASCII)
+
+
+def grant_resource(grant_id: int) -> str:
+    """The `resource` of a voucher that pays a grant: `x207:grant:<grantId>` (`grantResource` of `@x207/core`)."""
+    need(is_int(grant_id, 0), "grant id must be an integer >= 0")
+    return f"x207:grant:{num(grant_id)}"
+
+
+def parse_grant_resource(resource):
+    """Inverse of `grant_resource`; `None` when `resource` is not a grant resource."""
+    match = _GRANT_RESOURCE.match(resource) if isinstance(resource, str) else None
+    if match is None:
+        return None
+    grant_id = int(match.group(1))
+    return grant_id if grant_id <= MAX_SAFE_INTEGER else None
 
 
 def validate_unsigned_voucher(voucher: dict) -> None:
