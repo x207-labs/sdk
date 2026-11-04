@@ -19,7 +19,7 @@ const nearKey = generateVoucherKeypair(); // any ed25519 pair stands for the NEA
 const h64 = (c: string) => c.repeat(64);
 
 const cfg = (over: Partial<WriteConfig> = {}): WriteConfig => ({
-  account: AGENT, voucherKey: voucher.secretKey, nearKey: null, maxSpendSession: 1_000_000n, maxPricePerCall: 100_000n, allowedCounterparties: [], allowOutflows: false, allowFullAccessKey: false, ...over,
+  account: AGENT, voucherKey: voucher.secretKey, nearKey: null, maxSpendSession: 1_000_000n, maxPricePerCall: 100_000n, allowedCounterparties: [], allowOutflows: false, allowFullAccessKey: false, allowPrivateUrls: false, ...over,
 });
 
 /** Active members: the agent, the seller and a few others; `ghost` is not a member and `suspended` is not active. */
@@ -32,8 +32,9 @@ function world(over: Partial<Mock["viewAnswers"]> = {}): Mock {
   return m;
 }
 
-async function connect(m: Mock, write: WriteConfig | null, extra: { send?: (c: ContractCall) => Promise<unknown>; now?: () => number } = {}, transport: "stdio" | "http" = "stdio") {
-  const server = createX207McpServer(m.config, transport, { write, ...extra });
+async function connect(m: Mock, write: WriteConfig | null, extra: { send?: (c: ContractCall) => Promise<unknown>; now?: () => number; resolve?: (h: string) => Promise<string[]> } = {}, transport: "stdio" | "http" = "stdio") {
+  // a name resolves to a public address unless a test says otherwise: the mock sellers have no DNS
+  const server = createX207McpServer(m.config, transport, { write, resolve: async () => ["93.184.216.34"], ...extra });
   const client = new Client({ name: "write-test", version: "0" });
   const [a, b] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(a), client.connect(b)]);
@@ -386,5 +387,58 @@ describe("SD-082: the NEAR tools with a sender that records", () => {
     expect(r.isError).toBe(true);
     expect(r.text).toContain("[key]");
     for (const secret of [nearKey.secretKey, voucher.secretKey, nearKey.secretKey.slice(8), voucher.secretKey.slice(8)]) expect(r.text).not.toContain(secret);
+  });
+
+});
+
+describe("SD-082 fix (security review batch 8): x207_pay_request and the network", () => {
+  it("TC-SD-082-21 a URL that points at this machine, a private network or the metadata service is refused before any request, by address and by name", async () => {
+    const m = world();
+    const hits = seller(m, "1000");
+    const { call } = await connect(m, cfg());
+    for (const url of [
+      "http://127.0.0.1:8080/x", "http://localhost/x", "http://169.254.169.254/latest/meta-data/", "http://10.0.0.5/x", "http://192.168.1.10/x", "http://172.16.0.1/x", "http://100.64.0.1/x", "http://0.0.0.0/x",
+      "http://[::1]/x", "http://[fe80::1]/x", "http://[fd00::1]/x", "http://[::ffff:127.0.0.1]/x", "http://[::ffff:7f00:1]/x", "http://service.internal/x", "http://printer.local/x", "http://app.localhost/x",
+    ]) {
+      const r = await call("x207_pay_request", { url });
+      expect(r.isError, url).toBe(true);
+      expect(r.text, url).toMatch(/^refused: /);
+    }
+    expect(hits).toEqual([]);
+  });
+
+  it("TC-SD-082-22 a name that resolves to a private address (DNS pointing inside) is refused; one that resolves to a public address passes; X207_ALLOW_PRIVATE_URLS=1 turns the guard off", async () => {
+    const m = world();
+    const hits = seller(m, "1000");
+    const inside = await (await connect(m, cfg(), { resolve: async () => ["93.184.216.34", "10.1.2.3"] })).call("x207_pay_request", { url: "https://seller.test/api" });
+    expect(inside.isError).toBe(true);
+    expect(inside.text).toMatch(/seller\.test resolves to 10\.1\.2\.3/);
+    const unresolved = await (await connect(m, cfg(), { resolve: async () => { throw new Error("ENOTFOUND"); } })).call("x207_pay_request", { url: "https://seller.test/api" });
+    expect(unresolved.text).toMatch(/could not be resolved/);
+    expect(hits).toEqual([]);
+    expect((await (await connect(m, cfg())).call("x207_pay_request", { url: "https://seller.test/api" })).json.status).toBe(200);
+    m.other = () => new Response("local", { status: 200 });
+    expect((await (await connect(m, cfg({ allowPrivateUrls: true }))).call("x207_pay_request", { url: "http://127.0.0.1:9/x" })).json.body).toBe("local");
+  });
+
+  it("TC-SD-082-23 a redirect is not followed (a redirect to a private address would walk around the guard), and the answer says where it points", async () => {
+    const m = world();
+    const seen: string[] = [];
+    m.other = (url) => {
+      seen.push(url);
+      return new Response("", { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } });
+    };
+    const r = await (await connect(m, cfg())).call("x207_pay_request", { url: "https://seller.test/api" });
+    expect(r.json).toMatchObject({ status: 302, location: "http://169.254.169.254/latest/meta-data/" });
+    expect(seen).toEqual(["https://seller.test/api"]);
+  });
+
+  it("TC-SD-082-24 a seller that streams more than the limit is cut at the limit and the call returns", async () => {
+    const m = world();
+    m.other = () => new Response(new Uint8Array(3 * 1024 * 1024).fill(66), { status: 200, headers: { "content-type": "text/plain" } });
+    const r = await (await connect(m, cfg())).call("x207_pay_request", { url: "https://seller.test/api" });
+    expect(r.isError).toBe(false);
+    expect(r.json.body.length).toBeLessThanOrEqual(50_000 + 20);
+    expect(r.json.body).toMatch(/… cut$/);
   });
 });

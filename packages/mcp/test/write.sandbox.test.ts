@@ -52,7 +52,7 @@ describe.skipIf(!sandboxAvailable)("SD-082 write tools in near-sandbox", () => {
       };
     };
     const base = (account: string, voucherKey: `ed25519:${string}`, nearKey: string, over: Partial<WriteConfig> = {}): WriteConfig => ({
-      account, voucherKey, nearKey: nearKey as `ed25519:${string}`, maxSpendSession: 50_000_000n, maxPricePerCall: 100_000n, allowedCounterparties: [], allowOutflows: true, allowFullAccessKey: true, ...over,
+      account, voucherKey, nearKey: nearKey as `ed25519:${string}`, maxSpendSession: 50_000_000n, maxPricePerCall: 100_000n, allowedCounterparties: [], allowOutflows: true, allowFullAccessKey: true, allowPrivateUrls: true, ...over, // the seller of this test runs on 127.0.0.1
     });
 
     // the seller: an ordinary member with its own tools of the test; the agent joins through MCP

@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { BackendGet, BackendPost } from "./backend.js";
 import type { McpConfig } from "./config.js";
 import { Guards, type NearKeyKind } from "./guards.js";
+import { assertPublicUrl, defaultResolver, readCapped, type HostResolver } from "./net-guard.js";
 import { ToolError, type ToolContext, type ToolDef } from "./tools.js";
 import type { WriteConfig } from "./write-config.js";
 
@@ -27,6 +28,8 @@ export interface WriteRuntime {
   payFetch: () => typeof fetch;
   post: BackendPost | null;
   now: () => number;
+  /** Resolves a host name for the SSRF guard of x207_pay_request. */
+  resolve: HostResolver;
 }
 
 const ACCOUNT = z.string().regex(/^[a-z0-9][a-z0-9._-]{1,63}$/, "a NEAR account id");
@@ -35,6 +38,9 @@ const AMOUNT = z.string().regex(/^[1-9]\d{0,37}$/, "a positive integer string in
 const EPOCH = z.number().int().min(1).max(4_294_967_295);
 const ASSET_TYPE = z.string().regex(/^[a-z0-9._:-]{1,64}$/, "lowercase asset type such as service:summary");
 const CLASS = z.enum(["A", "B", "C", "D"]);
+
+/** The most that x207_pay_request reads of one answer. */
+export const MAX_PAID_BODY_BYTES = 1_048_576;
 
 const w = (ctx: ToolContext): WriteRuntime => {
   if (ctx.write === undefined) throw new ToolError("the write tools are off: set X207_MCP_WRITE=1 (stdio only)");
@@ -107,14 +113,24 @@ export const WRITE_TOOLS: ToolDef[] = [
       const url = new URL(args.url as string);
       if (url.protocol !== "http:" && url.protocol !== "https:") throw new ToolError("refused: the URL must be http or https");
       if (url.username !== "" || url.password !== "") throw new ToolError("refused: the URL must not carry credentials");
-      const init: RequestInit = { method: args.method as string, ...(args.body !== undefined ? { body: args.body as string, headers: { "content-type": "application/json" } } : {}) };
+      // the URL comes from a model: a place that a paid request has no business with (the metadata service of a cloud machine, a service on this machine) is refused before anything is sent
+      if (!rt.cfg.allowPrivateUrls) {
+        try {
+          await assertPublicUrl(url, rt.resolve);
+        } catch (error) {
+          throw new ToolError((error as Error).message);
+        }
+      }
+      // no redirect is followed (a redirect to a private address would walk around the guard), the call has a time limit, and the answer is read up to a limit
+      const init: RequestInit = { method: args.method as string, redirect: "manual", signal: AbortSignal.timeout(30_000), ...(args.body !== undefined ? { body: args.body as string, headers: { "content-type": "application/json" } } : {}) };
       let response: Response;
       try {
         response = await rt.payFetch()(url.toString(), init);
       } catch (error) {
         throw new ToolError(`payment not made or request failed: ${(error as Error).message}`);
       }
-      const text = await response.text();
+      const { text, cut } = await readCapped(response, MAX_PAID_BODY_BYTES);
+      const location = response.status >= 300 && response.status < 400 ? response.headers.get("location") : null;
       const settle = response.headers.get("payment-response");
       let refusal: string | undefined;
       const required = response.headers.get("payment-required");
@@ -127,7 +143,8 @@ export const WRITE_TOOLS: ToolDef[] = [
       }
       return {
         status: response.status, ok: response.ok, paid: settle !== null, ...(refusal !== undefined ? { paymentRefusal: refusal } : {}), ...(settle !== null ? { paymentResponse: settle.slice(0, 2000) } : {}),
-        contentType: response.headers.get("content-type"), body: text.length > 50_000 ? `${text.slice(0, 50_000)}… cut` : text,
+        ...(location !== null ? { location, note: "a redirect is not followed by this tool" } : {}),
+        contentType: response.headers.get("content-type"), body: text.length > 50_000 ? `${text.slice(0, 50_000)}… cut` : cut ? `${text}… cut at ${MAX_PAID_BODY_BYTES} bytes` : text,
         session: { spent: rt.guards.spent.toString(), remaining: rt.guards.remaining.toString() },
       };
     },
@@ -371,7 +388,7 @@ export function availableWriteTools(rt: WriteRuntime, hasBackend: boolean): Tool
 /** Builds the runtime of the write tools from the configuration. The NEAR sender and the payment client are created on first use. */
 export function createWriteRuntime(
   config: McpConfig, cfg: WriteConfig, view: CircleViewFn,
-  deps: { post: BackendPost | null; send?: (call: ContractCall) => Promise<unknown>; now?: () => number } = { post: null },
+  deps: { post: BackendPost | null; send?: (call: ContractCall) => Promise<unknown>; now?: () => number; resolve?: HostResolver } = { post: null },
 ): WriteRuntime {
   const now = deps.now ?? Date.now;
   const fetchFn = config.fetch ?? fetch;
@@ -380,7 +397,7 @@ export function createWriteRuntime(
   let pay: typeof fetch | undefined;
   const guards = new Guards(cfg, view);
   return {
-    cfg, guards, post: deps.post, now,
+    cfg, guards, post: deps.post, now, resolve: deps.resolve ?? defaultResolver,
     send: async (call) => {
       if (sender === undefined) {
         const { createNearSender } = await import("@x207/core/signer");

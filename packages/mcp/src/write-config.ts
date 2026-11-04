@@ -9,6 +9,7 @@
 //   X207_MAX_PRICE_PER_CALL           largest amount of one payment, offer or milestone; default 100000 (0.1 credit)
 //   X207_ALLOWED_COUNTERPARTIES       comma separated accounts the agent may deal with; empty: any ACTIVE member of the circle
 //   X207_ALLOW_OUTFLOWS=1             turns on the tools that move USDT or NEAR out of the agent account into the circle (x207_join, x207_settle); default off
+//   X207_ALLOW_PRIVATE_URLS=1         lets x207_pay_request fetch a URL on this machine or in a private network; default off, because the URL comes from a model (SSRF)
 //   X207_ALLOW_FULL_ACCESS_KEY=1      lets the NEAR key be a full-access key. Why this exists: a function-call key cannot attach a deposit, and join, stake, settle and claim all
 //                                     attach one (NEAR protocol rule), so the tools that send those transactions need a full-access key of the AGENT account; without this flag they are off.
 import { voucherPublicKey } from "@x207/core";
@@ -23,6 +24,8 @@ export interface WriteConfig {
   allowedCounterparties: readonly string[];
   allowOutflows: boolean;
   allowFullAccessKey: boolean;
+  /** `X207_ALLOW_PRIVATE_URLS=1`: x207_pay_request may fetch a URL on this machine or in a private network (a seller you run yourself). Default off (SSRF guard). */
+  allowPrivateUrls: boolean;
 }
 
 const ACCOUNT = /^[a-z0-9][a-z0-9._-]{1,63}$/;
@@ -63,6 +66,7 @@ export function writeConfigFromEnv(env: Record<string, string | undefined> = pro
     allowedCounterparties: allowed,
     allowOutflows: env.X207_ALLOW_OUTFLOWS?.trim() === "1",
     allowFullAccessKey: env.X207_ALLOW_FULL_ACCESS_KEY?.trim() === "1",
+    allowPrivateUrls: env.X207_ALLOW_PRIVATE_URLS?.trim() === "1",
   };
 }
 

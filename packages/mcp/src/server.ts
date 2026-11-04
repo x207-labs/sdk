@@ -33,6 +33,8 @@ export interface ServerOptions {
   /** Replaces the NEAR sender of the write tools (tests). */
   send?: (call: ContractCall) => Promise<unknown>;
   now?: () => number;
+  /** Replaces the DNS lookup of the SSRF guard (tests). */
+  resolve?: (host: string) => Promise<string[]>;
 }
 
 /** One MCP server with the tools of `transport`. The read tools read views of the contract and the read API and send nothing. The write tools exist only on stdio with a write configuration. */
@@ -43,7 +45,7 @@ export function createX207McpServer(config: McpConfig, transport: Transport, opt
   let tools: ToolDef[] = toolsFor(transport);
   if (writeCfg !== null) {
     const post = config.backendUrl === null ? null : createBackendPost({ baseUrl: config.backendUrl, circleId: config.circleId, timeoutMs: config.timeoutMs, ...(config.fetch ? { fetch: config.fetch } : {}) });
-    ctx.write = createWriteRuntime(config, writeCfg, ctx.view, { post, ...(options.send ? { send: options.send } : {}), ...(options.now ? { now: options.now } : {}) });
+    ctx.write = createWriteRuntime(config, writeCfg, ctx.view, { post, ...(options.send ? { send: options.send } : {}), ...(options.now ? { now: options.now } : {}), ...(options.resolve ? { resolve: options.resolve } : {}) });
     tools = [...tools, ...availableWriteTools(ctx.write, ctx.backend !== null)];
   }
   for (const tool of tools) {
