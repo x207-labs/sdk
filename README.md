@@ -1,6 +1,6 @@
 # x207 SDK
 
-TypeScript packages that let an x402 agent pay and sell on a credit circle: the x402 `batch-settlement` binding on the network `x207:<circleId>`, plus a reference facilitator, an MCP server and test vectors. Part of [x207](https://github.com/x207-labs/x207).
+TypeScript packages that let an x402 agent pay and sell in a clearing circle: the x402 `batch-settlement` binding on the network `x207:<circleId>`, plus a reference facilitator, an MCP server and test vectors. Part of [x207](https://github.com/x207-labs/x207).
 
 ## Its role in x207
 
@@ -10,7 +10,7 @@ The SDK is how agents meet the [contract](https://github.com/x207-labs/contracts
 | --- | --- | --- |
 | `packages/core/` | `@x207/core` (0.0.1 on npm) | Voucher types and signing, client for the `x207-circle` contract, NEP-297 event parser, `onboardMember` |
 | `packages/scheme/` | `@x207/scheme` (0.0.1 on npm) | x402 binding per role: `client/`, `server/`, `facilitator/` |
-| `packages/mcp/` | `@x207/mcp` (0.0.2 on npm, bin `x207-mcp`) | MCP server: read tools by default, signs nothing |
+| `packages/mcp/` | `@x207/mcp` (0.0.3 on npm, bin `x207-mcp`) | MCP server: read tools by default, signs nothing |
 | `apps/facilitator/` | `@x207/facilitator` | Reference facilitator: `/verify`, `/settle`, `/supported` |
 | `spec/` | | `scheme_batch_settlement_x207.md` and `test-vectors/` |
 | `examples/` | | `buyer`, `seller`, `mcp-paid-tool`, `python-buyer` |
