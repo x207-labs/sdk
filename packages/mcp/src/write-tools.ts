@@ -13,7 +13,7 @@ import { z } from "zod";
 import type { BackendGet, BackendPost } from "./backend.js";
 import type { McpConfig } from "./config.js";
 import { Guards, type NearKeyKind } from "./guards.js";
-import { assertPublicUrl, defaultResolver, readCapped, type HostResolver } from "./net-guard.js";
+import { assertPublicUrl, createPinnedFetch, defaultResolver, readCapped, type HostResolver } from "./net-guard.js";
 import { ToolError, type ToolContext, type ToolDef } from "./tools.js";
 import type { WriteConfig } from "./write-config.js";
 
@@ -405,6 +405,8 @@ export function createWriteRuntime(
 ): WriteRuntime {
   const now = deps.now ?? Date.now;
   const fetchFn = config.fetch ?? fetch;
+  // M-2: the paid request connects only to the addresses that the guard checked (one lookup, pinned); X207_ALLOW_PRIVATE_URLS=1 and an injected fetch (tests) keep the plain fetch
+  const payBase = config.fetch === undefined && !cfg.allowPrivateUrls ? createPinnedFetch(deps.resolve ?? defaultResolver) : fetchFn;
   let sender = deps.send;
   let kind: NearKeyKind | undefined;
   let pay: typeof fetch | undefined;
@@ -438,7 +440,7 @@ export function createWriteRuntime(
             return { abort: true as const, reason: (error as Error).message };
           }
         });
-        pay = wrapFetchWithPayment(fetchFn, client);
+        pay = wrapFetchWithPayment(payBase, client);
       }
       return pay;
     },

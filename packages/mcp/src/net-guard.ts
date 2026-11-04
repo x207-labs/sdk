@@ -3,7 +3,10 @@
 // A URL is refused when its host is, or resolves to, a loopback, private, link-local, carrier-grade NAT, multicast or unspecified address, or when it is a name like `localhost` or `*.internal`.
 // X207_ALLOW_PRIVATE_URLS=1 turns the guard off, for a seller on this machine (the demos and the sandbox tests do that).
 import { lookup } from "node:dns/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import { Readable } from "node:stream";
 
 export type HostResolver = (host: string) => Promise<string[]>;
 
@@ -114,4 +117,46 @@ export async function readCapped(response: Response, limit: number): Promise<{ t
     size += value.length;
   }
   return { text: Buffer.concat(chunks).toString("utf8"), cut };
+}
+
+/**
+ * M-2 (cross review UM-112): DNS rebinding. `assertPublicUrl` resolves the name to check it, and `fetch` resolves it again to connect, so a name that answers a public address to the first
+ * question and 169.254.169.254 to the second walks around the check. This fetch connects through its own `lookup`: the name is resolved ONCE, every address is checked, and the connection
+ * goes to one of the addresses that were checked (the TLS name stays the host of the URL). No redirect is followed (the caller sees the 3xx), and the body is read as a stream.
+ */
+export function createPinnedFetch(resolve: HostResolver = defaultResolver): typeof fetch {
+  const lookupChecked = (hostname: string, options: { all?: boolean }, callback: (...args: unknown[]) => void): void => {
+    resolve(hostname.replace(/\.+$/, "")).then(
+      (addresses) => {
+        const bad = addresses.find((a) => isPrivateAddress(a));
+        if (addresses.length === 0 || bad !== undefined) return callback(new Error(`refused: ${hostname} resolves to ${bad ?? "no address"}, a private, loopback or link-local address`));
+        const list = addresses.map((address) => ({ address, family: isIP(address) }));
+        return options.all === true ? callback(null, list) : callback(null, list[0]!.address, list[0]!.family);
+      },
+      (error: Error) => callback(error),
+    );
+  };
+  return (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const req = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(req.url);
+    if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("only http and https");
+    if (init?.redirect !== undefined && init.redirect !== "manual" && req.redirect !== "manual") throw new Error("a redirect is not followed by this fetch");
+    const body = req.body === null ? null : Buffer.from(await req.arrayBuffer());
+    const headers: Record<string, string> = {};
+    req.headers.forEach((value, name) => {
+      headers[name] = value;
+    });
+    if (body !== null) headers["content-length"] = String(body.length);
+    return new Promise<Response>((resolveResponse, reject) => {
+      const send = url.protocol === "https:" ? httpsRequest : httpRequest;
+      const out = send(url, { method: req.method, headers, lookup: lookupChecked as never, signal: req.signal }, (res) => {
+        const responseHeaders = new Headers();
+        for (const [name, value] of Object.entries(res.headers)) for (const v of Array.isArray(value) ? value : value === undefined ? [] : [value]) responseHeaders.append(name, v);
+        const status = res.statusCode ?? 502;
+        resolveResponse(new Response(status === 204 || status === 304 ? null : (Readable.toWeb(res) as unknown as ReadableStream), { status, statusText: res.statusMessage ?? "", headers: responseHeaders }));
+      });
+      out.on("error", reject);
+      out.end(body ?? undefined);
+    });
+  }) as typeof fetch;
 }
