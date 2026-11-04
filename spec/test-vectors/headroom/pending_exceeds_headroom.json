@@ -1,6 +1,6 @@
 {
   "name": "pending_exceeds_headroom",
-  "description": "Pending melebihi headroom on-chain: diklem ke 0, tidak negatif.",
+  "description": "Pending exceeds the on-chain headroom: clamped to 0, never negative.",
   "input": {
     "epoch": 42,
     "payer": "a.x207-circle.near",

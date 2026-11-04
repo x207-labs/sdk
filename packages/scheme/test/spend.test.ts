@@ -1,4 +1,4 @@
-// SD-020: batas belanja lokal klien dicek sebelum voucher ditandatangani, walau headroom kontrak cukup.
+// SD-020: the client's local spending limit is checked before the voucher is signed, even if the contract headroom is sufficient.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { x402Client } from "@x402/core/client";
@@ -30,7 +30,7 @@ function setup(spendLimit?: SpendLimit) {
 }
 const voucherOf = (p: PaymentPayload) => (p.payload as unknown as X207Payload).voucher;
 
-describe("SD-020 spend controls klien", () => {
+describe("SD-020 client spend controls", () => {
   it("TC-SD-020-01 per call: exceeding the limit is rejected, the voucher is not signed and the state does not advance", async () => {
     const { pay, store, scheme } = setup({ maxPerCall: "20000" });
     await expect(pay(req({ amount: "20001" }))).rejects.toThrow(SpendLimitError);
@@ -50,7 +50,7 @@ describe("SD-020 spend controls klien", () => {
     const err = await pay(req({ payTo: B })).catch((e) => e);
     expect(err).toBeInstanceOf(SpendLimitError);
     expect(err).toMatchObject({ limit: "per_epoch", spent: "40000", max: "50000" });
-    // epoch berikutnya mulai dari nol
+    // the next epoch starts from zero
     expect(voucherOf(await pay(req({ epoch: 43 }))).epoch).toBe(43);
   });
 
@@ -72,7 +72,7 @@ describe("SD-020 spend controls klien", () => {
 
   it("TC-SD-020-05 without a limit the old behavior stays: no rejection", async () => {
     const { pay, respond } = setup();
-    // tanpa spendLimit tidak ada penolakan dari klien x207 (x402Client sendiri punya batas bawaan $1 per pembayaran)
+    // without spendLimit there is no rejection from the x207 client (x402Client itself has a default limit of $1 per payment)
     for (let i = 0; i < 5; i += 1) await respond(await pay(req({ amount: "900000" })), true);
   });
 });

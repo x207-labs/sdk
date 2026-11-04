@@ -1,4 +1,4 @@
-// Membaca variabel lingkungan buyer example; variabel yang hilang disebut namanya (TC-SD-035-03).
+// Reads the buyer example environment variables; a missing variable is reported by name (TC-SD-035-03).
 import type { AccountId, VoucherSecretKey } from "@x207/core";
 
 export type BuyerEnv = {

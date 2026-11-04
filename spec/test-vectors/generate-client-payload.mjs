@@ -1,6 +1,6 @@
-// Membangkitkan vector payload klien (SD-018): dua voucher berurutan dari kunci kA ke satu penjual.
-// Independen dari klien `@x207/scheme`: payload dirakit langsung dari `signVoucher` core.
-// Jalankan setelah `npm run build`: node spec/test-vectors/generate-client-payload.mjs
+// Generates the client payload vector (SD-018): two consecutive vouchers from key kA to one seller.
+// Independent of the `@x207/scheme` client: the payload is assembled directly from core `signVoucher`.
+// Run after `npm run build`: node spec/test-vectors/generate-client-payload.mjs
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { signVoucher } from "../../packages/core/dist/index.js";
@@ -31,7 +31,7 @@ const unsigned = (seq, cumulativeAmount) => ({
 });
 const step = (seq, cumulativeAmount) => {
   const { signature, ...voucher } = signVoucher(unsigned(seq, cumulativeAmount), seed);
-  // Urutan key = urutan yang dibangun `x402Client.createPaymentPayload`, supaya byte header sama.
+  // Key order = the order built by `x402Client.createPaymentPayload`, so the header bytes are the same.
   const paymentPayload = {
     x402Version: 2,
     payload: { voucher, signature },

@@ -1,5 +1,5 @@
-// Membangkitkan spec/test-vectors/barter/*.json (SD-047). Jalankan setelah `npm run build`: node spec/test-vectors/generate-barter.mjs
-// Deterministik: kunci dari keys.json (kA translator, kB summarizer, kC scraper), tanpa waktu atau acak.
+// Generates spec/test-vectors/barter/*.json (SD-047). Run after `npm run build`: node spec/test-vectors/generate-barter.mjs
+// Deterministic: keys from keys.json (kA translator, kB summarizer, kC scraper), no time or randomness.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -30,7 +30,7 @@ writeFileSync(`${out}intent.json`, JSON.stringify({
   signingHash: hex(intentSigningHash(intent)), pubkey: voucherPublicKey(seed("kA")), signature: signIntent(intent, seed("kA")),
 }, null, 2) + "\n");
 
-// A -> B -> C -> A: tiga leg melingkar (10, 8, 6 credit); legs sengaja tidak urut agar kanonikalisasi teruji.
+// A -> B -> C -> A: three circular legs (10, 8, 6 credit); legs are deliberately out of order so canonicalization is tested.
 const terms = {
   circle: CIRCLE, epoch: 42,
   legs: [
@@ -45,8 +45,8 @@ writeFileSync(`${out}bundle_abca.json`, JSON.stringify({
   participants: Object.fromEntries(Object.entries(participants).map(([account, k]) => [account, voucherPublicKey(seed(k))])),
   signatures: Object.entries(participants).map(([account, k]) => signBundle(terms, account, seed(k))),
 }, null, 2) + "\n");
-// Bundle dengan leg pencari (SD-047, interface 0.0.5): cincin 55 + 40 + 5 credit, leg C -> A (5 dari 100 = 500 bps) ditandai `search_leg`.
-// Kunci `search_leg` terakhir di JSON kanonik; bundle tanpa `search_leg` (bundle_abca) tidak berubah.
+// Bundle with a searcher leg (SD-047, interface 0.0.5): ring 55 + 40 + 5 credit, leg C -> A (5 of 100 = 500 bps) marked `search_leg`.
+// The `search_leg` key is last in the canonical JSON; a bundle without `search_leg` (bundle_abca) is unchanged.
 const searchTerms = {
   circle: CIRCLE, epoch: 42,
   legs: [
@@ -61,8 +61,8 @@ writeFileSync(`${out}bundle_search.json`, JSON.stringify({
   participants: Object.fromEntries(Object.entries(participants).map(([account, k]) => [account, voucherPublicKey(seed(k))])),
   signatures: Object.entries(participants).map(([account, k]) => signBundle(searchTerms, account, seed(k))),
 }, null, 2) + "\n");
-// Swap dua peserta dengan jaminan dan arbiter (SD-073, interface 0.0.12, CT-094): A <-> B, arbiter C (bukan peserta). Tiga kunci datang setelah `search_leg`, hanya bila ada arbiter:
-// `arbiter`, `agreement_hash` (bila ada), `confirm_by` (string desimal nanodetik). Bundle tanpa arbiter (bundle_abca, bundle_search) tidak berubah. Yang menandatangani hanya A dan B.
+// Two-party swap with guarantee and arbiter (SD-073, interface 0.0.12, CT-094): A <-> B, arbiter C (not a participant). Three keys come after `search_leg`, only if there is an arbiter:
+// `arbiter`, `agreement_hash` (if present), `confirm_by` (decimal nanosecond string). A bundle without an arbiter (bundle_abca, bundle_search) is unchanged. Only A and B sign.
 const dealParticipants = { [A]: "kA", [B]: "kB" };
 const dealLegs = [
   { payer: B, payee: A, max_amount: "120000000" },
@@ -79,7 +79,7 @@ for (const [file, extra] of [
     signatures: Object.entries(dealParticipants).map(([account, k]) => signBundle(dealTerms, account, seed(k))),
   }, null, 2) + "\n");
 }
-// Listing dan penawaran (SD-055). Andi (translator) menawarkan jasa 100 credit, diskon 10%, mencari jasa 100 credit.
+// Listing and offers (SD-055). Andi (translator) offers a service of 100 credit, 10% discount, seeks a service of 100 credit.
 const listing = {
   circle: CIRCLE, account: A,
   offer: { asset_type: "translate-calls", asset_class: "D", quantity: 5000, value: "100000000" },
@@ -95,15 +95,15 @@ writeFileSync(`${out}listing.json`, JSON.stringify({
   offerPubkey: voucherPublicKey(seed("kB")), offerSignature: signOffer(offer, seed("kB")),
 }, null, 2) + "\n");
 
-// Barter cepat dari note F9: A bernilai 100, diskon 10, jatah pencari 3 (angka ilustrasi; semuanya parameter).
+// Fast barter from the F9 note: A is worth 100, discount 10, searcher share 3 (illustrative numbers; all are parameters).
 const params = { value: "100000000", discountBps: 1000, searcherShareBps: 300 };
 writeFileSync(`${out}quick_barter.json`, JSON.stringify({
   params, pay: quickPay(params), barter: quickBarter(params),
   expected: { pay: { counterpartyPays: "93000000", sellerReceives: "90000000", searcher: "3000000" }, barter: { cashback: "7000000", searcher: "3000000", sellerBears: "10000000" } },
 }, null, 2) + "\n");
-console.log("barter vectors ditulis");
+console.log("barter vectors written");
 
-// Ajakan pencari (SV-015): scraper (kC) mengajak summarizer (kB) menawar listing Andi dengan jatah 3% (300 bps).
+// Searcher invitation (SV-015): scraper (kC) invites summarizer (kB) to bid on Andi's listing with a 3% share (300 bps).
 const referral = {
   circle: CIRCLE, seeker: C, to: B, listing_hash: listingHash(listing), mode: "barter", value: "100000000", quantity: 5000, deliver_by: 1793000000,
   searcher_share_bps: 300, expires_at: 1793300000, nonce: "r1",

@@ -1,4 +1,4 @@
-// Rute facilitator referensi (Spec Binding x402 bagian 8): /verify, /settle, /supported.
+// Reference facilitator routes (Spec Binding x402 section 8): /verify, /settle, /supported.
 import { Hono } from "hono";
 import type {
   SettleRequest,
@@ -14,14 +14,14 @@ import { ChainUnavailableError } from "./rpc.js";
 
 export type PairStateQuery = { network: string; payer: string; payee: string; epoch: number };
 
-/** Respons `GET /x207/pair-state` (Spec Binding x402 8.5, K-29). */
+/** Response of `GET /x207/pair-state` (Spec Binding x402 8.5, K-29). */
 export type PairStateResponse = PairStateQuery & {
   lastSeq: number;
   lastCumulativeAmount: string;
   source: "pending" | "onchain" | "none";
 };
 
-/** Logika bisnis di belakang rute; diisi SD-024 (`verify`), SD-026 (`settle`), SD-032 (`supported`, `pairState`). */
+/** Business logic behind the routes; filled by SD-024 (`verify`), SD-026 (`settle`), SD-032 (`supported`, `pairState`). */
 export type FacilitatorService = {
   verify(request: VerifyRequest): Promise<VerifyResponse>;
   settle(request: SettleRequest): Promise<SettleResponse>;
@@ -38,7 +38,7 @@ export class InvalidRequestError extends Error {}
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Body `/verify` dan `/settle`; network x207 wajib lolos regex CAIP-2. */
+/** Body of `/verify` and `/settle`; the x207 network must pass the CAIP-2 regex. */
 function parsePaymentRequest(body: unknown): VerifyRequest {
   if (!isRecord(body)) throw new InvalidRequestError("body must be a JSON object");
   if (typeof body.x402Version !== "number") throw new InvalidRequestError("x402Version is required");
@@ -57,7 +57,7 @@ function parsePaymentRequest(body: unknown): VerifyRequest {
   return body as unknown as VerifyRequest;
 }
 
-/** Query `GET /x207/pair-state`; semua parameter wajib dan network lolos regex CAIP-2. */
+/** Query of `GET /x207/pair-state`; all parameters are required and the network must pass the CAIP-2 regex. */
 function parsePairStateQuery(query: Record<string, string | undefined>): PairStateQuery {
   const { network, payer, payee, epoch } = query;
   if (!network || !payer || !payee || !epoch) throw new InvalidRequestError("network, payer, payee and epoch are required");

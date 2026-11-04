@@ -1,5 +1,5 @@
-// Rangkaian facilitator (SD-032): `x402Facilitator` dengan binding `x207:*` untuk tiap lingkaran dan
-// `exact` `near:mainnet` dari `@x402/near`; `/supported` dan `/x207/pair-state` (Spec Binding x402 8.3, 8.5).
+// Facilitator assembly (SD-032): `x402Facilitator` with the `x207:*` binding for each circle and
+// `exact` `near:mainnet` from `@x402/near`; `/supported` and `/x207/pair-state` (x402 Binding Spec 8.3, 8.5).
 import { x402Facilitator } from "@x402/core/facilitator";
 import type {
   PaymentPayload,
@@ -23,18 +23,18 @@ import type { PendingStore } from "./pending-store.js";
 import type { NearRpc } from "./rpc.js";
 
 export const EXACT_NEAR_NETWORK = "near:mainnet" as const;
-/** Jaringan `exact` yang didukung `@x402/near`; testnet hanya untuk gladi (SD-034). */
+/** `exact` networks supported by `@x402/near`; testnet only for rehearsal (SD-034). */
 export type ExactNearNetwork = "near:mainnet" | "near:testnet";
 
 export type FacilitatorServiceOptions = {
   circles: readonly CircleConfig[];
   rpc: NearRpc;
   pending: PendingStore;
-  /** Akun relayer yang diiklankan di `signers`. */
+  /** Relayer account advertised in `signers`. */
   signers?: readonly AccountId[];
-  /** Signer `exact` NEAR; tanpa ini `exact` tidak didaftarkan. */
+  /** NEAR `exact` signer; without it `exact` is not registered. */
   exactSigner?: FacilitatorNearSigner;
-  /** Jaringan untuk `exactSigner`; bawaan `near:mainnet`. */
+  /** Network for `exactSigner`; defaults to `near:mainnet`. */
   exactNetwork?: ExactNearNetwork;
   /** Most gas a delegated `ft_transfer` may ask (default `EXACT_DEFAULT_MAX_SPONSORED_GAS`, 30 Tgas). The relayer pays it also when the transfer fails. */
   exactMaxSponsoredGas?: bigint;
@@ -45,10 +45,10 @@ export type FacilitatorServiceOptions = {
   chainCache?: ChainCacheOptions;
   now?: () => number;
   /**
-   * Mode demo `register_voucher` per request (SD-029, SD-030): setiap `/settle` yang berhasil menyimpan voucher langsung meminta
-   * registrasi on-chain dan menunggu final paling lama `timeoutMs` (default 10 detik, ADR-25). Final: `registration: "registered"`.
-   * Belum final: `success: false, errorReason: "settlement_pending"` (non-terminal, resource tetap dilayani) dan registrasi
-   * berjalan terus lalu diulang penjadwal sesuai ADR-23. Gagal terminal (mis. `insufficient_credit` dibuang): kode itu dikembalikan.
+   * Demo mode `register_voucher` per request (SD-029, SD-030): every successful `/settle` that stores a voucher immediately requests
+   * on-chain registration and waits for final for at most `timeoutMs` (default 10 seconds, ADR-25). Final: `registration: "registered"`.
+   * Not yet final: `success: false, errorReason: "settlement_pending"` (non-terminal, the resource is still served) and the registration
+   * keeps running and is retried by the scheduler per ADR-23. Terminal failure (e.g. `insufficient_credit` dropped): that code is returned.
    */
   perRequest?: {
     registerNow: (circleContract: AccountId, key: { payer: AccountId; payee: AccountId; epoch: number }) => Promise<RegisterOutcome>;
@@ -56,7 +56,7 @@ export type FacilitatorServiceOptions = {
   };
 };
 
-/** Batas tunggu registrasi per request (ADR-25). */
+/** Registration wait limit per request (ADR-25). */
 export const DEFAULT_SETTLE_TIMEOUT_MS = 10_000;
 
 const PENDING = Symbol("pending");
@@ -150,7 +150,7 @@ export function createFacilitatorService(options: FacilitatorServiceOptions): Fa
           timer = setTimeout(() => resolve(PENDING), perRequest.timeoutMs ?? DEFAULT_SETTLE_TIMEOUT_MS);
         }),
       ]).finally(() => clearTimeout(timer));
-      // Registrasi yang terlambat tetap berjalan; kegagalannya dicatat penjadwal, jadi tidak boleh menjadi penolakan tak tertangani.
+      // A late registration keeps running; the scheduler records its failure, so it must not become an unhandled rejection.
       attempt.catch(() => undefined);
 
       const withRegistration = (registration: string) => ({ ...response, extensions: { ...response.extensions, x207: { ...x207, registration } } });

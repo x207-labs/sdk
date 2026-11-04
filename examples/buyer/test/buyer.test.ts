@@ -33,7 +33,7 @@ const VIEWS: Record<string, (args: any) => unknown> = {
   obligation: () => null,
 };
 
-/** Dunia lokal tanpa jaringan: RPC, facilitator, dan penjual dilayani satu fungsi fetch. */
+/** Local world without a network: RPC, facilitator, and seller are served by one fetch function. */
 function world() {
   const pending = new PendingStore(":memory:");
   const rpc = { view: async (_c: string, method: string, args: any) => viewOf(VIEWS, method)(args) } as unknown as NearRpc;
@@ -47,7 +47,7 @@ function world() {
   });
   let routerFetch: typeof fetch;
   const seller = x207Middleware({
-    routes: { "/api/summarize": { price: "$0.02", description: "Ringkas teks" } },
+    routes: { "/api/summarize": { price: "$0.02", description: "Summarize text" } },
     facilitatorUrl: "http://facilitator.test", circleId: "agents-main", payTo: B,
     fetch: (input, init) => routerFetch(input, init),
   });

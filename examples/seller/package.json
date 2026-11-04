@@ -2,7 +2,7 @@
   "name": "@x207/example-seller",
   "version": "0.0.1",
   "private": true,
-  "description": "Contoh penjual x207 minimal: satu endpoint berbayar dengan x207Middleware",
+  "description": "Minimal x207 seller example: one paid endpoint with x207Middleware",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/seller.js",

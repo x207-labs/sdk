@@ -1,5 +1,5 @@
-// Pemeriksaan sewa akses harian yang murni (SD-071): dipakai `DailyRent` (SDK penyewa) dan halaman sewa akses di frontend, jadi aturan "jangan bayar hari berikutnya untuk akses yang
-// sudah mati" hanya ada satu. Tanpa jaringan dan tanpa waktu: pemanggil memberi jawaban broker, jam, dan hasil pemeriksaan langsung bila ada.
+// Pure daily access-rent check (SD-071): used by `DailyRent` (renter SDK) and the access-rent page in the frontend, so the rule "do not pay for the next day of access that is
+// already dead" exists only once. No network and no time: the caller supplies the broker answer, the clock, and the direct check result if any.
 
 export type RentErrorCode = "rent_access_not_active" | "rent_access_expired" | "rent_direct_check_failed" | "rent_bill_over_cap" | "rent_bad_cap" | "rent_day_already_paid" | "rent_stopped" | "rent_bad_state";
 export class RentError extends Error {
@@ -11,11 +11,11 @@ export class RentError extends Error {
   }
 }
 
-/** Jawaban broker untuk satu akses (README broker, BE-060): hanya yang dipakai di sini. */
+/** Broker answer for one access (broker README, BE-060): only what is used here. */
 export type AccessView = {
   grantId: number;
   status: "active" | "revoke_pending" | "revoked";
-  /** Akhir hari yang sudah dibayar, unix ms. */
+  /** End of the day already paid, unix ms. */
   paidUntil: number;
   today?: { day: string; cost: string | null; billed: string | null };
 };
@@ -26,8 +26,8 @@ const fail = (code: RentErrorCode, message: string): never => {
 };
 
 /**
- * Lolos hanya bila broker mengatakan akses `active` dan masih terbayar sampai `nowMs`, dan, bila diberikan, pemeriksaan langsung ke penyedia (`directCheck`, mis. mencoba masuk)
- * berhasil. Selain itu melempar `RentError`.
+ * Passes only if the broker says the access is `active` and still paid up to `nowMs`, and, if given, the direct check to the provider (`directCheck`, e.g. trying to log in)
+ * succeeds. Otherwise throws `RentError`.
  */
 export async function checkAccessBeforeNextDay(args: { grantId: number; view: AccessView; nowMs: number; directCheck?: () => Promise<boolean> }): Promise<void> {
   const { view } = args;

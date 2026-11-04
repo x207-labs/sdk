@@ -1,11 +1,11 @@
-// Jenis, satuan, dan preset sumber daya terukur P5 (SD-064): data murni tanpa jaringan, dipakai server (`createMeteredEndpoint`) dan formulir listing (FE-024).
-// `asset_type` dan nomor katalog sama dengan katalog barter (`scripts/lib/asset-catalog.mjs`) dan backend (BE-050). Satuan hidup di SDK, listing, dan voucher; kontrak tidak berubah.
+// P5 metered resource kinds, units, and presets (SD-064): pure data with no network, used by the server (`createMeteredEndpoint`) and the listing form (FE-024).
+// `asset_type` and catalog numbers match the barter catalog (`scripts/lib/asset-catalog.mjs`) and the backend (BE-050). Units live in the SDK, listing, and voucher; the contract does not change.
 
-/** Satuan yang dikenal listing sumber daya (BE-050); sama dengan `RESOURCE_UNITS` di backend. */
+/** Units known to resource listings (BE-050); the same as `RESOURCE_UNITS` in the backend. */
 export const METERED_UNITS = ["call", "minute", "day", "GB", "job", "request"] as const;
 export type MeteredUnit = (typeof METERED_UNITS)[number];
 
-/** Dua belas jenis P5 dengan nomor katalog: #31 CPU, #32 GPU, #33 penyimpanan, #34 cache dan CDN, #35 inferensi, #36 fine-tuning, #44 umpan data, #45 sensor IoT, #47 relayer gas, #49 antrean, #55 proxy, #90 perangkat rumahan. */
+/** The twelve P5 kinds with catalog numbers: #31 CPU, #32 GPU, #33 storage, #34 cache and CDN, #35 inference, #36 fine-tuning, #44 data feed, #45 IoT sensor, #47 gas relayer, #49 queue, #55 proxy, #90 home device. */
 export const METERED_KINDS = [
   "cpu", "gpu", "storage", "cdn", "inference", "fine-tuning", "data-feed", "iot-sensor", "gas-relayer", "priority-slot", "proxy-bandwidth", "home-device",
 ] as const;
@@ -14,7 +14,7 @@ export type MeteredKind = (typeof METERED_KINDS)[number];
 export type MeteredPreset = {
   assetType: string;
   catalogNo: number;
-  /** Satuan bawaan, lalu satuan lain yang masuk akal untuk jenis ini. */
+  /** Default unit, then other units that make sense for this kind. */
   units: readonly [MeteredUnit, ...MeteredUnit[]];
   warnings: readonly string[];
 };
@@ -37,7 +37,7 @@ export const METERED_PRESETS: Readonly<Record<MeteredKind, MeteredPreset>> = {
   "home-device": { assetType: "compute:home-device", catalogNo: 90, units: ["minute", "day", "job"], warnings: [RISK, "Electricity, network security, and hardware are borne by the owner."] },
 };
 
-/** Batas atas per request bila pemanggil tidak menyebutnya: cukup untuk satu pemakaian wajar, dan menolak tagihan raksasa sebelum 402. */
+/** Upper bound per request if the caller does not state one: enough for one reasonable use, and it rejects a giant bill before the 402. */
 export const DEFAULT_MAX_QUANTITY: Readonly<Record<MeteredUnit, number>> = { call: 1000, request: 1000, minute: 1440, day: 31, GB: 1000, job: 1 };
 
 
@@ -45,13 +45,13 @@ const SECRET_PARAM = /^(api[-_]?key|key|token|access[-_]?token|secret|password|p
 
 const MAX_URL = 512;
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
-/** Layanan yang namanya menjawab dengan alamat yang tertulis di nama: cara memberi alamat privat nama yang tampak publik. */
+/** Services whose name answers with the address written in the name: a way to give a private address a name that looks public. */
 export const WILDCARD_DNS: readonly string[] = ["nip.io", "sslip.io", "xip.io", "localtest.me", "lvh.me", "traefik.me", "localhost.run", "vcap.me", "lacolhost.com"];
 
 /**
- * Alasan nama host ditolak sebagai tujuan, atau `null` bila tampak publik (tinjauan BE-062, F6): satu titik di ujung nama dibuang sebelum pemeriksaan (`localhost.` sama dengan `localhost`),
- * alamat IP, `localhost`, `.local`, `.internal`, nama tanpa titik, nama yang membawa alamat IP (`127.0.0.1.nip.io`) dan layanan DNS wildcard ditolak. Ini pemeriksaan teks: yang menyambung
- * harus tetap me-resolve nama dan menolak alamat non-publik saat tersambung.
+ * Reason a hostname is rejected as a destination, or `null` if it looks public (BE-062 review, F6): one dot at the end of the name is removed before checking (`localhost.` equals `localhost`),
+ * IP addresses, `localhost`, `.local`, `.internal`, names without a dot, names that carry an IP address (`127.0.0.1.nip.io`), and wildcard DNS services are rejected. This is a text check: whatever connects
+ * must still resolve the name and refuse non-public addresses at connect time.
  */
 export function publicHostProblem(hostname: string): string | null {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
@@ -61,7 +61,7 @@ export function publicHostProblem(hostname: string): string | null {
   return null;
 }
 
-/** Alasan endpoint ditolak sebagai alamat listing sumber daya, atau `null` bila https tanpa kredensial. Aturan yang sama dengan backend (BE-050, `endpointProblem`). */
+/** Reason an endpoint is rejected as a resource listing address, or `null` if https without credentials. The same rules as the backend (BE-050, `endpointProblem`). */
 export function endpointProblem(endpoint: unknown): string | null {
   if (typeof endpoint !== "string" || endpoint.length === 0 || endpoint.length > MAX_URL) return `endpoint must be text of 1 to ${MAX_URL} characters`;
   if (!/^[\x21-\x7e]+$/.test(endpoint)) return "endpoint must be ASCII without spaces";
@@ -80,14 +80,14 @@ export function endpointProblem(endpoint: unknown): string | null {
   return null;
 }
 
-/** `Listing.detail` sumber daya (BE-050): `{"kind","unit","unit_price","endpoint"}`. Melempar `Error` bila endpoint tidak sah. */
+/** Resource `Listing.detail` (BE-050): `{"kind","unit","unit_price","endpoint"}`. Throws `Error` if the endpoint is invalid. */
 export function resourceListingDetail(input: { kind: MeteredKind; unit: MeteredUnit; unitPriceAtomic: string; endpoint: string }): string {
   const problem = endpointProblem(input.endpoint);
   if (problem !== null) throw new Error(problem);
   return JSON.stringify({ kind: input.kind, unit: input.unit, unit_price: input.unitPriceAtomic, endpoint: input.endpoint });
 }
 
-/** Perkiraan biaya: harga satuan (satuan credit terkecil) × jumlah satuan (angka desimal, paling banyak 6 desimal), dibulatkan ke atas; `null` bila masukan tidak sah. */
+/** Cost estimate: unit price (smallest credit unit) × number of units (decimal number, at most 6 decimals), rounded up; `null` if the input is invalid. */
 export function estimateMeteredAmount(unitPriceAtomic: string, quantity: string): string | null {
   const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(quantity.trim());
   if (!match || !/^[1-9]\d*$/.test(unitPriceAtomic)) return null;

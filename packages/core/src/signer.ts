@@ -1,5 +1,5 @@
-// Penanda tangan transaksi NEAR untuk helper kontrak (`onboardMember`, `requestExit`, ...), entry terpisah
-// `@x207/core/signer` supaya entry utama tidak menarik near-api-js (TC-SD-021-08).
+// NEAR transaction signer for the contract helpers (`onboardMember`, `requestExit`, ...), a separate entry
+// `@x207/core/signer` so the main entry does not pull in near-api-js (TC-SD-021-08).
 import { Account, JsonRpcProvider, KeyPairSigner } from "near-api-js";
 import { contractErrorCode } from "./contract/client.js";
 import type { CircleViewFn } from "./contract/client.js";
@@ -8,13 +8,13 @@ import type { ContractCall } from "./contract/settlement.js";
 export type NearSenderOptions = {
   rpcUrl: string;
   accountId: string;
-  /** Kunci akses akun (`ed25519:...`), bukan kunci voucher. */
+  /** Account access key (`ed25519:...`), not the voucher key. */
   secretKey: `ed25519:${string}`;
-  /** Dipanggil dengan hash tiap transaksi yang selesai (untuk log demo). */
+  /** Called with the hash of each finished transaction (for demo logs). */
   onTx?: (info: { methodName: string; hash: string }) => void;
 };
 
-/** Kesalahan transaksi dengan kode `ERR_*` kontrak bila ada. */
+/** Transaction error with the contract `ERR_*` code when there is one. */
 export class ContractCallError extends Error {
   readonly code: string | null;
   constructor(readonly call: Pick<ContractCall, "receiverId" | "methodName">, cause: unknown) {
@@ -28,8 +28,8 @@ export class ContractCallError extends Error {
 const DEFAULT_GAS = 100_000_000_000_000n;
 
 /**
- * `sendCall` untuk `onboardMember`: menandatangani dengan kunci akun, menunggu final, dan mengembalikan
- * nilai sukses (JSON). Melempar `ContractCallError` bila transaksi gagal.
+ * `sendCall` for `onboardMember`: signs with the account key, waits for finality, and returns
+ * the success value (JSON). Throws `ContractCallError` if the transaction fails.
  */
 export function createNearSender(options: NearSenderOptions): (call: ContractCall) => Promise<unknown> {
   const provider = new JsonRpcProvider({ url: options.rpcUrl });
@@ -53,7 +53,7 @@ export function createNearSender(options: NearSenderOptions): (call: ContractCal
   };
 }
 
-/** `CircleViewFn` lewat satu RPC (tanpa failover); untuk skrip dan test. */
+/** `CircleViewFn` through a single RPC (no failover); for scripts and tests. */
 export function createNearView(rpcUrl: string, contractId: string): CircleViewFn {
   const provider = new JsonRpcProvider({ url: rpcUrl });
   return async (methodName, args) => {

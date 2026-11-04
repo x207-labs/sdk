@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 
 const local = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
-// Test memakai source lokal lewat alias, jadi tidak perlu `npm run build` lebih dulu.
+// Tests use local sources through aliases, so `npm run build` is not needed first.
 export default defineConfig({
   resolve: {
     alias: [

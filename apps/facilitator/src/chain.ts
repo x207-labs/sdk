@@ -1,4 +1,4 @@
-// Adaptor pembacaan on-chain dan pending store D3 untuk `verify` (SD-024).
+// Adapter for on-chain reads and the D3 pending store for `verify` (SD-024).
 import type { PaymentRequirements, SettleRequest, SettleResponse, VerifyRequest, VerifyResponse } from "@x402/core/types";
 import type { AccountId, ContractAbi, Ed25519Signature, UnsignedVoucher } from "@x207/core";
 import {
@@ -28,7 +28,7 @@ export function versionAtLeast(a: string, b: string): boolean {
   return true;
 }
 
-/** View kontrak lewat `NearRpc` (dengan failover) dan baris pending dari `PendingStore`. */
+/** Contract views through `NearRpc` (with failover) and pending rows from `PendingStore`. */
 export class NearChain implements VerifyChain {
   #freeze: { at: number; value: Promise<boolean> } | null = null;
   readonly #now: () => number;
@@ -93,7 +93,7 @@ export class NearChain implements VerifyChain {
   }
 }
 
-/** `PendingStore` sebagai penulis D3 untuk `settle` satu lingkaran. */
+/** `PendingStore` as the D3 writer for `settle` of one circle. */
 export class PendingStoreWriter implements PendingWriter {
   constructor(private readonly circle: CircleConfig, private readonly pending: PendingStore) {}
 
@@ -128,7 +128,7 @@ function facilitatorsOf(
   );
 }
 
-/** `verify` untuk `FacilitatorService`: satu `X207SchemeFacilitator` per lingkaran yang dikonfigurasi. */
+/** `verify` for `FacilitatorService`: one `X207SchemeFacilitator` per configured circle. */
 export function createVerify(
   circles: readonly CircleConfig[],
   rpc: NearRpc,
@@ -143,7 +143,7 @@ export function createVerify(
   };
 }
 
-/** `settle` untuk `FacilitatorService` (SD-026): verify ulang lalu simpan ke D3. */
+/** `settle` for `FacilitatorService` (SD-026): re-verify then store in D3. */
 export function createSettle(
   circles: readonly CircleConfig[],
   rpc: NearRpc,

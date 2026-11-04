@@ -1,6 +1,6 @@
-// Middleware server x207 (SD-017, SD-027, Spec Binding x402 bagian 2, 4, 5.3): 402 dengan `accepts`,
-// `/verify` lalu handler lalu `/settle`, dan `PAYMENT-RESPONSE`. Berbasis Request/Response web standar,
-// jadi bisa dipasang di Hono (`c.req.raw`), Express (adapter), atau fetch handler apa pun.
+// x207 server middleware (SD-017, SD-027, Spec Binding x402 sections 2, 4, 5.3): 402 with `accepts`,
+// `/verify` then the handler then `/settle`, and `PAYMENT-RESPONSE`. Based on standard web Request/Response,
+// so it can be mounted in Hono (`c.req.raw`), Express (adapter), or any fetch handler.
 import type { PaymentRequirements } from "@x402/core/types";
 import type { AccountId, PairState } from "@x207/core";
 import { X207ExtraSource } from "./extra.js";
@@ -10,7 +10,7 @@ import { MeterRejection, resolvePrice, type PriceFn } from "./metering.js";
 export const HEADER_PAYMENT_REQUIRED = "PAYMENT-REQUIRED";
 export const HEADER_PAYMENT_SIGNATURE = "PAYMENT-SIGNATURE";
 export const HEADER_PAYMENT_RESPONSE = "PAYMENT-RESPONSE";
-/** Timeout panggilan facilitator (ADR-25). */
+/** Facilitator call timeout (ADR-25). */
 export const FACILITATOR_TIMEOUT_MS = 10_000;
 /** Longest time one voucher is held while its request runs (security review 3, G2). */
 export const IN_FLIGHT_MAX_HOLD_MS = 120_000;
@@ -18,22 +18,22 @@ export const RETRY_AFTER_SECONDS = 5;
 
 const RESYNC_REASONS = new Set(["seq_not_increasing", "cumulative_decreased", "amount_mismatch"]);
 
-/** Grant yang dibayar sebuah request (SD-053): `payTo` = pemberi grant (bukan akun broker), `grantId` masuk `extra` dan `resource` voucher. */
+/** A grant paid for by a request (SD-053): `payTo` = the grantor (not the broker account), `grantId` goes into `extra` and the voucher `resource`. */
 export type X207GrantContext = { grantId: number; payTo: AccountId };
 
 export type X207RouteConfig = {
   /**
-   * Harga tetap (`"$0.02"` atau `0.02`), atau fungsi `(request) => { unit, quantity, unitPrice, maxQuantity? }` untuk harga terukur (SD-062): jumlah yang dibayar adalah
-   * `unitPrice × quantity`, dan `accepts[x207].extra.meter` mengumumkan satuan, jumlah, harga satuan, dan batas atas.
+   * Fixed price (`"$0.02"` or `0.02`), or a function `(request) => { unit, quantity, unitPrice, maxQuantity? }` for metered pricing (SD-062): the amount paid is
+   * `unitPrice × quantity`, and `accepts[x207].extra.meter` announces the unit, quantity, unit price, and upper bound.
    */
   price: string | number | PriceFn;
-  /** Batas atas satuan per request untuk harga terukur; request di atas batas ditolak 413 sebelum 402 dan sebelum handler. */
+  /** Upper bound of units per request for metered pricing; a request above the bound is rejected 413 before the 402 and before the handler. */
   maxQuantity?: number | string;
   description?: string;
   mimeType?: string;
   /**
-   * Endpoint grant F8: menentukan grant dari request. `undefined` berarti grant tidak ada (404 `grant_not_found`). Tanpa ini `payTo` dari
-   * opsi middleware dipakai dan tidak ada `grantId`.
+   * F8 grant endpoint: determines the grant from the request. `undefined` means the grant does not exist (404 `grant_not_found`). Without this, `payTo` from the
+   * middleware options is used and there is no `grantId`.
    */
   grant?: (request: Request) => X207GrantContext | undefined | Promise<X207GrantContext | undefined>;
 };
@@ -71,16 +71,16 @@ export function memoryInFlightGuard(): InFlightGuard {
 }
 
 export type X207MiddlewareOptions = {
-  /** Kunci `"/path"` atau `"METHOD /path"`. Rute di luar daftar diteruskan ke handler tanpa 402. */
+  /** Key `"/path"` or `"METHOD /path"`. Routes outside the list are passed to the handler without a 402. */
   routes: Record<string, X207RouteConfig>;
   facilitatorUrl: string;
   circleId: string;
   payTo: AccountId;
   fetch?: typeof fetch;
   timeoutMs?: number;
-  /** Menggantikan sumber `extra` bawaan (cache `/supported`, 60 detik). */
+  /** Replaces the default `extra` source (`/supported` cache, 60 seconds). */
   extra?: X207ExtraSource;
-  /** Guard of vouchers in flight; bawaan: in memory, one process (see `InFlightGuard`). */
+  /** Guard of vouchers in flight; default: in memory, one process (see `InFlightGuard`). */
   inFlight?: InFlightGuard;
   /** Longest time a voucher stays held by one request (default `IN_FLIGHT_MAX_HOLD_MS`). */
   maxHoldMs?: number;
@@ -188,7 +188,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       }
     }
 
-    // harga terukur (SD-062): dihitung dari request SEBELUM 402 dan sebelum handler; di atas batas ditolak di sini, jadi tidak ada yang membayar untuk kerja yang tidak berjalan
+    // metered pricing (SD-062): computed from the request BEFORE the 402 and before the handler; above the bound it is rejected here, so nobody pays for work that does not run
     let priced: Awaited<ReturnType<typeof resolvePrice>>;
     try {
       priced = await resolvePrice(route.price, request, route.maxQuantity);
@@ -263,7 +263,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       }
 
       const response = await next(request);
-      // Handler gagal atau menolak: tidak ada kewajiban (flow `authorization`), respons diteruskan apa adanya.
+      // The handler failed or refused: there is no obligation (`authorization` flow), the response is passed through as-is.
       if (response.status >= 400) return response;
 
       const settled = await post("/settle", body);

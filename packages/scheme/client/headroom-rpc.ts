@@ -1,4 +1,4 @@
-// `HeadroomSource` dari view kontrak: `member` (null bila bukan anggota) lalu `headroom`.
+// `HeadroomSource` from the contract views: `member` (null if not a member) then `headroom`.
 import { createCircleViewFn, getMember } from "@x207/core";
 import type { HeadroomSource } from "./select.js";
 

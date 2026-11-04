@@ -1,6 +1,6 @@
 {
   "name": "valid",
-  "description": "Siklus A->B->C->A dihapus 60 credit per edge; edge A->C di luar siklus tidak disentuh. Posisi bersih tiap anggota tidak berubah.",
+  "description": "Cycle A->B->C->A is removed by 60 credit per edge; edge A->C outside the cycle is untouched. The net position of each member does not change.",
   "input": {
     "epoch": 42,
     "snapshot": { "obligations": [

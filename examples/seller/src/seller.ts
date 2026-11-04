@@ -1,5 +1,5 @@
-// Penjual x207 minimal: satu endpoint berbayar `/api/summarize` di balik `x207Middleware` (lewat `EndpointAdapter`, adaptor referensi kelas D).
-// 402 mengiklankan voucher x207 dan `exact` near:mainnet, jadi anggota membayar voucher dan non-anggota membayar `exact`.
+// Minimal x207 seller: one paid endpoint `/api/summarize` behind `x207Middleware` (through `EndpointAdapter`, the class D reference adapter).
+// The 402 advertises the x207 voucher and `exact` near:mainnet, so members pay by voucher and non-members pay `exact`.
 import { Hono } from "hono";
 import type { AccountId } from "@x207/core";
 import { EndpointAdapter } from "@x207/scheme";
@@ -7,21 +7,21 @@ import { EndpointAdapter } from "@x207/scheme";
 export type SellerOptions = {
   /** URL facilitator (`/verify`, `/settle`, `/supported`). */
   facilitatorUrl: string;
-  /** Id lingkaran, mis. `agents-main` (network `x207:agents-main`). */
+  /** Circle id, e.g. `agents-main` (network `x207:agents-main`). */
   circleId: string;
-  /** Akun NEAR penjual yang menerima pembayaran. */
+  /** The seller's NEAR account that receives payment. */
   payTo: AccountId;
-  /** Harga per panggilan, mis. `"$0.02"`. */
+  /** Price per call, e.g. `"$0.02"`. */
   price?: string;
   fetch?: typeof fetch;
 };
 
 export function createSeller(options: SellerOptions): Hono {
-  // Kelas D (F8): endpoint x402 dibungkus `EndpointAdapter`; `paywall()` adalah `x207Middleware` yang sama, jadi 402 dan alur F2 tidak berubah.
+  // Class D (F8): the x402 endpoint is wrapped by `EndpointAdapter`; `paywall()` is the same `x207Middleware`, so the 402 and the F2 flow do not change.
   const adapter = new EndpointAdapter({
     endpoint: "/api/summarize",
     paywall: {
-      routes: { "/api/summarize": { price: options.price ?? "$0.02", description: "Ringkas teks" } },
+      routes: { "/api/summarize": { price: options.price ?? "$0.02", description: "Summarize text" } },
       facilitatorUrl: options.facilitatorUrl,
       circleId: options.circleId,
       payTo: options.payTo,
@@ -32,7 +32,7 @@ export function createSeller(options: SellerOptions): Hono {
 
   const app = new Hono();
   app.use("*", async (c, next) => {
-    // Hono mengabaikan Response yang dikembalikan setelah `next()`, jadi hasil middleware dipasang ke `c.res`.
+    // Hono ignores a Response returned after `next()`, so the middleware result is set on `c.res`.
     c.res = await paywall(c.req.raw, async () => {
       await next();
       return c.res;

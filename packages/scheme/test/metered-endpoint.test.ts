@@ -44,7 +44,7 @@ describe("SD-064 createMeteredEndpoint", () => {
     expect(ok("fine-tuning", "minute")).toMatch(/does not fit/);
     expect(reject(() => createMeteredEndpoint({ kind: "nuclear" as MeteredKind, unitPrice: 1, handler: () => new Response() }))).toMatch(/unknown kind/);
     expect(reject(() => createMeteredEndpoint({ kind: "cpu", unitPrice: "abc", handler: () => new Response() }))).toMatch(/price not valid/);
-    expect(reject(() => createMeteredEndpoint({ kind: "cpu", unitPrice: 0, handler: () => new Response() }))).toMatch(/menghasilkan 0/);
+    expect(reject(() => createMeteredEndpoint({ kind: "cpu", unitPrice: 0, handler: () => new Response() }))).toMatch(/yields 0/);
   });
 
   it("TC-SD-064-03 two kinds with different units: a CPU job per minute and a data feed per call give the metered 402, and the handler does not run before payment", async () => {

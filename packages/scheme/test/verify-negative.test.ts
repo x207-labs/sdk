@@ -77,7 +77,7 @@ function pay(
   };
 }
 
-// Fixture negatif bersama untuk TC-SD-025-15: [nama, payload, requirements, invalidReason, opsi setup]
+// Shared negative fixtures for TC-SD-025-15: [name, payload, requirements, invalidReason, setup options]
 const NEGATIVES: [string, any, any, string, Parameters<typeof setup>[0]?][] = [
   ["seller forges", pay({}, { signer: "kB" }), requirements(), "invalid_signature"],
   ["cumulative changed by the server", pay({}, { tamper: { cumulativeAmount: "10000" } }), requirements(), "invalid_signature"],
@@ -85,23 +85,23 @@ const NEGATIVES: [string, any, any, string, Parameters<typeof setup>[0]?][] = [
   ["payer pending", pay({ payer: P }), requirements(), "member_not_active"],
   ["amount raised in requirements only", pay(), requirements({ amount: "2000000" }), "invalid_payment_requirements"],
   [
-    "amount dinaikkan di kedua tempat",
+    "amount raised in both places",
     pay({}, { accepted: requirements({ amount: "2000000" }) }),
     requirements({ amount: "2000000" }),
     "amount_mismatch",
   ],
   [
-    "amount diturunkan di kedua tempat",
+    "amount lowered in both places",
     pay({}, { accepted: requirements({ amount: "10000" }) }),
     requirements({ amount: "10000" }),
     "amount_mismatch",
   ],
   ["payTo redirected by the server", pay(), requirements({}, 42, C), "invalid_payment_requirements"],
-  ["epoch masa depan", pay({ epoch: 43 }), requirements({}, 43), "epoch_mismatch"],
+  ["future epoch", pay({ epoch: 43 }), requirements({}, 43), "epoch_mismatch"],
   ["past cutoff", pay(), requirements(), "epoch_closing", { now: CUTOFF_MS + 1000 }],
 ];
 
-describe("SD-025 suite test negatif verify", () => {
+describe("SD-025 verify negative test suite", () => {
   it("TC-SD-025-01 forgery by the seller", async () => {
     expect(await setup().facilitator.verify(pay({}, { signer: "kB" }), requirements() as any)).toMatchObject({
       isValid: false, invalidReason: "invalid_signature", payer: A,

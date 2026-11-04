@@ -1,13 +1,13 @@
-// Hitungan sendiri di sisi pembeli (SD-068, pipeline P5, ADR-43): pembeli mencatat apa yang benar-benar diterima (byte, durasi, jumlah panggilan) dan menolak menandatangani
-// voucher di atas hitungan itu. Penjual yang menagih 10 GB untuk 2 GB tidak mendapat voucher di atas 2 GB. Dua pemeriksaan:
-//   1. `authorize(meter, amount)`: pada 402 yang mengumumkan `extra.meter`, satuan, harga satuan, jumlah, dan total harus cocok dengan yang diminta pembeli;
-//   2. `checkVoucher(cumulativeAmount)` / `sign(...)`: jumlah kumulatif tidak boleh melebihi harga (diterima + diharapkan) satuan, untuk tagihan sesudah pemakaian dan job bertahap.
-// Kelas ini tanpa jaringan dan tanpa waktu. Satuan memakai enam desimal, sama dengan harga terukur penjual (SD-062).
+// Buyer-side own count (SD-068, pipeline P5, ADR-43): the buyer records what was actually received (bytes, duration, number of calls) and refuses to sign
+// a voucher above that count. A seller who bills 10 GB for 2 GB gets no voucher above 2 GB. Two checks:
+//   1. `authorize(meter, amount)`: on a 402 that announces `extra.meter`, the unit, unit price, quantity, and total must match what the buyer asked for;
+//   2. `checkVoucher(cumulativeAmount)` / `sign(...)`: the cumulative amount must not exceed the price of (received + expected) units, for post-usage bills and staged jobs.
+// This class has no network and no time. Units use six decimals, the same as the seller's metered price (SD-062).
 import { CREDIT_DECIMALS, signVoucher, type U128String, type UnsignedVoucher, type Voucher, type VoucherSecretKey } from "@x207/core";
 import { meterAmount, type MeterAnnouncement } from "../server/metering.js";
 import { priceToAmount } from "../server/price.js";
 
-/** Kode galat yang stabil. */
+/** Stable error code. */
 export type MeterOverbilledCode =
   | "meter_missing" | "meter_unit_mismatch" | "meter_price_too_high" | "meter_quantity_over_expected" | "meter_amount_mismatch" | "meter_overbilled" | "meter_bad_count" | "meter_wrong_epoch";
 
@@ -19,15 +19,15 @@ export class MeterOverbilledError extends Error {
 }
 
 export type BuyerMeterOptions = {
-  /** Satuan yang dibeli, mis. `GB`, `minute`, `call`, `job`. */
+  /** The unit bought, e.g. `GB`, `minute`, `call`, `job`. */
   unit: string;
-  /** Harga satuan tertinggi yang disetujui pembeli, dalam credit (format `price` biasa); biasanya harga di listing. */
+  /** The highest unit price the buyer approves, in credit (the usual `price` format); normally the listing price. */
   unitPrice: string | number;
-  /** Batas jumlah per request bila pembeli tidak menyebut harapan per request. */
+  /** Cap on quantity per request when the buyer does not state an expectation per request. */
   maxQuantityPerRequest?: number | string;
   /**
-   * Epoch yang berjalan dan keadaan pasangan (pembeli, penjual) di epoch itu: jumlah kumulatif voucher yang sudah terdaftar (`"0"` bila belum ada). Voucher kumulatif dimulai lagi
-   * dari 0 di tiap epoch (ADR-17), jadi batasnya dihitung per epoch: `baseCumulative` ditambah harga yang diterima di epoch ini (tinjauan BE-062, F3).
+   * The running epoch and the state of the (buyer, seller) pair in that epoch: the cumulative amount of vouchers already registered (`"0"` if none). The cumulative voucher starts again
+   * from 0 in each epoch (ADR-17), so the limit is computed per epoch: `baseCumulative` plus the price received in this epoch (review BE-062, F3).
    */
   epoch: number;
   baseCumulative?: U128String;
@@ -50,7 +50,7 @@ const plain = (value: bigint): string => {
 
 export class BuyerMeter {
   readonly unit: string;
-  /** Harga satuan tertinggi yang disetujui, satuan credit terkecil. */
+  /** The highest approved unit price, in the smallest credit unit. */
   readonly unitPrice: bigint;
   #maxPerRequest: bigint | undefined;
   #received = 0n;
@@ -79,7 +79,7 @@ export class BuyerMeter {
     return this.#epoch;
   }
 
-  /** Pindah ke epoch berikutnya dengan keadaan pasangan di sana; yang diterima dan yang diharapkan dihitung dari 0 lagi. */
+  /** Move to the next epoch with the pair's state there; received and expected are counted from 0 again. */
   startEpoch(epoch: number, baseCumulative: U128String = "0"): void {
     if (epoch <= this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `epoch ${epoch} is not after epoch ${this.#epoch}`);
     this.#epoch = BuyerMeter.#checkEpoch(epoch);
@@ -88,29 +88,29 @@ export class BuyerMeter {
     this.#pending = 0n;
   }
 
-  /** Yang benar-benar diterima di epoch ini, dalam satuan (teks). */
+  /** What was actually received in this epoch, in units (text). */
   get received(): string {
     return plain(this.#received);
   }
 
-  /** Yang diminta pembeli dan belum diterima, dalam satuan (teks). */
+  /** What the buyer requested and has not yet received, in units (text). */
   get pending(): string {
     return plain(this.#pending);
   }
 
-  /** Pembeli akan meminta `quantity` satuan: voucher boleh membayarnya di muka, tidak lebih. */
+  /** The buyer will request `quantity` units: a voucher may pay for it in advance, no more. */
   expect(quantity: number | string): void {
     this.#pending += micro(quantity, "quantity");
   }
 
-  /** Mencatat `quantity` satuan yang diterima; mengurangi yang diharapkan. */
+  /** Records `quantity` units received; reduces what is expected. */
   record(quantity: number | string): void {
     const q = micro(quantity, "quantity");
     this.#received += q;
     this.#pending = q >= this.#pending ? 0n : this.#pending - q;
   }
 
-  /** Mencatat byte yang diterima; hanya untuk satuan `GB` (1 GB = 10^9 byte). */
+  /** Records bytes received; only for unit `GB` (1 GB = 10^9 bytes). */
   recordBytes(bytes: number | bigint): void {
     if (this.unit !== "GB") throw new MeterOverbilledError("meter_unit_mismatch", `bytes only apply to unit GB, this meter's unit is ${this.unit}`);
     const b = BigInt(bytes);
@@ -118,7 +118,7 @@ export class BuyerMeter {
     this.record(plain((b * SCALE) / GB_BYTES));
   }
 
-  /** Mencatat durasi yang diterima dalam milidetik; hanya untuk satuan `minute` atau `day`. */
+  /** Records duration received in milliseconds; only for unit `minute` or `day`. */
   recordMillis(ms: number): void {
     const unitMs = this.unit === "minute" ? 60_000 : this.unit === "day" ? 86_400_000 : 0;
     if (unitMs === 0) throw new MeterOverbilledError("meter_unit_mismatch", `duration only applies to unit minute or day, this meter's unit is ${this.unit}`);
@@ -126,25 +126,25 @@ export class BuyerMeter {
     this.record((ms / unitMs).toFixed(6));
   }
 
-  /** Mencatat jumlah panggilan, request, atau job yang diterima (bilangan bulat). */
+  /** Records the number of calls, requests, or jobs received (integer). */
   recordCalls(count = 1): void {
     if (!Number.isSafeInteger(count) || count < 0) throw new MeterOverbilledError("meter_bad_count", `count must be an integer >= 0, got ${count}`);
     this.record(count);
   }
 
-  /** Harga (diterima + diharapkan) satuan pada harga yang disetujui: batas atas jumlah kumulatif yang boleh ditandatangani, satuan credit terkecil. */
+  /** Price of (received + expected) units at the approved price: the upper bound of the cumulative amount that may be signed, in the smallest credit unit. */
   ceiling(): bigint {
     const total = this.#received + this.#pending;
     return this.#base + (total === 0n ? 0n : (this.unitPrice * total + SCALE - 1n) / SCALE);
   }
 
   /**
-   * Periksa 402 yang mengumumkan `extra.meter` sebelum menandatangani: satuan sama, harga satuan tidak di atas yang disetujui, jumlah tidak di atas yang diminta (atau batas
-   * per request), dan `amount` sama dengan harga satuan × jumlah.
+   * Check a 402 that announces `extra.meter` before signing: same unit, unit price not above the approved one, quantity not above what was requested (or the per-request
+   * limit), and `amount` equal to unit price × quantity.
    */
   authorize(announcement: MeterAnnouncement | undefined, amount: U128String): void {
     if (announcement === undefined) throw new MeterOverbilledError("meter_missing", "402 does not announce extra.meter: the unit and the billed quantity are unknown");
-    if (announcement.unit !== this.unit) throw new MeterOverbilledError("meter_unit_mismatch", `satuan ${announcement.unit}, diharapkan ${this.unit}`, { unit: announcement.unit });
+    if (announcement.unit !== this.unit) throw new MeterOverbilledError("meter_unit_mismatch", `unit ${announcement.unit}, expected ${this.unit}`, { unit: announcement.unit });
     // F8 (review BE-062): BigInt() reads hex ("0x10"), spaces and an empty text; the price is a decimal whole number above 0 or the announcement is refused
     if (typeof announcement.unit_price !== "string" || !/^[1-9]\d*$/.test(announcement.unit_price)) {
       throw new MeterOverbilledError("meter_bad_count", `unit_price must be a decimal integer > 0, got ${JSON.stringify(announcement.unit_price)}`);
@@ -156,7 +156,7 @@ export class BuyerMeter {
     const quantity = micro(announcement.quantity, "quantity");
     const allowed = this.#pending > 0n ? this.#pending : this.#maxPerRequest;
     if (allowed !== undefined && quantity > allowed) {
-      throw new MeterOverbilledError("meter_quantity_over_expected", `${announcement.quantity} ${this.unit} ditagih, diminta paling banyak ${plain(allowed)}`, {
+      throw new MeterOverbilledError("meter_quantity_over_expected", `${announcement.quantity} ${this.unit} billed, at most ${plain(allowed)} was requested`, {
         quantity: announcement.quantity, expected: plain(allowed),
       });
     }
@@ -165,9 +165,9 @@ export class BuyerMeter {
     }
   }
 
-  /** Voucher kumulatif di atas `ceiling()` ditolak. */
+  /** Cumulative vouchers above `ceiling()` are rejected. */
   checkVoucher(cumulativeAmount: U128String, epoch: number): void {
-    if (epoch !== this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `voucher is for epoch ${epoch}, this meter is for epoch ${this.#epoch}: panggil startEpoch`, { epoch: String(epoch) });
+    if (epoch !== this.#epoch) throw new MeterOverbilledError("meter_wrong_epoch", `voucher is for epoch ${epoch}, this meter is for epoch ${this.#epoch}: call startEpoch`, { epoch: String(epoch) });
     const cap = this.ceiling();
     if (BigInt(cumulativeAmount) > cap) {
       throw new MeterOverbilledError(
@@ -178,7 +178,7 @@ export class BuyerMeter {
     }
   }
 
-  /** Tandatangani voucher hanya bila lolos `checkVoucher`. */
+  /** Sign the voucher only if it passes `checkVoucher`. */
   sign(voucher: UnsignedVoucher, secretKey: VoucherSecretKey): Voucher {
     this.checkVoucher(voucher.cumulativeAmount, voucher.epoch);
     return signVoucher(voucher, secretKey);

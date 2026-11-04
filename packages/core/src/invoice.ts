@@ -1,15 +1,15 @@
-// Format invoice dan cicilan (SD-065, pipeline P8, ADR-44). Invoice adalah klaim issuer atas debtor di luar x207. Bila debtor menandatanganinya sebagai voucher biasa, klaim itu
-// menjadi edge D2 `debtor -> issuer` dan ikut kliring F3; kontrak tidak berubah. Yang ditandatangani debtor adalah voucher yang sudah ada: `payer = debtor`, `payee = issuer`,
-// `unit = "credit"`, `resource = "x207:invoice:<hash>"`, dan `cumulativeAmount` = kumulatif pasangan sebelumnya + jumlah invoice (CT-076).
+// Invoice and installment format (SD-065, pipeline P8, ADR-44). An invoice is the issuer's claim on the debtor outside x207. If the debtor signs it as a plain voucher, the claim
+// becomes a D2 edge `debtor -> issuer` and takes part in F3 clearing; the contract does not change. What the debtor signs is the existing voucher: `payer = debtor`, `payee = issuer`,
+// `unit = "credit"`, `resource = "x207:invoice:<hash>"`, and `cumulativeAmount` = the pair's previous cumulative + the invoice amount (CT-076).
 //
-// Cicilan (ADR-44): n voucher di n epoch berurutan, SEMUANYA ditandatangani debtor di depan, masing-masing dengan `seq` 1 pasangan di epochnya dan kumulatif sebesar cicilan itu.
-// Voucher biasa debtor ke issuer di epoch yang sama baru dimulai di `seq` 2 dengan kumulatif yang sudah memuat cicilan (`installmentState`). Tidak ada voucher cadangan di depan:
-// issuer bisa mendaftarkannya walau cicilan aslinya sudah dibayar, sehingga debtor membayar dua kali. Cicilan yang gagal (headroom habis) digeser SEKALI ke epoch berikutnya dengan
-// voucher susulan (`catchUpVoucher`) yang ditandatangani debtor setelah gagal; gagal lagi menjadi `missed`, tanpa denda otomatis.
+// Installments (ADR-44): n vouchers in n consecutive epochs, ALL signed by the debtor up front, each with `seq` 1 of the pair in its epoch and a cumulative equal to that installment.
+// A plain debtor-to-issuer voucher in the same epoch only starts at `seq` 2 with a cumulative that already includes the installment (`installmentState`). There is no backup voucher ahead:
+// the issuer could register it even though the original installment was paid, so the debtor would pay twice. An installment that fails (headroom exhausted) is shifted ONCE to the next epoch with
+// a catch-up voucher (`catchUpVoucher`) signed by the debtor after the failure; failing again becomes `missed`, with no automatic penalty.
 //
-// BATAS YANG DIAKUI (bukan jaminan): kontrak hanya menolak `seq` yang tidak naik per (payer, payee, epoch) dan membolehkan celah `seq`. Debtor bisa memblokir voucher cicilan dengan
-// mendaftarkan dulu voucher ber-`seq` lebih tinggi ke issuer; cicilan `seq` 1 lalu ditolak. Tanda tangan di depan adalah bukti, bukan jaminan pembayaran. Penangkalnya ada di luar
-// format ini: status `blocked_by_debtor` dan reputasi (backend), serta jaminan CT-094 untuk invoice besar. Jaminan penuh butuh penguncian headroom lintas epoch di kontrak.
+// ACKNOWLEDGED LIMIT (not a guarantee): the contract only rejects a `seq` that does not increase per (payer, payee, epoch) and allows `seq` gaps. A debtor can block an installment voucher by
+// first registering a higher-`seq` voucher to the issuer; installment `seq` 1 is then rejected. The up-front signature is evidence, not a payment guarantee. The countermeasures live outside
+// this format: the `blocked_by_debtor` status and reputation (backend), and the CT-094 guarantee for large invoices. A full guarantee needs cross-epoch headroom locking in the contract.
 import { createHash } from "node:crypto";
 import { CREDIT_UNIT } from "./constants.js";
 import type { AccountId, U128String, UnsignedVoucher, Voucher } from "./types.js";
@@ -26,11 +26,11 @@ export class InvoiceError extends Error {
   }
 }
 
-/** Dokumen invoice. Hanya hash-nya yang masuk rantai (di `resource`); isi dan `memo` tetap di luar. */
+/** Invoice document. Only its hash goes on-chain (in `resource`); the content and `memo` stay off-chain. */
 export type InvoiceDocument = { id: string; issuer: AccountId; debtor: AccountId; amount: U128String; memo: string };
 
 export const INVOICE_RESOURCE_PREFIX = "x207:invoice:";
-/** Paling banyak cicilan per invoice: satu voucher per epoch, dan tiap epoch memakai headroom debtor. */
+/** Maximum installments per invoice: one voucher per epoch, and each epoch uses the debtor's headroom. */
 export const MAX_INSTALLMENTS = 24;
 
 const ACCOUNT = /^(?:[a-z\d]+[-_])*[a-z\d]+(?:\.(?:[a-z\d]+[-_])*[a-z\d]+)*$/;
@@ -51,14 +51,14 @@ function checkDocument(doc: InvoiceDocument): void {
   if (typeof doc.memo !== "string" || doc.memo.length > 256 || !/^[\x20-\x7e]*$/.test(doc.memo)) fail("invoice_bad_memo", "memo must be ASCII text of at most 256 characters");
 }
 
-/** JSON kanonik `{id, issuer, debtor, amount, memo}` (urutan key tetap, tanpa spasi); sama dengan format AG-021. */
+/** Canonical JSON `{id, issuer, debtor, amount, memo}` (fixed key order, no whitespace); the same as the AG-021 format. */
 export function serializeInvoice(doc: InvoiceDocument): string {
   checkDocument(doc);
   const { id, issuer, debtor, amount, memo } = doc;
   return JSON.stringify({ id, issuer, debtor, amount, memo });
 }
 
-/** sha256 atas JSON kanonik; heks huruf kecil 64 karakter. */
+/** sha256 of the canonical JSON; 64 lowercase hex characters. */
 export function invoiceHash(doc: InvoiceDocument): string {
   return createHash("sha256").update(serializeInvoice(doc)).digest("hex");
 }
@@ -69,21 +69,21 @@ export function invoiceResource(hash: string): string {
   return `${INVOICE_RESOURCE_PREFIX}${hash}`;
 }
 
-/** Hash dari `resource` voucher invoice, atau `null` bila bukan resource invoice. */
+/** Hash from a voucher's `resource`, or `null` if not an invoice resource. */
 export function parseInvoiceResource(resource: string): string | null {
   if (!resource.startsWith(INVOICE_RESOURCE_PREFIX)) return null;
   const hash = resource.slice(INVOICE_RESOURCE_PREFIX.length);
   return /^[0-9a-f]{64}$/.test(hash) ? hash : null;
 }
 
-/** Keadaan pasangan (debtor, issuer) di satu epoch: `seq` terakhir dan kumulatif yang sudah terdaftar (0 dan "0" bila belum ada voucher). */
+/** State of the (debtor, issuer) pair in one epoch: the last `seq` and the cumulative already registered (0 and "0" if no voucher yet). */
 export type InvoicePairState = { seq: number; cumulativeAmount: U128String };
 
 const checkState = (state: InvoicePairState): void => {
   if (!Number.isSafeInteger(state.seq) || state.seq < 0 || !/^(0|[1-9]\d*)$/.test(state.cumulativeAmount)) fail("installment_bad_state", `invalid pair state: ${JSON.stringify(state)}`);
 };
 
-/** Voucher invoice biasa (satu kali bayar): melanjutkan keadaan pasangan di epoch `epoch`. */
+/** Plain invoice voucher (single payment): continues the pair state in epoch `epoch`. */
 export function invoiceVoucher(args: { circle: AccountId; doc: InvoiceDocument; epoch: number; state: InvoicePairState }): UnsignedVoucher {
   checkState(args.state);
   if (!Number.isSafeInteger(args.epoch) || args.epoch < 1) fail("installment_bad_epoch", `epoch must be an integer >= 1, got ${args.epoch}`);
@@ -95,12 +95,12 @@ export function invoiceVoucher(args: { circle: AccountId; doc: InvoiceDocument; 
 
 export const signInvoiceVoucher = (voucher: UnsignedVoucher, secretKey: VoucherSecretKey): Voucher => signVoucher(voucher, secretKey);
 
-/** Jadwal epoch: epoch yang sedang berjalan, kapan dibuka (detik unix), dan `epoch_length` (detik). */
+/** Epoch schedule: the currently running epoch, when it opened (unix seconds), and `epoch_length` (seconds). */
 export type EpochClock = { epoch: number; openedAt: number; epochLength: number };
 
 /**
- * Epoch yang berjalan pada `time` (detik unix) menurut jadwal nominal `openedAt + n × epochLength`. Ini perkiraan: kontrak membuka epoch berikutnya saat `close_epoch` dipanggil,
- * jadi epoch yang sebenarnya bisa bergeser; issuer tetap harus mendaftarkan sebelum `cutoff_at` epoch itu. Waktu sebelum `openedAt` ditolak.
+ * The epoch running at `time` (unix seconds) according to the nominal schedule `openedAt + n × epochLength`. This is an estimate: the contract opens the next epoch when `close_epoch` is called,
+ * so the real epoch may drift; the issuer must still register before that epoch's `cutoff_at`. Times before `openedAt` are rejected.
  */
 export function epochForTime(time: number, clock: EpochClock): number {
   if (!Number.isFinite(time) || !Number.isSafeInteger(clock.epoch) || clock.epoch < 1 || !(clock.epochLength > 0) || time < clock.openedAt) {
@@ -113,8 +113,8 @@ export type Installment = { index: number; epoch: number; amount: U128String };
 export type InstallmentPlan = { circle: AccountId; doc: InvoiceDocument; hash: string; resource: string; installments: Installment[] };
 
 /**
- * Rencana `count` cicilan di epoch `firstEpoch`, `firstEpoch + 1`, ... Jumlah dibagi rata; sisa pembagian dibagikan satu satuan terkecil ke cicilan pertama, jadi jumlah semua cicilan
- * persis jumlah invoice. `count` 1 sampai `MAX_INSTALLMENTS`, dan tiap cicilan paling sedikit 1 satuan terkecil.
+ * Plan of `count` installments in epochs `firstEpoch`, `firstEpoch + 1`, ... The amount is divided evenly; the remainder is distributed one smallest unit at a time to the first installments, so the sum of all installments
+ * is exactly the invoice amount. `count` is 1 to `MAX_INSTALLMENTS`, and each installment is at least 1 smallest unit.
  */
 export function planInstallments(args: { circle: AccountId; doc: InvoiceDocument; firstEpoch: number; count: number }): InstallmentPlan {
   const { circle, doc, firstEpoch, count } = args;
@@ -135,8 +135,8 @@ const installmentAt = (plan: InstallmentPlan, index: number): Installment =>
   plan.installments.find((i) => i.index === index) ?? fail("installment_not_found", `installment ${index} does not exist; this plan has ${plan.installments.length}`);
 
 /**
- * Voucher cicilan `index`, ditandatangani di depan: `seq` 1 pasangan di epochnya dan kumulatif sebesar cicilan itu. Hanya benar bila pasangan belum punya voucher di epoch itu;
- * tidak ada parameter keadaan karena memang begitu aturannya.
+ * Voucher for installment `index`, signed up front: `seq` 1 of the pair in its epoch and a cumulative equal to that installment. Only correct if the pair has no voucher yet in that epoch;
+ * there is no state parameter because that is the rule.
  */
 export function installmentVoucher(plan: InstallmentPlan, index: number): UnsignedVoucher {
   const item = installmentAt(plan, index);
@@ -145,13 +145,13 @@ export function installmentVoucher(plan: InstallmentPlan, index: number): Unsign
   };
 }
 
-/** Semua voucher cicilan bertanda tangan, satu per epoch, dalam satu kali tanda tangan di depan. */
+/** All signed installment vouchers, one per epoch, in a single up-front signature. */
 export const signInstallments = (plan: InstallmentPlan, secretKey: VoucherSecretKey): Voucher[] =>
   plan.installments.map((i) => signVoucher(installmentVoucher(plan, i.index), secretKey));
 
 /**
- * Keadaan pasangan di epoch cicilan `index` sesudah cicilan itu terdaftar: voucher biasa debtor ke issuer di epoch itu mulai di `seq` 2 dengan kumulatif yang sudah memuat cicilan.
- * Untuk mengisi `VoucherStateStore` klien supaya voucher berikutnya tidak memakai `seq` 1 lagi.
+ * Pair state in the epoch of installment `index` after that installment is registered: a plain debtor-to-issuer voucher in that epoch starts at `seq` 2 with a cumulative that already includes the installment.
+ * To fill the client's `VoucherStateStore` so the next voucher does not use `seq` 1 again.
  */
 export function installmentState(plan: InstallmentPlan, index: number): { epoch: number; state: InvoicePairState } {
   const item = installmentAt(plan, index);
@@ -159,12 +159,12 @@ export function installmentState(plan: InstallmentPlan, index: number): { epoch:
 }
 
 /**
- * Voucher susulan untuk cicilan `index` yang gagal didaftarkan karena headroom habis: digeser SEKALI ke epoch berikutnya (`epoch` cicilan + 1), melanjutkan keadaan pasangan di epoch
- * itu (`state`, apa yang terdaftar sekarang, termasuk cicilan epoch itu sendiri bila ada). Panggil hanya setelah kegagalan terjadi; JANGAN menandatangani voucher ini di depan.
- * `alreadyShifted` true berarti cicilan ini sudah pernah digeser: gagal lagi menjadi `missed`, dan fungsi ini menolak.
+ * Catch-up voucher for installment `index` that failed to register because headroom ran out: shifted ONCE to the next epoch (installment `epoch` + 1), continuing the pair state in that
+ * epoch (`state`, what is registered now, including that epoch's own installment if any). Call only after the failure has happened; do NOT sign this voucher up front.
+ * `alreadyShifted` true means this installment was already shifted once: failing again becomes `missed`, and this function refuses.
  *
- * PERINGATAN (tinjauan BE-062, F9): fungsi ini menandatangani di atas `state` APA PUN yang diberikan. `state` harus dibaca dari KONTRAK oleh penandatangan sendiri (view `obligation`),
- * tidak pernah dari penagih atau backend: keadaan yang digelembungkan membuat debtor membayar selisihnya kepada penagih. Pakai `catchUpVoucherFromChain` bila bisa, yang membaca keadaan itu sendiri.
+ * WARNING (BE-062 review, F9): this function signs on top of WHATEVER `state` it is given. `state` must be read from the CONTRACT by the signer itself (the `obligation` view),
+ * never from the collector or the backend: an inflated state makes the debtor pay the difference to the collector. Use `catchUpVoucherFromChain` when possible, which reads that state itself.
  */
 export function catchUpVoucher(plan: InstallmentPlan, index: number, state: InvoicePairState, alreadyShifted: boolean): UnsignedVoucher {
   const item = installmentAt(plan, index);
@@ -176,11 +176,11 @@ export function catchUpVoucher(plan: InstallmentPlan, index: number, state: Invo
   };
 }
 
-/** View `obligation` kontrak untuk satu pasangan di satu epoch (hasil `ObligationView`, atau `null` bila pasangan belum punya voucher di epoch itu). */
+/** The contract's `obligation` view for one pair in one epoch (result of `ObligationView`, or `null` if the pair has no voucher in that epoch). */
 export type ViewObligationFn = (args: { epoch: number; debtor: AccountId; creditor: AccountId }) => Promise<{ cumulative: string; last_seq: number } | null>;
 
 /**
- * Seperti `catchUpVoucher`, tetapi keadaan pasangan di epoch tujuan dibaca sendiri dari kontrak lewat `viewObligation` (F9): penandatangan tidak bisa diberi keadaan palsu oleh pihak lain.
+ * Like `catchUpVoucher`, but the pair state in the target epoch is read from the contract itself via `viewObligation` (F9): the signer cannot be given a fake state by another party.
  */
 export async function catchUpVoucherFromChain(plan: InstallmentPlan, index: number, viewObligation: ViewObligationFn, alreadyShifted: boolean): Promise<UnsignedVoucher> {
   const item = installmentAt(plan, index);

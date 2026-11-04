@@ -107,7 +107,7 @@ describe("SD-026 facilitator settle", () => {
     expect(JSON.stringify(result)).not.toContain("X-X207-Commitment");
   });
 
-  it("TC-SD-026-03 lolos tipe SettleResponse @x402/core", async () => {
+  it("TC-SD-026-03 passes the SettleResponse type of @x402/core", async () => {
     const result: SettleResponse = await setup().facilitator.settle(payload(), REQ as any);
     expect(result.success).toBe(true);
   });
@@ -134,7 +134,7 @@ describe("SD-026 facilitator settle", () => {
     expect((await facilitator.settle(payload(), REQ as any)).success).toBe(true);
   });
 
-  it("TC-SD-026-07 idempoten per commitment id", async () => {
+  it("TC-SD-026-07 idempotent per commitment id", async () => {
     const { facilitator, store } = setup();
     const first = await facilitator.settle(payload(), REQ as any);
     const before = store.snapshot();
@@ -158,7 +158,7 @@ describe("SD-026 facilitator settle", () => {
     expect(store.get(A, B, 42)?.seq).toBe(137);
   });
 
-  it("TC-SD-026-09 settle menjalankan ulang verify", async () => {
+  it("TC-SD-026-09 settle re-runs verify", async () => {
     const { facilitator, store } = setup();
     expect(await facilitator.settle(payload(1, "20000", "kZ"), REQ as any)).toMatchObject({
       success: false, errorReason: "invalid_signature", transaction: "",
@@ -192,7 +192,7 @@ describe("SD-026 facilitator settle", () => {
   it("a parallel settle that loses the race answers seq_not_increasing", async () => {
     const { facilitator, store } = setup();
     const original = store.save.bind(store);
-    store.save = () => false; // pasangan sudah diisi settle lain di antara verify dan simpan
+    store.save = () => false; // the pair was already filled by another settle between verify and save
     const result = await facilitator.settle(payload(), REQ as any);
     store.save = original;
     expect(result).toMatchObject({ success: false, errorReason: "seq_not_increasing" });

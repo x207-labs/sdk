@@ -1,5 +1,5 @@
-// Listing, penawaran, dan hitungan barter cepat marketplace (SD-055, F9). Nama field mengikuti note F9 dan buku listing D12.
-// Format byte dan alasannya: spec/marketplace.md. Fungsi hitung murni, BigInt, tanpa pembulatan float.
+// Marketplace listings, offers, and fast barter arithmetic (SD-055, F9). Field names follow the F9 note and the D12 listing book.
+// Byte format and rationale: spec/marketplace.md. The arithmetic functions are pure, BigInt, with no float rounding.
 import { createHash } from "node:crypto";
 import { base58Encode } from "./base58.js";
 import { nep413SigningHash, signHash, verifyHash, type VoucherSecretKey } from "./voucher.js";
@@ -13,16 +13,16 @@ const ACCOUNT = /^(?:[a-z\d]+[-_])*[a-z\d]+(?:\.(?:[a-z\d]+[-_])*[a-z\d]+)*$/;
 const HASH_HEX = /^[0-9a-f]{64}$/;
 const BPS_DENOMINATOR = 10_000n;
 
-/** Kelas aset A/B/C/D dari Fitur F8; kelas `X` ditolak. */
+/** Asset class A/B/C/D from Feature F8; class `X` is rejected. */
 export const ASSET_CLASSES = ["A", "B", "C", "D"] as const;
 export type AssetClass = (typeof ASSET_CLASSES)[number];
 export const LISTING_STATUSES = ["open", "matched", "cancelled", "expired"] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
 
-/** Satu sisi listing: bentuk aset bebas (`asset_type`), kelas penyerahannya, jumlah, dan nilai total dalam credit. */
+/** One listing side: a free-form asset shape (`asset_type`), its handover class, quantity, and total value in credit. */
 export type ListingSide = { asset_type: string; asset_class: AssetClass; quantity: number; value: U128String };
 
-/** Listing "punya `offer`, cari `want`". `status` dikelola buku listing dan tidak ikut ditandatangani. */
+/** A listing "has `offer`, seeks `want`". `status` is managed by the listing book and is not signed. */
 export type Listing = {
   circle: AccountId;
   account: AccountId;
@@ -30,9 +30,9 @@ export type Listing = {
   want: ListingSide;
   terms: string;
   detail: string;
-  /** Detik unix. */
+  /** Unix seconds. */
   expires_at: number;
-  /** Diskon dalam bps dari nilai `offer` untuk barter cepat. */
+  /** Discount in bps of the `offer` value for fast barter. */
   discount_bps: number;
   accept_payment: boolean;
   discoverable: boolean;
@@ -41,7 +41,7 @@ export type Listing = {
 
 export type OfferMode = "pay" | "barter";
 
-/** Penawaran atau penawaran balik atas listing, satu per ronde. `status` dikelola backend dan tidak ikut ditandatangani. */
+/** An offer or counter-offer on a listing, one per round. `status` is managed by the backend and is not signed. */
 export type Offer = {
   circle: AccountId;
   listing_hash: string;
@@ -50,7 +50,7 @@ export type Offer = {
   mode: OfferMode;
   value: U128String;
   quantity: number;
-  /** Jadwal penyerahan, detik unix. */
+  /** Handover schedule, unix seconds. */
   deliver_by: number;
 };
 
@@ -93,7 +93,7 @@ export function validateOffer(offer: Offer): void {
 
 const side = (s: ListingSide) => ({ asset_type: s.asset_type, asset_class: s.asset_class, quantity: s.quantity, value: s.value });
 
-/** JSON kanonik listing: key `circle, account, offer, want, terms, detail, expires_at, discount_bps, accept_payment, discoverable, nonce`. */
+/** Canonical listing JSON: keys `circle, account, offer, want, terms, detail, expires_at, discount_bps, accept_payment, discoverable, nonce`. */
 export function serializeListing(listing: Listing): string {
   validateListing(listing);
   return JSON.stringify({
@@ -103,7 +103,7 @@ export function serializeListing(listing: Listing): string {
   });
 }
 
-/** JSON kanonik penawaran: key `circle, listing_hash, proposer, round, mode, value, quantity, deliver_by`. */
+/** Canonical offer JSON: keys `circle, listing_hash, proposer, round, mode, value, quantity, deliver_by`. */
 export function serializeOffer(offer: Offer): string {
   validateOffer(offer);
   return JSON.stringify({
@@ -141,13 +141,13 @@ export function verifyOfferSignature(offer: Offer, signature: string, publicKey:
   }
 }
 
-/** Parameter pembagian diskon. Tidak ada nilai tetap di kode: pemanggil menetapkannya (contoh note F9: 1000 bps dan 300 bps dari 100 credit). */
+/** Discount split parameters. No fixed value in code: the caller sets them (F9 note example: 1000 bps and 300 bps of 100 credit). */
 export type QuickBarterParams = {
-  /** Nilai `offer` listing (credit satuan terkecil). */
+  /** The listing's `offer` value (credit, smallest unit). */
   value: U128String;
-  /** Diskon dari listing, bps dari `value`. */
+  /** Discount from the listing, bps of `value`. */
   discountBps: number;
-  /** Jatah pencari otonom, bps dari `value`; tidak boleh melebihi diskon. */
+  /** Autonomous searcher share, bps of `value`; must not exceed the discount. */
   searcherShareBps: number;
 };
 
@@ -165,7 +165,7 @@ function split({ value, discountBps, searcherShareBps }: QuickBarterParams) {
   return { v, discount, searcher };
 }
 
-/** Jalur bayar: lawan membayar `value − diskon + jatah pencari`; penjual menerima `value − diskon`; pencari menerima jatahnya. */
+/** Pay path: the counterparty pays `value − discount + searcher share`; the seller receives `value − discount`; the searcher receives their share. */
 export type QuickPay = { counterpartyPays: U128String; sellerReceives: U128String; searcher: U128String; discount: U128String };
 
 export function quickPay(params: QuickBarterParams): QuickPay {
@@ -176,8 +176,8 @@ export function quickPay(params: QuickBarterParams): QuickPay {
 }
 
 /**
- * Jalur barter: lawan menyerahkan barang senilai `value` dan menerima `offer` ditambah cashback `diskon − jatah pencari`.
- * Penjual menanggung `diskon` (cashback + jatah pencari). Cashback dan jatah pencari adalah leg bundle biasa.
+ * Barter path: the counterparty hands over goods worth `value` and receives `offer` plus cashback `discount − searcher share`.
+ * The seller bears the `discount` (cashback + searcher share). Cashback and searcher share are ordinary bundle legs.
  */
 export type QuickBarter = { cashback: U128String; searcher: U128String; sellerBears: U128String; counterpartyGives: U128String };
 
@@ -186,7 +186,7 @@ export function quickBarter(params: QuickBarterParams): QuickBarter {
   return { cashback: String(discount - searcher), searcher: String(searcher), sellerBears: String(discount), counterpartyGives: String(v) };
 }
 
-/** Pesan pembatalan listing yang ditandatangani pemasang: `x207:cancel_listing:<listing_hash>`. */
+/** Listing cancellation message signed by the poster: `x207:cancel_listing:<listing_hash>`. */
 export const cancelListingMessage = (hash: string): string => `x207:cancel_listing:${hash}`;
 
 function cancelSigningHash(listing: Listing): Uint8Array {
@@ -196,7 +196,7 @@ function cancelSigningHash(listing: Listing): Uint8Array {
 
 export const signCancelListing = (listing: Listing, secretKey: VoucherSecretKey): Ed25519Signature => signHash(cancelSigningHash(listing), secretKey);
 
-/** Hash penandatanganan pembatalan dari hash listing dan akun kontrak lingkaran (dipakai server yang hanya menyimpan hash). */
+/** Signing hash for cancellation from the listing hash and the circle contract account (used by a server that stores only the hash). */
 export function cancelSigningHashFor(hash: string, circle: AccountId): Uint8Array {
   const message = cancelListingMessage(hash);
   return nep413SigningHash(message, sha256(message), circle);
@@ -210,11 +210,11 @@ export function verifyCancelSignature(hash: string, circle: AccountId, signature
   }
 }
 
-// --- Ajakan pencari (SV-015, FIT-F9-08) ---
+// --- Searcher invitation (SV-015, FIT-F9-08) ---
 
 /**
- * Ajakan dari pencari otonom ke agent `to` agar ia menawar `listing_hash`: bidang penawaran yang disiapkan (cara, nilai, jumlah, jadwal) dan jatah
- * pencari dalam bps nilai kesepakatan. Ditandatangani pencari dengan kunci voucher; penawaran sebenarnya tetap harus ditandatangani agent `to`.
+ * Invitation from an autonomous searcher to agent `to` to bid on `listing_hash`: prepared offer fields (method, value, quantity, schedule) and the searcher
+ * share in bps of the agreed value. Signed by the searcher with the voucher key; the actual offer must still be signed by agent `to`.
  */
 export type Referral = {
   circle: AccountId;
@@ -226,7 +226,7 @@ export type Referral = {
   quantity: number;
   deliver_by: number;
   searcher_share_bps: number;
-  /** Detik unix; ajakan yang lewat tidak muncul di kotak masuk. */
+  /** Unix seconds; an expired invitation does not appear in the inbox. */
   expires_at: number;
   nonce: string;
 };
@@ -244,7 +244,7 @@ export function validateReferral(referral: Referral): void {
   if (typeof referral.nonce !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(referral.nonce)) throw new BarterFormatError("nonce must be 1-64 characters [A-Za-z0-9_-]");
 }
 
-/** JSON kanonik ajakan: key `circle, seeker, to, listing_hash, mode, value, quantity, deliver_by, searcher_share_bps, expires_at, nonce`. */
+/** Canonical invitation JSON: keys `circle, seeker, to, listing_hash, mode, value, quantity, deliver_by, searcher_share_bps, expires_at, nonce`. */
 export function serializeReferral(referral: Referral): string {
   validateReferral(referral);
   return JSON.stringify({
@@ -267,7 +267,7 @@ export function verifyReferralSignature(referral: Referral, signature: string, p
   }
 }
 
-/** Pesan penolakan ajakan yang ditandatangani agent tujuan: `x207:refuse_referral:<referral_hash>`. */
+/** Referral refusal message signed by the target agent: `x207:refuse_referral:<referral_hash>`. */
 export const refuseReferralMessage = (hash: string): string => `x207:refuse_referral:${hash}`;
 
 export function refuseReferralSigningHash(hash: string, circle: AccountId): Uint8Array {

@@ -1,5 +1,5 @@
-// SD-031: gas key (NEP-611) untuk relayer facilitator. Byte `Transaction::V1` dicocokkan dengan referensi dari near-api-js 7.4.0 (kunci uji sekali
-// pakai, seed 32 byte 0x07, tidak dipakai di luar test), dan pembagi jalur nonce tidak pernah memakai satu jalur untuk dua transaksi bersamaan.
+// SD-031: gas key (NEP-611) for the facilitator relayer. The `Transaction::V1` bytes are matched with the near-api-js 7.4.0 reference (a one-time test key,
+// 32-byte seed 0x07, not used outside tests), and the nonce lane divider never uses one lane for two simultaneous transactions.
 import { describe, expect, it } from "vitest";
 import { KeyPair } from "@near-js/crypto";
 import { base58Decode } from "@x207/core";
@@ -48,12 +48,12 @@ describe("SD-031 GasKeyLanes", () => {
     };
     await Promise.all(Array.from({ length: 6 }, () => lanes.run(async (lane) => chainNonce[lane]!, work)));
     expect(concurrent.max).toBe(3);
-    // enam transaksi di tiga jalur: dua per jalur, nonce 11 lalu 12 dan seterusnya
+    // six transactions on three lanes: two per lane, nonce 11 then 12 and so on
     for (const lane of [0, 1, 2]) {
       const nonces = used.filter(([l]) => l === lane).map(([, n]) => n).sort();
       expect(nonces).toEqual([chainNonce[lane]! + 1n, chainNonce[lane]! + 2n]);
     }
-    // paralel tidak pernah memakai pasangan (jalur, nonce) yang sama
+    // parallel transactions never use the same (lane, nonce) pair
     expect(new Set(used.map(([l, n]) => `${l}:${n}`)).size).toBe(used.length);
   });
 
@@ -67,7 +67,7 @@ describe("SD-031 GasKeyLanes", () => {
     await lanes.run(read, async () => undefined);
     await lanes.run(read, async () => undefined);
     expect(reads).toBe(1);
-    await expect(lanes.run(read, async () => { throw new Error("jaringan putus"); })).rejects.toThrow("jaringan putus");
+    await expect(lanes.run(read, async () => { throw new Error("network down"); })).rejects.toThrow("network down");
     await lanes.run(read, async () => undefined);
     expect(reads).toBe(2);
   });

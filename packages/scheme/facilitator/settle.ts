@@ -1,5 +1,5 @@
-// Facilitator `settle` (flow `authorization`): jalankan ulang `verify`, simpan voucher terbaru pasangan
-// ke pending store D3, jawab dengan commitment id (Spec Binding x402 4, 5.4, 8.2; ADR-17, ADR-31).
+// Facilitator `settle` (`authorization` flow): re-run `verify`, store the latest voucher of the pair
+// to the D3 pending store, answer with the commitment id (Spec Binding x402 4, 5.4, 8.2; ADR-17, ADR-31).
 import type { PaymentPayload, PaymentRequirements, SettleResponse } from "@x402/core/types";
 import {
   validateX207Payload,
@@ -13,29 +13,29 @@ import type { CircleConfig } from "../shared/circle.js";
 import { computeBase } from "./headroom.js";
 import { verifyPayment, type VerifyOptions } from "./verify.js";
 
-/** Baris pending store D3 yang dibutuhkan `settle`. */
+/** D3 pending store row needed by `settle`. */
 export type PendingVoucherRecord = {
   seq: number;
   cumulativeAmount: U128String;
   signature: Ed25519Signature;
   registeredSeq: number;
-  /** Percobaan registrasi yang gagal. */
+  /** Failed registration attempts. */
   attempts: number;
   bundleId?: number | null;
 };
 
 export interface PendingWriter {
-  /** Simpan hanya bila `seq` lebih besar dari yang tersimpan; `false` bila tidak ada perubahan. */
+  /** Store only if `seq` is greater than the stored one; `false` if nothing changed. */
   save(voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean | Promise<boolean>;
   get(payer: AccountId, payee: AccountId, epoch: number): PendingVoucherRecord | null | Promise<PendingVoucherRecord | null>;
 }
 
 export type SettleOptions = VerifyOptions & { store: PendingWriter };
 
-/** Penolakan yang membawa data resinkronisasi klien (K-29). */
+/** Rejection that carries client resync data (K-29). */
 const RESYNC_REASONS = new Set(["seq_not_increasing", "cumulative_decreased", "amount_mismatch"]);
 
-/** `registered` bila `registered_seq` sudah menyusul, `retrying` sejak percobaan gagal pertama (K-31). */
+/** `registered` if `registered_seq` has caught up, `retrying` since the first failed attempt (K-31). */
 export function registrationState(row: PendingVoucherRecord): RegistrationState {
   if (row.registeredSeq >= row.seq) return "registered";
   return row.attempts >= 1 ? "retrying" : "pending";
@@ -77,7 +77,7 @@ export async function settlePayment(
 
   const parsed = validateX207Payload(payload.payload);
   if (parsed.ok) {
-    // Idempoten per commitment id: payload yang persis sama dengan baris tersimpan menjawab hasil yang sama.
+    // Idempotent per commitment id: a payload identical to the stored row answers with the same result.
     const { voucher, signature, bundleId } = parsed.value;
     const stored = await options.store.get(voucher.payer, voucher.payee, voucher.epoch);
     if (
@@ -106,7 +106,7 @@ export async function settlePayment(
   if (!parsed.ok) throw new Error("payload passed verify but failed the X207Payload schema");
   const { voucher, signature, bundleId } = parsed.value;
   if (!(await (bundleId === undefined ? options.store.save(voucher, signature) : options.store.save(voucher, signature, bundleId)))) {
-    // Settle paralel untuk pasangan yang sama sudah menyimpan seq yang sama atau lebih tinggi.
+    // A parallel settle for the same pair has already stored the same seq or a higher one.
     const base = await computeBase(voucher.payer, voucher.payee, voucher.epoch, options.chain);
     return failed("seq_not_increasing", voucher.payer, {
       epoch: voucher.epoch,

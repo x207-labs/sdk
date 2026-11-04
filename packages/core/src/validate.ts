@@ -1,5 +1,5 @@
-// Validasi runtime tipe publik x207. Tanda tangan hanya dicek bentuknya; isinya diperiksa
-// `verifyVoucher`, karena string rusak harus berakhir `invalid_signature`, bukan `invalid_payload`.
+// Runtime validation of x207 public types. Signatures are checked for shape only; their content is checked by
+// `verifyVoucher`, because a broken string must end in `invalid_signature`, not `invalid_payload`.
 import { CREDIT_DECIMALS, CREDIT_UNIT } from "./constants.js";
 import {
   EPOCH_PHASES,
@@ -72,7 +72,7 @@ export const isReportMemberStatus = (value: unknown): value is ReportMemberStatu
 export const isCircleNetwork = (value: unknown): value is `x207:${string}` =>
   typeof value === "string" && CIRCLE_NETWORK.test(value);
 
-/** Issue pertama dari daftar `[field, valid, pesan]`. */
+/** The first issue from a list of `[field, valid, message]`. */
 function firstIssue(rules: readonly (readonly [string, boolean, string])[]): Issue | null {
   for (const [field, valid, message] of rules) {
     if (!valid) return issue(field, message);
@@ -83,7 +83,7 @@ function firstIssue(rules: readonly (readonly [string, boolean, string])[]): Iss
 const nested = (prefix: string, found: Issue | null): Issue | null =>
   found && issue(found.field ? `${prefix}.${found.field}` : prefix, found.message);
 
-/** Voucher menolak key asing: field di luar byte kanonik tidak ikut ditandatangani. */
+/** The voucher rejects foreign keys: fields outside the canonical bytes are not signed. */
 function checkKeys(value: Record<string, unknown>, allowed: readonly string[]): Issue | null {
   const unknownKey = Object.keys(value).find((key) => !allowed.includes(key));
   return unknownKey === undefined ? null : issue(unknownKey, "unknown field");

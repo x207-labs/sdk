@@ -1,6 +1,6 @@
 {
   "name": "stake_member_id",
-  "description": "msg stake untuk agent lain (member_id), mis. pemilik agent mendanai stake agent.",
+  "description": "msg stake for another agent (member_id), e.g. the agent owner funds the agent's stake.",
   "input": { "cases": [{ "memberId": "translator.x207-circle.near" }] },
   "expected": { "msgs": ["{\"action\":\"stake\",\"member_id\":\"translator.x207-circle.near\"}"] }
 }

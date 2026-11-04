@@ -1,5 +1,5 @@
-// Kasus conformance x207 (SD-058): dibaca dari spec/test-vectors, satu-satunya sumber format. Tiap kasus: { id, op, input, expected }.
-// Implementasi apa pun (bahasa apa pun) lulus bila menjawab semua kasus persis; protokolnya di conformance/README.md.
+// x207 conformance cases (SD-058): read from spec/test-vectors, the only source of formats. Each case: { id, op, input, expected }.
+// Any implementation (in any language) passes if it answers all cases exactly; the protocol is in conformance/README.md.
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -10,7 +10,7 @@ export function loadCases() {
   const cases = [];
   const add = (id, op, input, expected) => cases.push({ id, op, input, expected });
 
-  // Voucher F2: tanda tangan NEP-413 atas JSON kanonik; vector valid memuat pesan, nonce, payload, dan hash penandatanganan
+  // F2 voucher: NEP-413 signature over canonical JSON; a valid vector holds the message, nonce, payload, and signing hash
   for (const file of readdirSync(vectors("voucher")).sort()) {
     const vector = json(`voucher/${file}`);
     const { signature, ...unsigned } = vector.input.voucher;
@@ -30,7 +30,7 @@ export function loadCases() {
   add("intent/verify", "intent.verify", { intent: intent.intent, signature: intent.signature, publicKey: intent.pubkey }, { valid: true });
   add("intent/verify-tampered", "intent.verify", { intent: { ...intent.intent, nonce: "other" }, signature: intent.signature, publicKey: intent.pubkey }, { valid: false });
 
-  // Bundle F5: pesan, terms_hash, hash penandatanganan, dan tanda tangan tiap peserta
+  // F5 bundle: message, terms_hash, signing hash, and each participant's signature
   const bundle = json("barter/bundle_abca.json");
   add("bundle/message", "bundle.message", { terms: bundle.terms }, bundle.message);
   add("bundle/termsHash", "bundle.termsHash", { terms: bundle.terms }, bundle.termsHash);
@@ -41,7 +41,7 @@ export function loadCases() {
   const swapped = bundle.terms.legs.map((leg, i) => (i === 0 ? { ...leg, max_amount: String(BigInt(leg.max_amount) + 1n) } : leg));
   add("bundle/verify-tampered", "bundle.verify", { terms: { ...bundle.terms, legs: swapped }, signature: bundle.signatures[0].signature, publicKey: bundle.participants[bundle.signatures[0].account] }, { valid: false });
 
-  // Bundle dengan search_leg (SD-047, interface 0.0.5): kunci terakhir; hash sama dengan yang dihitung kontrak
+  // Bundle with search_leg (SD-047, interface 0.0.5): last key; the hash equals what the contract computes
   const searched = json("barter/bundle_search.json");
   add("bundle-search/message", "bundle.message", { terms: searched.terms }, searched.message);
   add("bundle-search/termsHash", "bundle.termsHash", { terms: searched.terms }, searched.termsHash);
@@ -52,7 +52,7 @@ export function loadCases() {
   const { search_leg: dropped, ...withoutSearch } = searched.terms;
   add("bundle-search/verify-without-search_leg", "bundle.verify", { terms: withoutSearch, signature: searched.signatures[0].signature, publicKey: searched.participants[searched.signatures[0].account] }, { valid: false });
 
-  // Listing dan penawaran F9
+  // F9 listing and offers
   const listing = json("barter/listing.json");
   add("listing/message", "listing.message", { listing: listing.listing }, listing.message);
   add("listing/hash", "listing.hash", { listing: listing.listing }, listing.listingHash);
@@ -66,7 +66,7 @@ export function loadCases() {
   add("offer/verify", "offer.verify", { offer: listing.offer, signature: listing.offerSignature, publicKey: listing.offerPubkey }, { valid: true });
   add("offer/verify-wrong-key", "offer.verify", { offer: listing.offer, signature: listing.offerSignature, publicKey: listing.pubkey }, { valid: false });
 
-  // Ajakan pencari F9 (SV-015)
+  // F9 searcher invitation (SV-015)
   const referral = json("barter/referral.json");
   add("referral/message", "referral.message", { referral: referral.referral }, referral.message);
   add("referral/hash", "referral.hash", { referral: referral.referral }, referral.referralHash);
@@ -74,7 +74,7 @@ export function loadCases() {
   add("referral/verify", "referral.verify", { referral: referral.referral, signature: referral.signature, publicKey: referral.pubkey }, { valid: true });
   add("referral/verify-tampered", "referral.verify", { referral: { ...referral.referral, searcher_share_bps: 301 }, signature: referral.signature, publicKey: referral.pubkey }, { valid: false });
 
-  // Barter cepat F9: angka contoh note F9 sebagai parameter
+  // F9 fast barter: the F9 note example numbers as parameters
   const quick = json("barter/quick_barter.json");
   add("quick/pay", "quick.pay", quick.params, quick.pay);
   add("quick/barter", "quick.barter", quick.params, quick.barter);

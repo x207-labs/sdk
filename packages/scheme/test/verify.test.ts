@@ -11,11 +11,11 @@ const seed = (name: string) => Buffer.from(keys[name]!.seed, "hex");
 const pub = (name: string) => keys[name]!.publicKey;
 
 const CIRCLE = "x207-circle.near";
-const A = "a.x207-circle.near"; // active, kA, limit besar
+const A = "a.x207-circle.near"; // active, kA, large limit
 const B = "b.x207-circle.near"; // active, kB
 const C = "c.x207-circle.near"; // active, kOther
 const D = "d.x207-circle.near"; // active, kD, headroom 30000
-const N = "n.x207-circle.near"; // tidak terdaftar
+const N = "n.x207-circle.near"; // not registered
 const S = "s.x207-circle.near"; // suspended
 const P = "p.x207-circle.near"; // pending
 const X = "x.x207-circle.near"; // exited
@@ -106,7 +106,7 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(world(), payloadOf({}))).toEqual({ isValid: true, payer: A });
   });
 
-  it("TC-SD-024-02 versi x402", async () => {
+  it("TC-SD-024-02 x402 version", async () => {
     const p = payloadOf({}); p.x402Version = 1;
     expect(await verify(world(), p)).toMatchObject({ isValid: false, invalidReason: "invalid_x402_version" });
   });
@@ -132,19 +132,19 @@ describe("SD-024 facilitator verify", () => {
     });
   });
 
-  it("TC-SD-024-06 skema payload", async () => {
+  it("TC-SD-024-06 payload schema", async () => {
     const noSignature = payloadOf({}); delete noSignature.payload.signature;
     expect(await verify(world(), noSignature)).toMatchObject({ invalidReason: "invalid_payload" });
     const stringSeq = payloadOf({}); stringSeq.payload.voucher.seq = "1";
     expect(await verify(world(), stringSeq)).toMatchObject({ invalidReason: "invalid_payload" });
   });
 
-  it("TC-SD-024-07 circle voucher", async () => {
+  it("TC-SD-024-07 voucher circle", async () => {
     const p = payloadOf({ circle: "evil-circle.near" });
     expect(await verify(world(), p)).toMatchObject({ invalidReason: "circle_mismatch", payer: A });
   });
 
-  it("TC-SD-024-08 circle requirements", async () => {
+  it("TC-SD-024-08 requirements circle", async () => {
     const reqs = requirements(B, 42, "evil-circle.near");
     const p = payloadOf({ circle: "evil-circle.near" }, "kA", reqs);
     expect(await verify(world(), p, reqs)).toMatchObject({ invalidReason: "circle_mismatch" });
@@ -167,7 +167,7 @@ describe("SD-024 facilitator verify", () => {
     expect(await verify(world(), p, requirements(A))).toMatchObject({ invalidReason: "self_payment" });
   });
 
-  it("TC-SD-024-12 epoch voucher", async () => {
+  it("TC-SD-024-12 voucher epoch", async () => {
     const p = payloadOf({ epoch: 41 }, "kA", requirements(B, 42));
     expect(await verify(world(), p)).toMatchObject({ invalidReason: "epoch_mismatch" });
   });
@@ -237,7 +237,7 @@ describe("SD-024 facilitator verify", () => {
     });
   });
 
-  it("TC-SD-024-20 tanda tangan", async () => {
+  it("TC-SD-024-20 signature", async () => {
     expect(await verify(world(), payloadOf({}, "kZ"))).toMatchObject({ invalidReason: "invalid_signature" });
   });
 
@@ -266,7 +266,7 @@ describe("SD-024 facilitator verify", () => {
     });
   });
 
-  it("TC-SD-024-25 kumulatif turun", async () => {
+  it("TC-SD-024-25 cumulative decreases", async () => {
     const w = world();
     w.obligations[`42:${A}:${B}`] = { cumulative: "100000", last_seq: 5 };
     expect(await verify(w, payloadOf({ seq: 6, cumulativeAmount: "80000" }))).toMatchObject({
@@ -344,7 +344,7 @@ describe("SD-024 facilitator verify", () => {
   });
 });
 
-describe("SD-024 kasus negatif tambahan", () => {
+describe("SD-024 additional negative cases", () => {
   it("forgery by the seller", async () => {
     expect(await verify(world(), payloadOf({}, "kB"))).toMatchObject({ invalidReason: "invalid_signature" });
   });

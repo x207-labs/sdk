@@ -1,6 +1,6 @@
-// Client kontrak `x207-circle` (SD-012): join, stake lewat ft_transfer_call, dan view `member`.
-// Hanya membangun panggilan dan membaca view lewat fungsi yang disuntik; penanda tangan transaksi
-// dan RPC dipilih pemanggil, sehingga entry ini tidak menarik near-api-js.
+// `x207-circle` contract client (SD-012): join, stake via ft_transfer_call, and the `member` view.
+// Only builds calls and reads views through injected functions; the transaction signer
+// and RPC are chosen by the caller, so this entry does not pull in near-api-js.
 import { base58Decode } from "../base58.js";
 import { JOIN_STORAGE_DEPOSIT, USDT_TOKEN_ID, formatNear } from "../constants.js";
 import type { AccountId, U128String } from "../types.js";
@@ -22,14 +22,14 @@ function assertVoucherPublicKey(key: string): void {
   if (bytes?.length !== 32) throw new Error(`pubkey_voucher must be ed25519:<base58 32 bytes>, got ${JSON.stringify(key)}`);
 }
 
-/** `join(circle_id, pubkey_voucher, terms_hash)` dengan deposit storage. `circleContract` = akun kontrak penerima. */
+/** `join(circle_id, pubkey_voucher, terms_hash)` with storage deposit. `circleContract` = receiving contract account. */
 export function buildJoinCall(input: {
   circleContract: AccountId;
   circleId: string;
   pubkeyVoucher: string;
-  /** sha256 hex huruf kecil (64 karakter) dari syarat lingkaran. */
+  /** lowercase sha256 hex (64 characters) of the circle terms. */
   termsHash: string;
-  /** Lebih dari minimum bila diinginkan; kelebihan dikembalikan kontrak. */
+  /** More than the minimum if desired; the excess is refunded by the contract. */
   deposit?: bigint;
 }): ContractCall {
   if (!TERMS_HASH.test(input.termsHash)) {
@@ -46,14 +46,14 @@ export function buildJoinCall(input: {
   };
 }
 
-/** `{"action":"stake"}`, atau dengan `member_id` untuk mendanai stake agent lain. */
+/** `{"action":"stake"}`, or with `member_id` to fund another agent's stake. */
 export function buildStakeMsg(input: { memberId?: AccountId } = {}): string {
   if (input.memberId === undefined) return JSON.stringify({ action: "stake" });
   if (!isAccount(input.memberId)) throw new Error(`memberId is not a NEAR account: ${input.memberId}`);
   return JSON.stringify({ action: "stake", member_id: input.memberId });
 }
 
-/** `ft_transfer_call` USDT ke kontrak dengan msg `stake`; deposit 1 yoctoNEAR (NEP-141). */
+/** `ft_transfer_call` USDT to the contract with msg `stake`; deposit 1 yoctoNEAR (NEP-141). */
 export function buildStakeTransferCall(input: {
   circleContract: AccountId;
   amount: U128String;
@@ -73,46 +73,46 @@ export function buildStakeTransferCall(input: {
   };
 }
 
-/** Memanggil view kontrak: `(nama method, argumen JSON) -> hasil JSON`. */
+/** Calls a contract view: `(method name, JSON arguments) -> JSON result`. */
 export type CircleViewFn = (methodName: string, args: object) => Promise<unknown>;
 
-/** View `member(account_id)`; `null` bila bukan anggota (bukan error). */
+/** View `member(account_id)`; `null` if not a member (not an error). */
 export async function getMember(view: CircleViewFn, accountId: AccountId): Promise<MemberView | null> {
   const result = await view("member", { account_id: accountId });
   return (result ?? null) as MemberView | null;
 }
 
-/** Kode `ERR_*` kontrak dari pesan panic (`ERR_KODE: detail`), atau `null`. */
+/** The contract `ERR_*` code from a panic message (`ERR_CODE: detail`), or `null`. */
 export function contractErrorCode(error: unknown): string | null {
   const text = error instanceof Error ? error.message : String(error);
   return /\bERR_[A-Z0-9_]+\b/.exec(text)?.[0] ?? null;
 }
 
-/** `request_exit()` tanpa argumen, deposit 1 yoctoNEAR (ADR-29). */
+/** `request_exit()` with no arguments, deposit 1 yoctoNEAR (ADR-29). */
 export function buildRequestExitCall(circleContract: AccountId): ContractCall {
   return { receiverId: circleContract, methodName: "request_exit", args: {}, deposit: 1n };
 }
 
-/** `remove_intent(intent_hash)` (interface 0.0.8): pemilik intent menariknya dan mendapat slotnya kembali; bukan payable. */
+/** `remove_intent(intent_hash)` (interface 0.0.8): the intent owner withdraws it and gets its slot back; not payable. */
 export function buildRemoveIntentCall(circleContract: AccountId, intentHashBase58: string): ContractCall {
   return { receiverId: circleContract, methodName: "remove_intent", args: { intent_hash: intentHashBase58 }, deposit: 0n };
 }
 
 /**
- * `withdraw_intents_balance()` (interface 0.0.9): permissionless; memindahkan USDT yang dicatat `mt_on_transfer` (residual yang dibayar lewat
- * Intents) dari kontrak Intents ke kontrak USDT. Butuh minimal 130 Tgas (`ERR_GAS_TOO_LOW`), jadi 150 Tgas; jawaban lain:
- * `ERR_WITHDRAW_IN_FLIGHT`, `ERR_NOTHING_TO_WITHDRAW`. Tidak payable.
+ * `withdraw_intents_balance()` (interface 0.0.9): permissionless; moves the USDT recorded by `mt_on_transfer` (residual paid through
+ * Intents) from the Intents contract to the USDT contract. Needs at least 130 Tgas (`ERR_GAS_TOO_LOW`), so 150 Tgas; other answers:
+ * `ERR_WITHDRAW_IN_FLIGHT`, `ERR_NOTHING_TO_WITHDRAW`. Not payable.
  */
 export function buildWithdrawIntentsBalanceCall(circleContract: AccountId): ContractCall {
   return { receiverId: circleContract, methodName: "withdraw_intents_balance", args: {}, deposit: 0n, gas: 150_000_000_000_000n };
 }
 
-/** `withdraw_stake()` tanpa argumen, deposit 1 yoctoNEAR (ADR-29); kontrak bisa menjawab `ERR_EXIT_NOT_READY` atau `ERR_HAS_DUE`. */
+/** `withdraw_stake()` with no arguments, deposit 1 yoctoNEAR (ADR-29); the contract may answer `ERR_EXIT_NOT_READY` or `ERR_HAS_DUE`. */
 export function buildWithdrawStakeCall(circleContract: AccountId): ContractCall {
   return { receiverId: circleContract, methodName: "withdraw_stake", args: {}, deposit: 1n, gas: 100_000_000_000_000n };
 }
 
-/** View `outstanding_debt(account_id)` sebagai string U128. */
+/** View `outstanding_debt(account_id)` as a U128 string. */
 export async function getOutstandingDebt(view: CircleViewFn, accountId: AccountId): Promise<U128String> {
   return String(await view("outstanding_debt", { account_id: accountId }));
 }

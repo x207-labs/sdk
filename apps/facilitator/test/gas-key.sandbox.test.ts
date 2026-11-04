@@ -1,6 +1,6 @@
-// SD-031 di near-sandbox (neard 2.13.4, protocol 86): relayer dengan gas key mengirim beberapa register_cumulative paralel di jalur nonce berbeda.
-// Gas key dipasang di akun relayer dan diisi saldo; empat pasangan didaftarkan bersamaan oleh penjadwal (concurrency 4), semuanya berhasil,
-// dan nonce tiap jalur yang dipakai naik. Lewati bila binary near-sandbox atau wasm kontrak tidak ada.
+// SD-031 on near-sandbox (neard 2.13.4, protocol 86): a relayer with a gas key sends several register_cumulative in parallel on different nonce lanes.
+// The gas key is attached to the relayer account and funded; four pairs are registered at the same time by the scheduler (concurrency 4), all succeed,
+// and the nonce of each lane used goes up. Skipped if the near-sandbox binary or the contract wasm is missing.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { KeyPair } from "near-api-js";
 import { createCircleViewFn, onboardMember, signVoucher, type ContractAbi, type ContractCall } from "@x207/core";
@@ -13,7 +13,7 @@ import { RegistrationScheduler } from "../src/scheduler.js";
 
 const LANES = 4;
 
-describe.skipIf(!sandboxAvailable)("SD-031 gas key relayer di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-031 gas key relayer on near-sandbox", () => {
   let fx: CircleFixture;
   beforeAll(async () => {
     fx = await deployCircle();
@@ -42,7 +42,7 @@ describe.skipIf(!sandboxAvailable)("SD-031 gas key relayer di near-sandbox", () 
     const [a, b, c] = [await onboard("translator"), await onboard("summarizer"), await onboard("scraper")];
     const epoch = (await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", {})).epoch;
 
-    // relayer dengan gas key 4 jalur, diisi saldo
+    // relayer with a 4-lane gas key, funded
     const relayer = await fx.sandbox.createAccount("relayer", "20");
     const gasKey = KeyPair.fromRandom("ed25519");
     await relayer.account.addFullAccessGasKey(gasKey.getPublicKey(), LANES);
@@ -83,7 +83,7 @@ describe.skipIf(!sandboxAvailable)("SD-031 gas key relayer di near-sandbox", () 
       const edge = await fx.sandbox.view<{ cumulative: string; last_seq: number }>(fx.circle.accountId, "obligation", { epoch, debtor: payer.id, creditor: payee.id });
       expect(edge).toMatchObject({ cumulative: "2000000", last_seq: 1 });
     }
-    // empat transaksi paralel memakai empat jalur berbeda: nonce tiap jalur naik
+    // four parallel transactions use four different lanes: the nonce of each lane goes up
     const after = await lanesNow();
     expect(after.filter((n, i) => n > before[i]!)).toHaveLength(LANES);
     store.close();

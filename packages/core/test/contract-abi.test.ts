@@ -19,7 +19,7 @@ const pinned = JSON.parse(pinnedText) as {
   events: { name: string; fields: string[] }[];
 };
 const CONTRACTS_REPO = fileURLToPath(new URL("../../../../contracts/", import.meta.url));
-// Monorepo lokal saja: di CI `sdk` repo `contracts` tidak ada, jadi pembandingan dilewati.
+// Local monorepo only: in CI the `sdk` repo has no `contracts` repo, so the comparison is skipped.
 const committedContractsAbi = (): string | null => {
   try {
     return execFileSync("git", ["-C", CONTRACTS_REPO, "show", "HEAD:abi.json"], {
@@ -66,7 +66,7 @@ describe("SD-010 contract client types from abi.json", () => {
   });
 
   it.skipIf(contractsAbi === null)("the pin equals the abi.json committed in the local contracts repo", () => {
-    // Isi sama; urutan key boleh beda (contracts menulis key terurut).
+    // Same content; key order may differ (contracts writes sorted keys).
     expect(JSON.parse(contractsAbi as string)).toEqual(pinned);
   });
 
@@ -84,7 +84,7 @@ describe("SD-010 contract client types from abi.json", () => {
       pubkey_voucher: "ed25519:x",
       terms_hash: "0".repeat(64),
     };
-    // @ts-expect-error method yang tidak ada di ABI
+    // @ts-expect-error method that is not in the ABI
     type Missing = ContractAbi.CircleViews["membr"];
     expect([voucher, phaseA, phaseB, statusA, statusB, position, settlement, args, call]).toHaveLength(9);
   });

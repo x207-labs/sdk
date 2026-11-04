@@ -1,4 +1,4 @@
-// SD-052: verifyFunctionCallKey (prove kelas B). Unit dengan RPC tiruan; sandbox nyata ada di sandbox/access-key.sandbox.test.ts.
+// SD-052: verifyFunctionCallKey (class B prove). Unit with a mock RPC; the real sandbox is in sandbox/access-key.sandbox.test.ts.
 import { describe, expect, it } from "vitest";
 import { createViewAccessKeyFn, parseFunctionCallKeyScope, verifyFunctionCallKey, type AccessGrant, type AccessKeyView, type ViewAccessKeyFn } from "@x207/core";
 

@@ -1,35 +1,35 @@
-// Penjadwal registrasi (SD-028): relay `register_cumulative` per pasangan saat ambang terlewati atau
-// menjelang `cutoff_at`; gagal disimpan di D3 dan diulang dengan backoff sampai `cutoff_at`
-// (Spec Binding x402 6.3 dan 13; ADR-17, ADR-23, K-31).
+// Registration scheduler (SD-028): relays `register_cumulative` per pair when the threshold is crossed or
+// near `cutoff_at`; failures are kept in D3 and retried with backoff until `cutoff_at`
+// (Spec Binding x402 6.3 and 13; ADR-17, ADR-23, K-31).
 import { contractErrorCode, type AccountId, type ContractAbi, type Ed25519Signature, type UnsignedVoucher } from "@x207/core";
 import { DEFAULT_FLUSH_LEAD_SECONDS } from "@x207/scheme";
 import type { PendingRow, PendingStore } from "./pending-store.js";
 
 /** `registerThreshold` default: 1 credit (Spec Binding x402 6.3). */
 export const DEFAULT_REGISTER_THRESHOLD = 1_000_000n;
-/** Jeda backoff: 5, 10, 20, 40 detik, maksimum 60 detik (ADR-23). */
+/** Backoff delay: 5, 10, 20, 40 seconds, maximum 60 seconds (ADR-23). */
 export const BACKOFF_BASE_SECONDS = 5;
 export const BACKOFF_MAX_SECONDS = 60;
 
 /**
- * `cumulative` (default, ADR-17): satu `register_cumulative` per pasangan saat ambang terlewati. `per_request` (mode demo, SD-029):
- * setiap `/settle` langsung mendaftarkan vouchernya dengan `register_voucher`.
+ * `cumulative` (default, ADR-17): one `register_cumulative` per pair when the threshold is crossed. `per_request` (demo mode, SD-029):
+ * each `/settle` registers its voucher immediately with `register_voucher`.
  */
 export type RegisterMode = "cumulative" | "per_request";
 
-/** Hasil `registerNow` (SD-029, SD-030): `retrying` berarti gagal sementara dan akan diulang; `failed` berarti baris dibuang. */
+/** Result of `registerNow` (SD-029, SD-030): `retrying` means a temporary failure that will be retried; `failed` means the row is dropped. */
 export type RegisterOutcome =
   | { status: "registered" }
   | { status: "retrying"; code?: string; error: string }
   | { status: "failed"; code: string; error: string }
   | { status: "none" };
 
-/** Sisi kontrak yang dibutuhkan penjadwal; `register` melempar bila transaksi gagal. */
+/** Contract side the scheduler needs; `register` throws if the transaction fails. */
 export interface RegistrationChain {
-  /** `bundleId` mengirim lewat `register_in_bundle` (leg bundle F5, SD-048) alih-alih `register_cumulative`. */
+  /** `bundleId` sends via `register_in_bundle` (F5 bundle leg, SD-048) instead of `register_cumulative`. */
   register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode, bundleId?: number): Promise<void>;
   lastSeq(payer: AccountId, payee: AccountId, epoch: number): Promise<number>;
-  /** View `get_epoch(epoch)`; `null` bila epoch tidak dikenal. */
+  /** View `get_epoch(epoch)`; `null` if the epoch is unknown. */
   getEpoch(epoch: number): Promise<ContractAbi.EpochView | null>;
 }
 
@@ -39,12 +39,12 @@ export type SchedulerLogEntry = {
   payee: AccountId;
   epoch: number;
   seq: number;
-  /** Kode spec (mis. `insufficient_credit`), bukan kode kontrak. */
+  /** Spec code (e.g. `insufficient_credit`), not a contract code. */
   code?: string;
   error?: string;
   attempts?: number;
   nextAttemptAt?: number;
-  /** `cumulative_amount − registered_cumulative`, risiko penjual saat baris gagal (K-31). */
+  /** `cumulative_amount − registered_cumulative`, the seller's risk when a row fails (K-31). */
   risk?: string;
 };
 
@@ -58,7 +58,7 @@ export type SchedulerOptions = {
   registerThreshold?: bigint;
   flushLeadSeconds?: number;
   mode?: RegisterMode;
-  /** Baris yang boleh didaftarkan bersamaan (SD-031): jumlah jalur gas key relayer; 1 (bawaan) untuk kunci akses biasa. */
+  /** Rows that may be registered concurrently (SD-031): the number of relayer gas key lanes; 1 (default) for a regular access key. */
   concurrency?: number;
   /** Called after a voucher of `payer` was registered on chain (also when the contract already held it), e.g. to drop cached reads. */
   onRegistered?: (row: { payer: AccountId; payee: AccountId; epoch: number }) => void;
@@ -71,7 +71,7 @@ export type TickResult = {
   failedAtCutoff: number;
 };
 
-/** Pemetaan kode kontrak ke kode spec; `drop` membuang baris, `retry` mengulang dengan backoff. */
+/** Mapping of contract codes to spec codes; `drop` drops the row, `retry` retries with backoff. */
 const ERROR_MAP: Record<string, { code: string; action: "drop" | "retry" }> = {
   ERR_WRONG_CIRCLE: { code: "circle_mismatch", action: "drop" },
   ERR_BAD_UNIT: { code: "invalid_payload", action: "drop" },
@@ -91,7 +91,7 @@ const ERROR_MAP: Record<string, { code: string; action: "drop" | "retry" }> = {
   ERR_UNKNOWN_BUNDLE: { code: "bundle_unknown", action: "drop" },
 };
 
-/** Jeda sebelum percobaan berikutnya setelah `attempts` kegagalan (1 = 5 detik). */
+/** Delay before the next attempt after `attempts` failures (1 = 5 seconds). */
 export function backoffSeconds(attempts: number): number {
   return Math.min(BACKOFF_BASE_SECONDS * 2 ** Math.max(0, attempts - 1), BACKOFF_MAX_SECONDS);
 }
@@ -103,7 +103,7 @@ export class RegistrationScheduler {
   readonly #flushLeadMs: number;
   #timer: ReturnType<typeof setInterval> | undefined;
   #running = false;
-  /** Registrasi yang sedang berjalan per pasangan, supaya `tick` dan `registerNow` tidak mengirim dua kali. */
+  /** Registrations in progress per pair, so `tick` and `registerNow` do not send twice. */
   readonly #inflight = new Map<string, Promise<RegisterOutcome | undefined>>();
 
   constructor(options: SchedulerOptions) {
@@ -113,7 +113,7 @@ export class RegistrationScheduler {
     this.#flushLeadMs = (options.flushLeadSeconds ?? DEFAULT_FLUSH_LEAD_SECONDS) * 1000;
   }
 
-  /** Jalankan `tick` berkala; kesalahan tak terduga dicatat dan tidak menghentikan jadwal. */
+  /** Run `tick` periodically; unexpected errors are logged and do not stop the schedule. */
   start(intervalMs = 1000): void {
     if (this.#timer) return;
     this.#timer = setInterval(() => {
@@ -129,7 +129,7 @@ export class RegistrationScheduler {
     this.#timer = undefined;
   }
 
-  /** Satu putaran: proses semua baris yang belum lunas dan sudah waktunya. Putaran yang tumpang tindih dilewati. */
+  /** One round: process all rows that are not yet settled and are due. Overlapping rounds are skipped. */
   async tick(): Promise<TickResult> {
     const result: TickResult = { registered: 0, retrying: 0, dropped: 0, failedAtCutoff: 0 };
     if (this.#running) return result;
@@ -164,8 +164,8 @@ export class RegistrationScheduler {
   }
 
   /**
-   * Mode demo `per_request` (SD-029): daftarkan baris pasangan ini sekarang, tanpa menunggu ambang. Dipanggil `/settle` dan
-   * menunggu sampai transaksi final; pemanggil yang menerapkan timeout (SD-030) tidak menghentikan registrasi ini.
+   * Demo mode `per_request` (SD-029): register this pair's row now, without waiting for the threshold. Called by `/settle` and
+   * waits until the transaction is final; a caller that applies a timeout (SD-030) does not stop this registration.
    */
   async registerNow(key: { payer: AccountId; payee: AccountId; epoch: number }): Promise<RegisterOutcome> {
     const row = this.#opts.store.get({ circleContract: this.#opts.circleContract, ...key });
@@ -209,7 +209,7 @@ export class RegistrationScheduler {
         if (row.bundleId === null) await this.#opts.chain.register(row.voucher, row.signature, mode);
         else await this.#opts.chain.register(row.voucher, row.signature, mode, row.bundleId);
       } catch (error) {
-        // `register_voucher` wajib `seq = last_seq + 1`; bila ada seq yang dilewati (voucher sebelumnya masih antre), pakai kumulatif.
+        // `register_voucher` requires `seq = last_seq + 1`; if a seq was skipped (an earlier voucher is still queued), use the cumulative.
         if (mode !== "per_request" || row.bundleId !== null || contractErrorCode(error) !== "ERR_SEQ_GAP") throw error;
         this.#log("per_request_fallback", row, { code: "seq_gap" });
         await this.#opts.chain.register(row.voucher, row.signature, "cumulative");
@@ -234,12 +234,12 @@ export class RegistrationScheduler {
     const mapped = ERROR_MAP[contractErrorCode(error) ?? ""];
 
     if (contractErrorCode(error) === "ERR_SEQ_NOT_INCREASING") {
-      // Idempoten: kontrak sudah memegang seq ini atau yang lebih tinggi (ADR-23).
+      // Idempotent: the contract already holds this seq or a higher one (ADR-23).
       let last = -1;
       try {
         last = await this.#opts.chain.lastSeq(row.payer, row.payee, row.epoch);
       } catch {
-        // gagal membaca last_seq diperlakukan sebagai belum terbukti; retry di bawah
+        // failing to read last_seq is treated as not yet proven; retry below
       }
       if (last >= row.seq) {
         this.#opts.store.recordRegistered(key, row.seq, row.cumulativeAmount);

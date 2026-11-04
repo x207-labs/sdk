@@ -1,5 +1,5 @@
-// Tipe publik x207 (Spec Binding x402 bagian 5.1, Model Data, ADR-26).
-// Bentuk kabel x402 turunan tipe `@x402/core`, sehingga nilainya tetap assignable ke tipe SDK.
+// x207 public types (Spec Binding x402 section 5.1, Data Model, ADR-26).
+// x402 wire shapes derived from the `@x402/core` types, so values stay assignable to SDK types.
 import type {
   PaymentPayload as X402PaymentPayload,
   PaymentRequirements as X402PaymentRequirements,
@@ -8,9 +8,9 @@ import type {
 import type { CREDIT_DECIMALS, CREDIT_UNIT } from "./constants.js";
 
 export type AccountId = string;
-/** Bilangan bulat satuan terkecil (6 desimal), string desimal tanpa nol di depan. */
+/** Integer in the smallest unit (6 decimals), a decimal string without leading zeros. */
 export type U128String = string;
-/** Jumlah bertanda di laporan 207, mis. `"-35000000"` atau `"+35000000"`. */
+/** Signed amount in the 207 report, e.g. `"-35000000"` or `"+35000000"`. */
 export type SignedAmountString = string;
 export type CircleNetwork = `x207:${string}`;
 export type Ed25519Signature = `ed25519:${string}`;
@@ -21,7 +21,7 @@ export type X207Extra = {
   decimals: typeof CREDIT_DECIMALS;
   epoch: number;
   /**
-   * Endpoint grant F8 (SD-053): grant yang dibayar. `payTo` tetap pemberi grant, bukan akun broker, dan `resource` voucher menjadi
+   * F8 grant endpoint (SD-053): the grant being paid. `payTo` stays the grantor, not the broker account, and the voucher `resource` becomes
    * `x207:grant:<grantId>`.
    */
   grantId?: number;
@@ -41,14 +41,14 @@ export type UnsignedVoucher = {
 export type Voucher = UnsignedVoucher & { signature: Ed25519Signature };
 
 /**
- * Payload voucher x207. `bundleId` (SD-048, interface 0.0.4) menandai voucher leg bundle F5: bytes voucher tidak berubah, hanya
- * jalur registrasinya (`register_in_bundle`) yang memakai headroom cadangan leg, bukan headroom bebas.
+ * x207 voucher payload. `bundleId` (SD-048, interface 0.0.4) marks an F5 bundle leg voucher: the voucher bytes do not change, only
+ * its registration path (`register_in_bundle`) uses the leg's reserved headroom, not free headroom.
  */
 export type X207Payload = { voucher: UnsignedVoucher; signature: Ed25519Signature; bundleId?: number };
 
 export type CommitmentId = `${AccountId}:${AccountId}:${number}:${number}`;
 
-/** Urutan key = urutan kanonik voucher (Spec Antarmuka Kontrak 3.3). */
+/** Key order = canonical voucher order (Contract Interface Spec 3.3). */
 export const UNSIGNED_VOUCHER_KEYS = [
   "circle",
   "payer",
@@ -89,12 +89,12 @@ export type PaymentPayload = Omit<X402PaymentPayload, "x402Version" | "accepted"
 };
 
 export const REGISTRATION_STATES = ["pending", "registered", "retrying"] as const;
-/** Status registrasi di kabel. */
+/** Registration status on the wire. */
 export type RegistrationState = (typeof REGISTRATION_STATES)[number];
-/** Status baris pending store; `failed` hanya internal, tidak pernah di kabel (K-31). */
+/** Pending store row status; `failed` is internal only, never on the wire (K-31). */
 export type PendingRowState = RegistrationState | "failed";
 
-/** `extensions.x207` pada `/settle` sukses (ADR-31). */
+/** `extensions.x207` on a successful `/settle` (ADR-31). */
 export type X207SettleExtension = {
   epoch: number;
   seq: number;
@@ -102,7 +102,7 @@ export type X207SettleExtension = {
   registration: RegistrationState;
 };
 
-/** `extensions.x207` resinkronisasi pada penolakan (K-29). */
+/** `extensions.x207` resync on rejection (K-29). */
 export type X207ResyncExtension = {
   epoch: number;
   lastSeq: number;
@@ -151,7 +151,7 @@ type ClearingReportMemberBase = {
   haircut?: U128String;
 };
 
-/** Entri per anggota; field tambahan mengikuti `status` (Spec API Backend 4.2). */
+/** Entry per member; extra fields follow `status` (Backend API Spec 4.2). */
 export type ClearingReportMember = ClearingReportMemberBase &
   (
     | { status: 200; settlement?: "paid" | "claimed" | null }
@@ -161,8 +161,8 @@ export type ClearingReportMember = ClearingReportMemberBase &
   );
 
 /**
- * Laporan kliring `GET /x207/circles/{circle}/epochs/{n}`. Inti dari Model Data; sisanya dari
- * Spec API Backend 4.3. `cleared` dan `clearedRatio` `null` sebelum commit atau pembagi nol (K-38).
+ * Clearing report `GET /x207/circles/{circle}/epochs/{n}`. The core of the Data Model; the rest from
+ * Backend API Spec 4.3. `cleared` and `clearedRatio` are `null` before commit or on a zero divisor (K-38).
  */
 export type ClearingReport207 = {
   epoch: number;

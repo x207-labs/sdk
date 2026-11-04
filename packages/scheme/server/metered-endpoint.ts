@@ -1,6 +1,6 @@
-// Template endpoint terukur (SD-064, pipeline P5, kelas D). Satu baris konfigurasi per jenis sumber daya: `createMeteredEndpoint({ kind, unitPrice, handler })` memberi rute
-// `x207Middleware` dengan harga per satuan (SD-062), batas atas per request, `detail` listing (BE-050), dan peringatan jenisnya. Preset dua belas jenis mengikuti katalog barter
-// (`asset_type` D10 dan nomor katalog); satuan hidup di SDK, listing, dan voucher, kontrak tidak berubah. Job panjang memakai `MeteredJob` (SD-063).
+// Metered endpoint template (SD-064, pipeline P5, class D). One config line per resource kind: `createMeteredEndpoint({ kind, unitPrice, handler })` gives a route for
+// `x207Middleware` with a per-unit price (SD-062), a per-request upper bound, the listing `detail` (BE-050), and the kind's warning. The twelve-kind presets follow the barter catalog
+// (D10 `asset_type` and catalog number); units live in the SDK, listing, and voucher, the contract is unchanged. Long jobs use `MeteredJob` (SD-063).
 import { x207Middleware, type NextHandler, type X207Middleware, type X207MiddlewareOptions, type X207RouteConfig } from "./middleware.js";
 import {
   DEFAULT_MAX_QUANTITY, METERED_KINDS, METERED_PRESETS, endpointProblem, resourceListingDetail, type MeteredKind, type MeteredPreset, type MeteredUnit,
@@ -12,16 +12,16 @@ export type MeteredContext = { unit: MeteredUnit; quantity: string; kind: Metere
 
 export type MeteredEndpointOptions = {
   kind: MeteredKind;
-  /** Satuan; bawaannya satuan pertama preset. Hanya satuan yang cocok dengan jenisnya yang diterima. */
+  /** Unit; defaults to the preset's first unit. Only units that match the kind are accepted. */
   unit?: MeteredUnit;
-  /** Harga satu satuan dalam credit (format `price` biasa). */
+  /** Price of one unit in credit (the usual `price` format). */
   unitPrice: string | number;
-  /** Jumlah satuan dari request; bawaan: query `quantity`, atau 1. Boleh melempar `MeterRejection`. */
+  /** Number of units in the request; default: the `quantity` query, or 1. May throw `MeterRejection`. */
   quantity?: (request: Request) => number | string | Promise<number | string>;
-  /** Batas atas per request; bawaan `DEFAULT_MAX_QUANTITY[unit]`. */
+  /** Upper bound per request; defaults to `DEFAULT_MAX_QUANTITY[unit]`. */
   maxQuantity?: number | string;
   description?: string;
-  /** Pekerjaan penjual; jalan hanya setelah voucher sah, dengan jumlah yang dibayar. */
+  /** Seller's work; runs only after a valid voucher, with the amount paid. */
   handler: (request: Request, context: MeteredContext) => Response | Promise<Response>;
 };
 
@@ -31,20 +31,20 @@ export type MeteredEndpoint = {
   catalogNo: number;
   assetClass: "D";
   unit: MeteredUnit;
-  /** Harga satu satuan, satuan credit terkecil (teks). */
+  /** Price of one unit, smallest credit unit (text). */
   unitPriceAtomic: string;
   maxQuantity: string;
   warnings: string[];
-  /** Konfigurasi rute untuk `x207Middleware({ routes: { "/path": endpoint.route } })`. */
+  /** Route configuration for `x207Middleware({ routes: { "/path": endpoint.route } })`. */
   route: X207RouteConfig;
   handler: NextHandler;
-  /** `Listing.detail` untuk BE-050: `{"unit","unit_price","endpoint"}` ditambah `kind`. `endpoint` harus https tanpa kredensial. */
+  /** `Listing.detail` for BE-050: `{"unit","unit_price","endpoint"}` plus `kind`. `endpoint` must be https without credentials. */
   listingDetail(endpoint: string): string;
-  /** Middleware siap pakai untuk satu path: `(request) => Response` dengan 402, verifikasi, handler, dan penyelesaian seperti biasa. */
+  /** Ready-to-use middleware for one path: `(request) => Response` with 402, verification, handler, and settlement as usual. */
   mount(path: string, options: Omit<X207MiddlewareOptions, "routes">): (request: Request) => Promise<Response>;
 };
 
-/** Satu baris konfigurasi per jenis: lihat `METERED_PRESETS` untuk dua belas jenis. Melempar `MeterRejection` untuk jenis, satuan, atau harga yang tidak sah. */
+/** One config line per kind: see `METERED_PRESETS` for the twelve kinds. Throws `MeterRejection` for an invalid kind, unit, or price. */
 export function createMeteredEndpoint(options: MeteredEndpointOptions): MeteredEndpoint {
   const preset = (METERED_PRESETS as Record<string, MeteredPreset | undefined>)[options.kind];
   if (!preset) throw new MeterRejection(`unknown kind: ${JSON.stringify(options.kind)}; choose one of ${METERED_KINDS.join(", ")}`);

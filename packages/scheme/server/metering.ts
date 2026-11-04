@@ -1,23 +1,23 @@
-// Harga terukur per request (SD-062, pipeline P5, kelas D): `price` sebuah route boleh berupa fungsi `(request) => { unit, quantity, unitPrice, maxQuantity? }`, jadi harga per GB,
-// per detik, atau per job dihitung dari request. Satuan (`GB`, `job`, `second`, ...) hidup di SDK, listing, dan voucher; kontrak tidak berubah. Jumlah yang dibayar adalah
-// `unitPrice × quantity`, dibulatkan ke atas ke satuan credit terkecil, dan batas atas per request diumumkan SEBELUM kerja: request di atas batas ditolak 413 sebelum
-// ada 402, jadi tidak ada yang membayar untuk kerja yang tidak akan dijalankan.
+// Metered price per request (SD-062, pipeline P5, class D): a route's `price` may be a function `(request) => { unit, quantity, unitPrice, maxQuantity? }`, so the price per GB,
+// per second, or per job is computed from the request. Units (`GB`, `job`, `second`, ...) live in the SDK, listing, and voucher; the contract does not change. The amount paid is
+// `unitPrice × quantity`, rounded up to the smallest credit unit, and the per-request upper bound is announced BEFORE the work: a request above the bound is rejected 413 before
+// any 402, so nobody pays for work that will not run.
 import { CREDIT_DECIMALS } from "@x207/core";
 import { priceToAmount } from "./price.js";
 
 export type MeterQuote = {
-  /** Satuan pemakaian, mis. `GB`, `job`, `second`, `call`. Teks ASCII 1 sampai 24 karakter, `[A-Za-z0-9._/-]`. */
+  /** Usage unit, e.g. `GB`, `job`, `second`, `call`. ASCII text 1 to 24 characters, `[A-Za-z0-9._/-]`. */
   unit: string;
-  /** Jumlah satuan yang akan dikerjakan request ini; angka desimal > 0 dengan paling banyak 6 desimal. */
+  /** Number of units this request will work on; a decimal number > 0 with at most 6 decimals. */
   quantity: number | string;
-  /** Harga satu satuan dalam credit (format `price` biasa: `"$0.02"` atau `0.02`). */
+  /** Price of one unit in credit (usual `price` format: `"$0.02"` or `0.02`). */
   unitPrice: string | number;
-  /** Batas atas satuan untuk satu request; yang lebih kecil dari batas route dan batas ini yang berlaku. */
+  /** Upper bound of units for one request; the smaller of the route bound and this bound applies. */
   maxQuantity?: number | string;
 };
 export type PriceFn = (request: Request) => MeterQuote | Promise<MeterQuote>;
 
-/** Lemparkan dari fungsi harga untuk menolak request sebelum 402: `status` 400 (bawaan) untuk masukan yang tidak sah, 413 untuk di atas batas. */
+/** Throw from the price function to reject a request before the 402: `status` 400 (default) for invalid input, 413 for above the bound. */
 export class MeterRejection extends Error {
   constructor(message: string, readonly status: 400 | 413 = 400, readonly detail: Record<string, string> = {}) {
     super(message);
@@ -25,7 +25,7 @@ export class MeterRejection extends Error {
   }
 }
 
-/** Yang diumumkan di `accepts[x207].extra.meter` (semua teks): satuan, jumlah, harga satuan dalam satuan credit terkecil, dan batas atas bila ada. */
+/** What is announced in `accepts[x207].extra.meter` (all text): unit, quantity, unit price in the smallest credit unit, and the upper bound if any. */
 export type MeterAnnouncement = { unit: string; quantity: string; unit_price: string; max_quantity?: string };
 
 const UNIT = /^[A-Za-z0-9._/-]{1,24}$/;
@@ -47,7 +47,7 @@ const plain = (microValue: bigint): string => {
   return fraction ? `${whole}.${fraction}` : `${whole}`;
 };
 
-/** `unitPrice × quantity` dalam satuan credit terkecil, dibulatkan ke atas (penjual tidak menerima kurang dari harganya; selisih paling banyak satu satuan terkecil). */
+/** `unitPrice × quantity` in the smallest credit unit, rounded up (the seller does not receive less than the price; the difference is at most one smallest unit). */
 export function meterAmount(unitPriceAtomic: string, quantityMicro: bigint): string {
   // F8 (review BE-062): BigInt() takes hex, spaces and an empty text; the price is a decimal whole number above 0
   if (!/^[1-9]\d*$/.test(unitPriceAtomic)) throw new MeterRejection(`unit price must be a decimal integer > 0, got ${JSON.stringify(unitPriceAtomic)}`);
@@ -58,8 +58,8 @@ export function meterAmount(unitPriceAtomic: string, quantityMicro: bigint): str
 }
 
 /**
- * Dari harga route dan request ke jumlah yang harus dibayar dan pengumumannya. Harga statis (teks atau angka) tidak punya pengumuman: perilaku lama tidak berubah.
- * Melempar `MeterRejection` untuk satuan yang tidak sah, jumlah yang tidak sah, dan jumlah di atas batas (413).
+ * From the route price and request to the amount to pay and its announcement. A static price (text or number) has no announcement: old behavior is unchanged.
+ * Throws `MeterRejection` for an invalid unit, an invalid quantity, and a quantity above the bound (413).
  */
 export async function resolvePrice(
   price: string | number | PriceFn,

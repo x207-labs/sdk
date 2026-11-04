@@ -60,7 +60,7 @@ export function facilitator(mock: Mock = {}) {
 export function setup(mock: Mock = {}, options: Partial<X207MiddlewareOptions> = {}) {
   const { fetchMock, calls } = facilitator(mock);
   const middleware = x207Middleware({
-    routes: { "/api/summarize": { price: "$0.02", description: "Ringkas teks", mimeType: "application/json" } },
+    routes: { "/api/summarize": { price: "$0.02", description: "Summarize text", mimeType: "application/json" } },
     facilitatorUrl: "http://facilitator.test", circleId: "agents-main", payTo: B,
     fetch: fetchMock as unknown as typeof fetch, ...options,
   });

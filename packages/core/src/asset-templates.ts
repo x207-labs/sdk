@@ -1,7 +1,7 @@
-// Template scope dan listing per jenis aset on-chain batch 1 (SD-061, katalog #1 sampai #10, kelas A). Satu input per jenis menghasilkan: `limits.scope` untuk `offer_grant`
-// (bentuk yang dibaca kontrak: `{nft_contract, token_id}`, `{ft_contract, amount}`, `{mt_contract, token_id, amount}`), `GrantInput` lengkap, satu sisi listing, `detail` JSON
-// untuk listing (metadata jenis), peringatan risiko, dan panggilan titipan. Semua pemeriksaan murni dan tanpa jaringan; satu-satunya yang butuh jaringan, cek whitelist RWA,
-// disuntik lewat `checkRwaWhitelist`. Nama `asset_type` dan metode serah sama dengan katalog (`scripts/lib/asset-catalog.mjs`).
+// Scope and listing templates per on-chain asset type, batch 1 (SD-061, catalog #1 to #10, class A). One input per type produces: `limits.scope` for `offer_grant`
+// (the shape the contract reads: `{nft_contract, token_id}`, `{ft_contract, amount}`, `{mt_contract, token_id, amount}`), a complete `GrantInput`, one listing side, a JSON `detail`
+// for the listing (type metadata), a risk warning, and the deposit call. All checks are pure and need no network; the only one that needs the network, the RWA whitelist check,
+// is injected through `checkRwaWhitelist`. The `asset_type` names and handover methods match the catalog (`scripts/lib/asset-catalog.mjs`).
 import type { ContractCall } from "./contract/settlement.js";
 import { buildFtEscrowDepositCall, buildMtEscrowDepositCall, buildNftEscrowDepositCall, escrowGrantScope, ftEscrowGrantScope, mtEscrowGrantScope, type GrantInput } from "./access.js";
 import type { ListingSide } from "./marketplace.js";
@@ -10,7 +10,7 @@ import type { AccountId, U128String } from "./types.js";
 export const ASSET_KINDS = ["nft", "ticket", "game-item", "coupon", "license", "ft", "rwa", "lst", "intents-balance", "pool-share"] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
-/** Kode galat yang stabil: backend (BE-049) dan frontend memetakan teks dari sini. */
+/** Stable error code: the backend (BE-049) and frontend map text from here. */
 export type AssetTemplateErrorCode =
   | "bad_kind" | "bad_account" | "bad_token_id" | "bad_amount" | "bad_decimals" | "bad_price" | "bad_expiry" | "bad_text" | "detail_too_long"
   | "ticket_event_over" | "ticket_offer_after_event" | "coupon_expired" | "coupon_offer_after_validity" | "license_terms_hash" | "license_seats"
@@ -23,7 +23,7 @@ export class AssetTemplateError extends Error {
   }
 }
 
-/** Dari mana kontrak membaca jenisnya: katalog D10 mengunci `asset_type`, kelas, dan metode serah. */
+/** Where the contract reads the type from: the D10 catalog fixes `asset_type`, class, and handover method. */
 const KIND_TABLE: Record<AssetKind, { assetType: string; escrow: "nft" | "ft" | "mt" | "either" }> = {
   nft: { assetType: "nft:nep171", escrow: "nft" },
   ticket: { assetType: "ticket:event-nft", escrow: "nft" },
@@ -39,13 +39,13 @@ const KIND_TABLE: Record<AssetKind, { assetType: string; escrow: "nft" | "ft" | 
 export const DELIVERY_METHOD = { nft: "escrow_nft", ft: "escrow_ft", mt: "escrow_mt" } as const;
 
 type Common = {
-  /** Harga satu kali (`once`) dalam credit satuan terkecil, teks. */
+  /** One-time price (`once`) in the smallest credit unit, as text. */
   unitPrice: U128String;
-  /** Batas penawaran grant, detik unix. Harus di masa depan dan tidak melewati batas jenisnya (acara, kupon). */
+  /** Grant offer deadline, unix seconds. Must be in the future and not past the type's own limit (event, coupon). */
   expiresAt: number;
 };
 type NftRef = { nftContract: AccountId; tokenId: string };
-/** `metadata`: hasil `ft_metadata`; bila ada, desimal dan simbol harus sama dengan ketikan pemilik (SD-066, X3). */
+/** `metadata`: result of `ft_metadata`; if present, decimals and symbol must equal what the owner typed (SD-066, X3). */
 type FtRef = { ftContract: AccountId; amount: U128String; decimals: number; symbol: string; metadata?: FtMetadata };
 type MtRef = { mtContract: AccountId; tokenId: string; amount: U128String };
 
@@ -66,15 +66,15 @@ export type AssetTemplate = {
   assetType: string;
   assetClass: "A";
   deliveryMethod: string;
-  /** `limits.scope` untuk `offer_grant`. */
+  /** `limits.scope` for `offer_grant`. */
   scope: string;
   grantInput: GrantInput;
-  /** Satu sisi listing (`offer`), jumlah 1 lot dan nilai sama dengan harga. */
+  /** One listing side (`offer`), quantity 1 lot and value equal to the price. */
   side: ListingSide;
-  /** Metadata jenis sebagai JSON kanonik ASCII, untuk `Listing.detail` (maksimal 2048 karakter). */
+  /** Type metadata as canonical ASCII JSON, for `Listing.detail` (at most 2048 characters). */
   detail: string;
   warnings: string[];
-  /** Titipan pemberi setelah `offer_grant` mengembalikan `grantId`. */
+  /** The giver's deposit after `offer_grant` returns `grantId`. */
   deposit(circleContract: AccountId, grantId: number): ContractCall;
 };
 
@@ -98,7 +98,7 @@ const ascii = (value: string, name: string, max: number): string =>
   value.length >= 1 && value.length <= max && /^[\x20-\x7e]+$/.test(value) ? value : fail("bad_text", `${name} must be ASCII text of 1 to ${max} characters`);
 const seconds = (value: number, name: string): number => (Number.isSafeInteger(value) && value > 0 ? value : fail("bad_expiry", `${name} must be unix seconds`));
 
-/** `1500000` dengan 6 desimal menjadi `1.5`: hanya tampilan, tidak dikirim ke kontrak. */
+/** `1500000` with 6 decimals becomes `1.5`: display only, not sent to the contract. */
 export function formatTokenAmount(atomic: U128String, decimals: number): string {
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 38) return fail("bad_decimals", "decimals must be an integer from 0 to 38");
   const digits = amount(atomic).padStart(decimals + 1, "0");
@@ -107,18 +107,18 @@ export function formatTokenAmount(atomic: U128String, decimals: number): string 
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
-/** Hal yang hanya diketahui pemanggil (lingkaran dan token), disuntik supaya template tetap murni. */
+/** Things only the caller knows (the circle and token), injected so the template stays pure. */
 export type AssetTemplateOptions = {
-  /** USDT milik lingkaran (SD-066, X6): kontrak menolak titipannya (`ERR_ESCROW_USDT`), jadi template menolaknya lebih awal. */
+  /** The circle's USDT (SD-066, X6): the contract rejects its deposit (`ERR_ESCROW_USDT`), so the template rejects it earlier. */
   circleUsdt?: AccountId;
 };
 
-/** Hasil `ft_metadata` token (SD-066, X3): desimal dan simbol dibandingkan dengan ketikan pemilik. */
+/** Result of the token's `ft_metadata` (SD-066, X3): decimals and symbol are compared with what the owner typed. */
 export type FtMetadata = { decimals: number; symbol: string };
 
 const METADATA_WARNING = "Decimals and symbol are not checked against the token (ft_metadata): the amount display uses the owner's typed values, so wrong decimals make the amount display wrong compared with the smallest unit escrowed.";
 
-/** Teks bebas yang tidak boleh berisi rahasia (SD-066, X5): kunci privat, kata sandi, kunci API, token layanan, dan kode kupon. Heuristik, bukan jaminan. */
+/** Free text that must not contain secrets (SD-066, X5): private keys, passwords, API keys, service tokens, and coupon codes. A heuristic, not a guarantee. */
 const SECRET_TEXT: RegExp[] = [
   /\b(?:ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]{20,}/,
   /\b(?:password|passwd|passphrase|secret|api[_-]?key|private[_-]?key|seed[_ ]phrase)\b\s*[:=]/i,
@@ -149,8 +149,8 @@ const FEE_WARNING = "Tokens with a transfer fee are not supported: the contract 
 const REGISTER_WARNING = "The buyer must be registered at the token contract (storage_deposit); otherwise the handover fails and its payment is cancelled.";
 
 /**
- * Dari satu input per jenis ke scope, grant, sisi listing, detail, peringatan, dan titipan. Melempar `AssetTemplateError` dengan kode yang stabil bila input tidak sah.
- * @param now detik unix saat ini (disuntik supaya test deterministik)
+ * From one input per type to scope, grant, listing side, detail, warning, and deposit. Throws `AssetTemplateError` with a stable code if the input is not valid.
+ * @param now current unix seconds (injected so tests are deterministic)
  */
 export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(Date.now() / 1000), options: AssetTemplateOptions = {}): AssetTemplate {
   const entry = (KIND_TABLE as Record<string, (typeof KIND_TABLE)[AssetKind]>)[input.kind];
@@ -320,7 +320,7 @@ export function buildAssetTemplate(input: AssetInput, now: number = Math.floor(D
 }
 
 /**
- * Cek whitelist token RWA lewat view token yang disuntik (tiap penerbit punya view sendiri; tidak ada standar). Mengembalikan akun yang tidak lolos; kosong berarti semua lolos.
+ * Check the RWA token whitelist through the injected token view (each issuer has its own view; there is no standard). Returns the accounts that do not pass; empty means all pass.
  * @param check `(ftContract, account) => Promise<boolean>`
  */
 export async function checkRwaWhitelist(

@@ -1,4 +1,4 @@
-// SD-029 dan SD-030: mode demo `register_voucher` per request dan kode non-terminal `settlement_pending` di /settle.
+// SD-029 and SD-030: demo mode `register_voucher` per request and the non-terminal code `settlement_pending` in /settle.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";

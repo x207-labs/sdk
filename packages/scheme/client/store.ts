@@ -1,14 +1,14 @@
-// Penyimpanan state voucher klien (Spec Binding x402 5.2). Kunci state: (payer, payee, epoch).
+// Client voucher state store (x402 Binding Spec 5.2). State key: (payer, payee, epoch).
 import type { AccountId, U128String } from "@x207/core";
 
 export type VoucherPairKey = { payer: AccountId; payee: AccountId; epoch: number };
 
-/** `seq` dan `cumulativeAmount` voucher terakhir yang dikonfirmasi; `{0, "0"}` bila belum ada. */
+/** `seq` and `cumulativeAmount` of the last confirmed voucher; `{0, "0"}` if none yet. */
 export type VoucherState = { seq: number; cumulativeAmount: U128String };
 
 export interface VoucherStateStore {
   get(key: VoucherPairKey): Promise<VoucherState>;
-  /** Dipanggil hanya setelah `PAYMENT-RESPONSE` `success: true`, atau saat resinkronisasi. */
+  /** Called only after `PAYMENT-RESPONSE` `success: true`, or on resynchronisation. */
   commit(key: VoucherPairKey, state: VoucherState): Promise<void>;
 }
 

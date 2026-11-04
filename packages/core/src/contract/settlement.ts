@@ -1,14 +1,14 @@
-// Helper pelunasan residual dan klaim (SD-014): msg `ft_transfer_call` aksi `settle` dan argumen `claim`.
-// Bentuk dan nama persis Spec Antarmuka Kontrak 4.1 dan bagian method `claim` (ADR-19, ADR-24).
+// Residual settlement and claim helpers (SD-014): the `ft_transfer_call` msg of the `settle` action and the `claim` arguments.
+// Shapes and names exactly as Contract Interface Spec 4.1 and the `claim` method section (ADR-19, ADR-24).
 import { USDT_TOKEN_ID } from "../constants.js";
 import type { AccountId, U128String } from "../types.js";
 
-/** Gas minimal yang harus dilampirkan pada `claim` (100 TGas, Spec Antarmuka Kontrak; disetel di CT-043). */
+/** Minimum gas that must be attached to `claim` (100 TGas, Contract Interface Spec; tuned in CT-043). */
 export const CLAIM_MIN_GAS = 100_000_000_000_000n;
 export const CLAIM_DESTINATIONS = ["near", "intents"] as const;
 export type ClaimDestination = (typeof CLAIM_DESTINATIONS)[number];
 
-/** Panggilan function call NEAR yang siap ditandatangani; `gas` kosong berarti penanda tangan yang memilih. */
+/** NEAR function call ready to sign; empty `gas` means the signer chooses. */
 export type ContractCall = {
   receiverId: AccountId;
   methodName: string;
@@ -24,7 +24,7 @@ function assertEpoch(epoch: number): void {
   if (!Number.isSafeInteger(epoch) || epoch < 1) throw new Error(`epoch must be an integer >= 1, got ${epoch}`);
 }
 
-/** `{"action":"settle","epoch":N}` atau dengan `member_id` untuk membayar atas nama anggota lain. */
+/** `{"action":"settle","epoch":N}` or with `member_id` to pay on behalf of another member. */
 export function buildSettleMsg(input: { epoch: number; memberId?: AccountId }): string {
   assertEpoch(input.epoch);
   if (input.memberId === undefined) return JSON.stringify({ action: "settle", epoch: input.epoch });
@@ -32,7 +32,7 @@ export function buildSettleMsg(input: { epoch: number; memberId?: AccountId }): 
   return JSON.stringify({ action: "settle", epoch: input.epoch, member_id: input.memberId });
 }
 
-/** `ft_transfer_call` USDT ke kontrak lingkaran dengan msg `settle` (deposit 1 yoctoNEAR, standar NEP-141). */
+/** `ft_transfer_call` USDT to the circle contract with msg `settle` (deposit 1 yoctoNEAR, NEP-141 standard). */
 export function buildSettleTransferCall(input: {
   circleContract: AccountId;
   amount: U128String;
@@ -53,7 +53,7 @@ export function buildSettleTransferCall(input: {
   };
 }
 
-/** Argumen JSON `claim`; `destination` `near` (akun NEAR) atau `intents` (saldo Intents). */
+/** JSON arguments of `claim`; `destination` is `near` (NEAR account) or `intents` (Intents balance). */
 export function buildClaimArgs(epoch: number, destination: ClaimDestination): { epoch: number; destination: ClaimDestination } {
   assertEpoch(epoch);
   if (!CLAIM_DESTINATIONS.includes(destination)) {
@@ -62,7 +62,7 @@ export function buildClaimArgs(epoch: number, destination: ClaimDestination): { 
   return { epoch, destination };
 }
 
-/** Panggilan `claim`: deposit tepat 1 yoctoNEAR dan gas minimal `CLAIM_MIN_GAS`. */
+/** `claim` call: exactly 1 yoctoNEAR deposit and minimum gas `CLAIM_MIN_GAS`. */
 export function buildClaimCall(input: { circleContract: AccountId; epoch: number; destination: ClaimDestination }): ContractCall {
   return {
     receiverId: input.circleContract,

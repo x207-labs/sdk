@@ -1,6 +1,6 @@
-// Membangkitkan berkas vector voucher (SD-006) dari implementasi `@x207/core`.
-// Jalankan setelah `npm run build`: node spec/test-vectors/generate.mjs
-// Hasil deterministik (seed tetap, ed25519 RFC 8032), jadi diff kosong bila format tidak berubah.
+// Generates the voucher vector files (SD-006) from the `@x207/core` implementation.
+// Run after `npm run build`: node spec/test-vectors/generate.mjs
+// The result is deterministic (fixed seed, ed25519 RFC 8032), so the diff is empty if the format does not change.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";

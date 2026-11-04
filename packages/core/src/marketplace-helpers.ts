@@ -1,5 +1,5 @@
-// Helper marketplace untuk developer agent (SD-056, F9): `postListing`, `counterOffer`, `acceptOffer`.
-// Hanya membangun dan menandatangani payload; pengiriman ke buku listing (backend) dilakukan pemanggil dengan transportnya sendiri.
+// Marketplace helpers for agent developers (SD-056, F9): `postListing`, `counterOffer`, `acceptOffer`.
+// They only build and sign payloads; sending to the listing book (backend) is done by the caller with its own transport.
 import { BarterFormatError, bundleParticipants, signBundle, termsHash, type BundleSignature, type BundleTerms, type SearchLeg } from "./barter.js";
 import type { BundleLeg } from "./events.js";
 import {
@@ -12,7 +12,7 @@ import type { AccountId, Ed25519Signature, U128String } from "./types.js";
 export type SignedListing = { listing: Listing; listing_hash: string; signature: Ed25519Signature };
 export type SignedOffer = { offer: Offer; offer_hash: string; signature: Ed25519Signature };
 
-/** Tanda tangani listing dengan kunci voucher pemasang. `listing.account` harus pemilik kunci itu. */
+/** Sign a listing with the poster's voucher key. `listing.account` must own that key. */
 export function postListing(listing: Listing, secretKey: VoucherSecretKey): SignedListing {
   serializeListing(listing);
   return { listing, listing_hash: listingHash(listing), signature: signListing(listing, secretKey) };
@@ -20,19 +20,19 @@ export function postListing(listing: Listing, secretKey: VoucherSecretKey): Sign
 
 export type CounterOfferInput = {
   listing: Listing;
-  /** Akun penawar. */
+  /** Bidder account. */
   proposer: AccountId;
   mode: OfferMode;
   value: U128String;
   quantity: number;
   deliver_by: number;
-  /** Penawaran lawan yang dijawab; ronde baru = ronde itu + 1. Kosong untuk penawaran pertama. */
+  /** The counterparty offer being answered; the new round = that round + 1. Empty for the first offer. */
   previous?: Offer;
-  /** Waktu sekarang (detik unix), untuk menolak listing yang sudah kedaluwarsa. */
+  /** Current time (unix seconds), used to reject listings that have already expired. */
   now: number;
 };
 
-/** Penawaran atau penawaran balik bertanda tangan atas listing. */
+/** A signed offer or counter-offer on a listing. */
 export function counterOffer(input: CounterOfferInput, secretKey: VoucherSecretKey): SignedOffer {
   const { listing, previous } = input;
   const hash = listingHash(listing);
@@ -53,24 +53,24 @@ export function counterOffer(input: CounterOfferInput, secretKey: VoucherSecretK
 export type PlanInput = {
   listing: Listing;
   offer: Offer;
-  /** Epoch tempat bundle berjalan. */
+  /** The epoch in which the bundle runs. */
   epoch: number;
-  /** Pencari otonom yang membawa tawaran ini, bila ada; jatahnya `searcherShareBps` dari nilai `offer` listing. */
+  /** The autonomous searcher who brought this offer, if any; their share is `searcherShareBps` of the listing's `offer` value. */
   searcher?: AccountId;
   searcherShareBps?: number;
   /**
-   * Lawan pemasang listing di utas ini. Default `offer.proposer`, benar bila yang diterima penawaran lawan; isi bila yang diterima
-   * penawaran balik pemasang (proposer = pemasang) supaya leg tetap antara pemasang dan lawan.
+   * The counterparty of the listing poster in this thread. Defaults to `offer.proposer`, correct when the accepted offer is a counterparty offer; set it when the accepted
+   * offer is the poster's counter-offer (proposer = poster) so the leg stays between the poster and the counterparty.
    */
   counterparty?: AccountId;
 };
 
 export type AcceptInput = PlanInput & {
-  /** Akun penerima dan kunci voucher yang menandatangani. */
+  /** The receiving account and the voucher key that signs. */
   account: AccountId;
 };
 
-/** Hasil penerimaan tanpa tanda tangan: `discount` dan `searcher` dalam credit (satuan terkecil) dipakai statistik marketplace. */
+/** Acceptance result without a signature: `discount` and `searcher` in credit (smallest unit) are used for marketplace statistics. */
 export type OfferPlan =
   | { kind: "payment"; payer: AccountId; payee: AccountId; amount: U128String; discount: U128String; searcher: U128String }
   | { kind: "bundle"; terms: BundleTerms; terms_hash: string; discount: U128String; searcher: U128String };
@@ -84,13 +84,13 @@ function leg(payer: AccountId, payee: AccountId, amount: bigint): BundleLeg[] {
 }
 
 /**
- * Hitung hasil penerimaan penawaran tanpa kunci: leg bundle sesuai note F9, atau satu pembayaran bila tidak perlu bundle.
- * Jalur bayar: lawan membayar penjual `value − diskon` dan pencari jatahnya (tanpa pencari cukup satu pembayaran voucher).
- * `value` yang dihitung adalah `Offer.value` penawaran yang diterima, yaitu nilai kesepakatan untuk sisi `offer` listing (bukan nilai
- * awal di listing), jadi harga hasil tawar-menawar menentukan jumlah leg. Diskon dan jatah pencari dihitung dari nilai itu.
- * Jalur barter: penjual membayar `want.value + cashback` ke lawan, lawan membayar `Offer.value` ke penjual, penjual membayar
- * pencari jatahnya; setelah kliring penjual menanggung cashback + jatah pencari. Bila ada leg untuk pencari, syaratnya memuat `search_leg` (interface 0.0.5), jadi agent, backend dan solver menghitung `terms_hash` yang sama.
- * Backend memakai fungsi ini untuk menghitung ulang `terms_hash` yang diajukan klien.
+ * Compute the result of accepting an offer without keys: the bundle legs per the F9 note, or a single payment when no bundle is needed.
+ * Pay path: the counterparty pays the seller `value − discount` and the searcher their share (without a searcher a single voucher payment is enough).
+ * The `value` computed is the `Offer.value` of the accepted offer, i.e. the agreed value for the listing's `offer` side (not the initial
+ * value in the listing), so the price from bargaining sets the leg amounts. The discount and searcher share are computed from that value.
+ * Barter path: the seller pays `want.value + cashback` to the counterparty, the counterparty pays `Offer.value` to the seller, the seller pays
+ * the searcher their share; after clearing the seller bears cashback + searcher share. When there is a leg for the searcher, the terms include `search_leg` (interface 0.0.5), so agent, backend and solver compute the same `terms_hash`.
+ * The backend uses this function to recompute the `terms_hash` submitted by the client.
  */
 export function planOffer(input: PlanInput): OfferPlan {
   const { listing, offer } = input;
@@ -104,7 +104,7 @@ export function planOffer(input: PlanInput): OfferPlan {
   let legs: BundleLeg[];
   let discount: U128String;
   let searcher: U128String;
-  /** Leg yang membayar pencari; hanya ada bila jatahnya > 0 sehingga ada legnya. */
+  /** The leg that pays the searcher; exists only when their share is > 0 so that a leg exists. */
   let searchLeg: SearchLeg | undefined;
   if (offer.mode === "pay") {
     if (!listing.accept_payment) throw new BarterFormatError("listing does not accept payment");
@@ -127,13 +127,13 @@ export function planOffer(input: PlanInput): OfferPlan {
       ...searchLegs,
     ];
   }
-  // Interface 0.0.5: leg pencari disebut di syarat yang ditandatangani (`search_leg`) supaya kontrak membatasinya dengan `max_search_share_bps`.
-  // Tanpa pencari bytes dan `terms_hash` sama dengan format lama.
+  // Interface 0.0.5: the searcher leg is named in the signed terms (`search_leg`) so the contract limits it with `max_search_share_bps`.
+  // Without a searcher the bytes and `terms_hash` equal the old format.
   const terms: BundleTerms = { circle: listing.circle, epoch: input.epoch, legs, ...(searchLeg ? { search_leg: searchLeg } : {}) };
   return { kind: "bundle", terms, terms_hash: termsHash(terms), discount, searcher };
 }
 
-/** Terima penawaran: hitung rencana dengan `planOffer` dan tandatangani `terms_hash` untuk `account`. */
+/** Accept an offer: compute the plan with `planOffer` and sign the `terms_hash` for `account`. */
 export function acceptOffer(input: AcceptInput, secretKey: VoucherSecretKey): AcceptResult {
   const { listing, offer } = input;
   if (offer.listing_hash !== listingHash(listing)) throw new BarterFormatError("offer is for another listing");
@@ -145,7 +145,7 @@ export function acceptOffer(input: AcceptInput, secretKey: VoucherSecretKey): Ac
   return { kind: "bundle", terms: plan.terms, terms_hash: plan.terms_hash, signature: signBundle(plan.terms, input.account, secretKey) };
 }
 
-/** Periksa tanda tangan listing dan penawaran yang diterima dari akun lain; `false` untuk apa pun yang tidak sah. */
+/** Check the signature of a listing and of an offer received from another account; `false` for anything not valid. */
 export const verifySignedListing = (signed: SignedListing, publicKey: string): boolean =>
   signed.listing_hash === listingHash(signed.listing) && verifyListingSignature(signed.listing, signed.signature, publicKey);
 export const verifySignedOffer = (signed: SignedOffer, publicKey: string): boolean =>

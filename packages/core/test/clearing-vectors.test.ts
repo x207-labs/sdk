@@ -16,7 +16,7 @@ const load = (file: string) => JSON.parse(readFileSync(`${dir}${file}`, "utf8"))
 const U128 = /^(0|[1-9]\d*)$/;
 const pair = (debtor: string, creditor: string) => `${debtor}\u0000${creditor}`;
 
-/** Verifikator referensi mengikuti Spec Antarmuka Kontrak 3.6 / 4.7 (urutan cek per edge, lalu keseimbangan anggota). */
+/** Reference verifier following Contract Interface Spec 3.6 / 4.7 (order of checks per edge, then member balance). */
 function simulate({ snapshot, edges }: Vector["input"]) {
   const base = { cleared_total: "0", edge_count: edges.length, better_than_current: false };
   const fail = (reason: string) => ({ ...base, valid: false, reason });
@@ -57,7 +57,7 @@ function net(snapshot: Snapshot, edges: Edge[]) {
 const netBefore = (snapshot: Snapshot) => net(snapshot, []);
 const asStrings = (m: Record<string, bigint>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.toString()]));
 
-describe("SD-009 test vector kliring", () => {
+describe("SD-009 clearing test vectors", () => {
   it("the expected files exist", () => {
     expect(files).toEqual(["cleared_exceeds_obligation.json", "unbalanced_member.json", "valid.json"]);
   });
@@ -89,7 +89,7 @@ describe("SD-009 test vector kliring", () => {
     expect(result.reason).toMatch(/^ERR_CLEARED_EXCEEDS_OBLIGATION/);
   });
 
-  it("TC-SD-009-03 Σ masuk != Σ keluar", () => {
+  it("TC-SD-009-03 Σ in != Σ out", () => {
     const { input, expected } = load("unbalanced_member.json");
     const result = simulate(input);
     expect(expected.valid).toBe(false);

@@ -1,10 +1,10 @@
-// Catatan hash gladi testnet (UM-032, SD-034, SD-031): satu berkas JSON yang ditulis ulang setelah tiap langkah, jadi hash tersimpan
-// sejak awal run walau run berhenti di tengah. Tidak pernah memuat kunci atau rahasia: hanya akun, metode, hash, dan teks pendek.
+// Testnet rehearsal hash record (UM-032, SD-034, SD-031): one JSON file rewritten after each step, so hashes are saved
+// from the start of the run even if the run stops midway. Never holds keys or secrets: only accounts, methods, hashes, and short text.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 export type DemoStep = {
-  /** Bagian run: `sd-034-exact`, `sd-031-gaskey`, `network-demo`. */
+  /** Part of the run: `sd-034-exact`, `sd-031-gaskey`, `network-demo`. */
   section: string;
   step: string;
   account?: string;

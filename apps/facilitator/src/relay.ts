@@ -1,5 +1,5 @@
-// Relayer on-chain untuk `RegistrationScheduler` (SD-028): menandatangani dan mengirim
-// `register_cumulative(voucher, signature)` dari akun relayer, serta membaca `last_seq` dan `get_epoch`.
+// On-chain relayer for `RegistrationScheduler` (SD-028): signs and sends
+// `register_cumulative(voucher, signature)` from the relayer account, and reads `last_seq` and `get_epoch`.
 import { KeyPair, PublicKey, type KeyPairString } from "@near-js/crypto";
 import { KeyPairSigner } from "@near-js/signers";
 import { actionCreators, createTransaction, encodeTransaction } from "@near-js/transactions";
@@ -8,13 +8,13 @@ import { GasKeyLanes, signGasKeyTransaction } from "./gas-key.js";
 import type { NearRpc } from "./rpc.js";
 import type { RegisterMode, RegistrationChain } from "./scheduler.js";
 
-/** Gas `register_cumulative` (100 TGas, sama dengan test gas di contracts). */
+/** Gas for `register_cumulative` (100 TGas, same as the gas test in contracts). */
 export const REGISTER_GAS = 100_000_000_000_000n;
 
 type Outcome = { status: unknown; logs?: string[] };
 type TxResult = { status?: unknown; transaction_outcome?: { outcome: Outcome }; receipts_outcome?: Array<{ outcome: Outcome }> };
 
-/** Pesan kegagalan transaksi (termasuk teks panic `ERR_*` kontrak), atau `null` bila sukses. */
+/** Transaction failure message (including the contract's `ERR_*` panic text), or `null` on success. */
 export function transactionFailure(result: TxResult): string | null {
   const outcomes = [result.transaction_outcome?.outcome, ...(result.receipts_outcome ?? []).map((r) => r.outcome)];
   for (const outcome of outcomes) {
@@ -30,14 +30,14 @@ export type NearRelayOptions = {
   rpc: NearRpc;
   circleContract: AccountId;
   relayer: { accountId: AccountId; privateKey: string };
-  /** Dipanggil dengan log semua receipt tiap transaksi yang selesai (mis. untuk event `voucher_registered`). */
+  /** Called with the logs of all receipts of each finished transaction (e.g. for the `voucher_registered` event). */
   onLogs?: (logs: string[]) => void;
-  /** Dipanggil dengan hash tiap transaksi registrasi yang dikirim. */
+  /** Called with the hash of each registration transaction sent. */
   onHash?: (hash: string) => void;
   /**
-   * Gas key (NEP-611, SD-031): `privateKey` adalah gas key yang terpasang di `relayer.accountId` dan `lanes` jumlah jalur nonce yang dipakai
-   * (1..1024). Dengan ini `register` boleh dipanggil paralel, satu jalur per transaksi, tanpa bentrok nonce. Tanpa ini relayer memakai
-   * kunci akses biasa dan transaksi harus berurutan.
+   * Gas key (NEP-611, SD-031): `privateKey` is the gas key installed on `relayer.accountId` and `lanes` the number of nonce lanes used
+   * (1..1024). With this `register` may be called in parallel, one lane per transaction, with no nonce clash. Without it the relayer uses
+   * an ordinary access key and transactions must be sequential.
    */
   gasKey?: { privateKey: string; lanes: number };
 };
@@ -58,12 +58,12 @@ export class NearRegistrationChain implements RegistrationChain {
     }
   }
 
-  /** Jumlah registrasi yang boleh berjalan bersamaan (jalur gas key), 1 untuk kunci akses biasa. */
+  /** Number of registrations that may run at the same time (gas key lanes), 1 for an ordinary access key. */
   get concurrency(): number {
     return this.#lanes?.count ?? 1;
   }
 
-  /** Kirim satu transaksi dan tunggu final; melempar `Error` dengan pesan panic kontrak bila gagal. */
+  /** Send one transaction and wait for final; throws an `Error` with the contract's panic message on failure. */
   async register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode, bundleId?: number): Promise<void> {
     const { rpc, circleContract, relayer } = this.options;
     const method = bundleId !== undefined ? "register_in_bundle" : mode === "cumulative" ? "register_cumulative" : "register_voucher";
@@ -103,7 +103,7 @@ export class NearRegistrationChain implements RegistrationChain {
     await this.#send(Buffer.from(encodeTransaction(signed)));
   }
 
-  /** Kirim byte transaksi bertanda tangan, tunggu final; melempar `Error` dengan pesan panic kontrak bila gagal. */
+  /** Send the signed transaction bytes and wait for final; throws an `Error` with the contract's panic message on failure. */
   async #send(bytes: Uint8Array): Promise<void> {
     const result = await this.options.rpc.call<TxResult>("send_tx", { signed_tx_base64: Buffer.from(bytes).toString("base64"), wait_until: "FINAL" });
     this.options.onHash?.(String((result as { transaction?: { hash?: string } }).transaction?.hash ?? ""));

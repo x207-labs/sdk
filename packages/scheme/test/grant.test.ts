@@ -1,5 +1,5 @@
-// SD-053: endpoint grant F8. Server menaruh `grantId` di `extra` dengan `payTo` = pemberi grant, klien menyusun voucher dengan payee = payTo dan
-// resource `x207:grant:<grantId>`, dan facilitator menolak voucher ber-payee akun broker (`payee_mismatch`) atau ber-resource lain.
+// SD-053: F8 grant endpoint. The server puts `grantId` in `extra` with `payTo` = the grantor, the client builds a voucher with payee = payTo and
+// resource `x207:grant:<grantId>`, and the facilitator rejects a voucher whose payee is the broker account (`payee_mismatch`) or whose resource differs.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { x402Client } from "@x402/core/client";
@@ -39,8 +39,8 @@ const verifyWith = (requirements: PaymentRequirements, voucherWithSignature: any
   return new X207SchemeFacilitator({ network: NETWORK, circleContract: CIRCLE, verify: { chain, now: () => NOW } }).verify(payload, requirements);
 };
 
-describe("SD-053 vector voucher grant", () => {
-  it("TC-SD-053-01 berkas lolos schema.json, voucher sah, resource = x207:grant:7, payTo = pemberi", () => {
+describe("SD-053 grant voucher vector", () => {
+  it("TC-SD-053-01 file passes schema.json, valid voucher, resource = x207:grant:7, payTo = grantor", () => {
     expect(new Ajv().compile(read("schema.json"))(vector)).toBe(true);
     expect(verifyVoucher(vector.input.voucher, vector.input.publicKey)).toBe(true);
     expect(vector.input.voucher.resource).toBe(grantResource(7));
@@ -77,7 +77,7 @@ describe("SD-053 requirements and client", () => {
     const { voucher, signature } = result.payload as unknown as X207Payload;
     expect(voucher).toMatchObject({ payer: GRANTEE, payee: GRANTOR, resource: "x207:grant:7", epoch: 42, seq: 1, cumulativeAmount: "250000" });
     expect(verifyVoucher({ ...voucher, signature }, keys.kA.publicKey)).toBe(true);
-    // byte yang sama dengan vector (kunci dan data sama)
+    // the same bytes as the vector (same key and data)
     expect(signature).toBe(vector.input.voucher.signature);
   });
 

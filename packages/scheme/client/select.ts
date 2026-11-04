@@ -1,5 +1,5 @@
-// Pemilihan entri di klien (SD-019, Spec Binding x402 5.2): voucher x207 bila headroom cukup,
-// selain itu entri lain (`exact` near:mainnet), tanpa kode tambahan di agent.
+// Entry selection on the client (SD-019, x402 Binding Spec 5.2): an x207 voucher if headroom is enough,
+// otherwise another entry (`exact` near:mainnet), with no extra code in the agent.
 import { x402Client } from "@x402/core/client";
 import type {
   PaymentRequired,
@@ -17,7 +17,7 @@ type SelectPaymentRequirements = (
 ) => PaymentRequirements;
 
 export const X207_NETWORK_PREFIX = "x207:";
-/** Cache perkiraan headroom maksimal 60 detik (K-34). */
+/** Headroom estimate cache of at most 60 seconds (K-34). */
 export const HEADROOM_CACHE_MS = 60_000;
 
 export const isX207Requirements = (requirements: PaymentRequirements): boolean =>
@@ -29,8 +29,8 @@ const circleOf = (requirements: PaymentRequirements): string | undefined => {
 };
 
 /**
- * Membaca view `headroom(account_id)` kontrak lingkaran. `"0"` untuk anggota yang tidak `active`;
- * `null` bila bukan anggota.
+ * Reads the circle contract's `headroom(account_id)` view. `"0"` for members that are not `active`;
+ * `null` if not a member.
  */
 export type HeadroomSource = (circleContract: AccountId, payer: AccountId) => Promise<string | null>;
 
@@ -44,8 +44,8 @@ export type HeadroomEstimatorOptions = {
 };
 
 /**
- * Perkiraan headroom payer per kontrak lingkaran: view `headroom` dengan cache, dikurangi `amount`
- * yang sudah dibayar lewat x207 sejak cache dibaca. Tidak diketahui (view gagal) berarti `undefined`.
+ * Payer headroom estimate per circle contract: the `headroom` view with a cache, minus the `amount`
+ * already paid through x207 since the cache was read. Unknown (view failed) means `undefined`.
  */
 export class HeadroomEstimator {
   private readonly payer: AccountId;
@@ -61,7 +61,7 @@ export class HeadroomEstimator {
     this.now = options.now ?? Date.now;
   }
 
-  /** Baca ulang view bila cache kosong atau lebih tua dari `cacheMs`. Kegagalan view tidak melempar. */
+  /** Re-read the view if the cache is empty or older than `cacheMs`. A view failure does not throw. */
   async ensureFresh(circleContract: AccountId): Promise<void> {
     const entry = this.entries.get(circleContract);
     if (entry && this.now() - entry.at < this.cacheMs) return;
@@ -77,14 +77,14 @@ export class HeadroomEstimator {
     return this.entries.get(circleContract)?.value;
   }
 
-  /** Kurangi headroom setelah voucher senilai `amount` diterima. */
+  /** Reduce headroom after a voucher worth `amount` is accepted. */
   consume(circleContract: AccountId, amount: string): void {
     const entry = this.entries.get(circleContract);
     if (!entry) return;
     entry.value = entry.value > BigInt(amount) ? entry.value - BigInt(amount) : 0n;
   }
 
-  /** Server menolak `insufficient_credit`: anggap habis sampai cache dibaca ulang. */
+  /** The server rejects `insufficient_credit`: treat as used up until the cache is re-read. */
   markExhausted(circleContract: AccountId): void {
     this.entries.set(circleContract, { value: 0n, at: this.now() });
   }
@@ -99,13 +99,13 @@ export class NoPayableRequirementsError extends Error {
 
 export type BundleLookup = (payee: AccountId, epoch: number) => number | undefined;
 
-/** Entri x207 yang membayar leg bundle: tidak memakai headroom bebas, jadi tidak ikut diperiksa dan tidak mengurangi perkiraan. */
+/** x207 entry that pays a bundle leg: does not use free headroom, so it is not checked and does not reduce the estimate. */
 const isBundleLeg = (requirements: PaymentRequirements, bundleFor: BundleLookup | undefined): boolean => {
   const epoch = (requirements.extra as { epoch?: unknown } | undefined)?.epoch;
   return bundleFor !== undefined && typeof epoch === "number" && bundleFor(requirements.payTo, epoch) !== undefined;
 };
 
-/** Pilih x207 bila headroom cukup (atau tidak diketahui) atau bila pembayaran adalah leg bundle, selain itu entri non-x207 pertama. */
+/** Pick x207 if headroom is enough (or unknown) or if the payment is a bundle leg, otherwise the first non-x207 entry. */
 export function selectX207Requirements(estimator: HeadroomEstimator, bundleFor?: BundleLookup): SelectPaymentRequirements {
   return (_version, accepts) => {
     const payable = accepts.find((requirements) => {
@@ -121,27 +121,27 @@ export function selectX207Requirements(estimator: HeadroomEstimator, bundleFor?:
   };
 }
 
-/** Penolakan yang bisa dipulihkan dengan jatuh ke entri `exact`: headroom habis (SD-019) dan payer keluar (TC-SD-033-07). */
+/** Rejections recoverable by falling back to the `exact` entry: headroom used up (SD-019) and payer left (TC-SD-033-07). */
 const RECOVERABLE_REASONS = new Set(["insufficient_credit", "member_exiting"]);
 
 export type X207PaymentClientOptions = {
   payer: AccountId;
-  /** Kunci voucher ed25519 payer (ADR-06), bukan access key NEAR. */
+  /** The payer's ed25519 voucher key (ADR-06), not a NEAR access key. */
   secretKey: VoucherSecretKey;
   headroom: HeadroomSource;
   store?: VoucherStateStore;
-  /** Leg bundle F5 (SD-048); lihat `X207ClientOptions.bundleFor`. */
+  /** F5 bundle leg (SD-048); see `X207ClientOptions.bundleFor`. */
   bundleFor?: BundleLookup;
-  /** Batas belanja lokal pemilik (SD-020); lihat `X207ClientOptions.spendLimit`. */
+  /** Owner's local spend limit (SD-020); see `X207ClientOptions.spendLimit`. */
   spendLimit?: SpendLimit;
   headroomCacheMs?: number;
   now?: () => number;
 };
 
 /**
- * `x402Client` yang sudah mendaftarkan `x207:*` dan memilih antara voucher dan entri lain.
- * Agent tinggal mendaftarkan `exact` NEAR sendiri (`register("near:*", …)`) lalu memakai
- * `wrapFetchWithPayment`; jatuh ke `exact` setelah `insufficient_credit` terjadi otomatis.
+ * An `x402Client` that has registered `x207:*` and chooses between the voucher and other entries.
+ * The agent only registers its own NEAR `exact` (`register("near:*", …)`) and then uses
+ * `wrapFetchWithPayment`; falling back to `exact` after `insufficient_credit` happens automatically.
  */
 export class X207PaymentClient extends x402Client {
   readonly headroom: HeadroomEstimator;

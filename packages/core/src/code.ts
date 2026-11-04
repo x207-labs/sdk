@@ -1,12 +1,12 @@
-// Format listing kode sekali tukar (SD-076, pipeline P3, ADR-48). Yang dijual adalah satu kode (voucher, kunci lisensi, kode redeem) yang hanya bisa dipakai sekali. Pertukarannya
-// adalah pertukaran adil SD-070 dengan `salt ‖ kode` sebagai isi: payload (salt 32 byte acak, lalu byte UTF-8 kode) dienkripsi, dan `code_commitment` adalah `contentHash` SD-070
-// atas payload itu (`sha256(0x00 ‖ salt ‖ kode)`). Listing publik hanya memuat `code_commitment`; salt acak membuat kode berentropi rendah ("SAVE20", 6 sampai 8 karakter) tidak bisa
-// ditebak dari hash. `createRelease`, `verifyDelivery`, `makeCheatProof`, dan `checkCheatProof` dipakai apa adanya dengan `content_hash = code_commitment` dan
-// `license_hash = codeDocumentHash`: pembeli yang menerima payload yang tidak cocok dengan `code_commitment` mendapat bukti curang yang diperiksa siapa saja.
+// One-time-exchange code listing format (SD-076, pipeline P3, ADR-48). What is sold is one code (voucher, license key, redeem code) that can be used only once. The exchange
+// is the SD-070 fair exchange with `salt ‖ code` as the content: the payload (32 random salt bytes, then the UTF-8 bytes of the code) is encrypted, and `code_commitment` is the SD-070 `contentHash`
+// of that payload (`sha256(0x00 ‖ salt ‖ code)`). The public listing carries only `code_commitment`; the random salt keeps a low-entropy code ("SAVE20", 6 to 8 characters) from being
+// guessed from the hash. `createRelease`, `verifyDelivery`, `makeCheatProof`, and `checkCheatProof` are used as-is with `content_hash = code_commitment` and
+// `license_hash = codeDocumentHash`: a buyer who receives a payload that does not match `code_commitment` gets a cheat proof that anyone can check.
 //
-// Modul ini tidak memakai node:crypto atau Buffer. Batas yang diakui: (1) penjual yang sama bisa mendaftarkan kode yang sama dengan salt lain, jadi kode ganda tidak terdeteksi lewat
-// hash; yang menahannya adalah cek penerbit sebelum kunci dilepas, batas nilai kode tanpa cek, jaminan, dan reputasi. (2) Kode yang sudah terpakai tidak bisa dibuktikan curang:
-// tanpa API penerbit (`verifiable = false`) pembeli hanya terlindungi oleh batas nilai dan oleh jaminan penjual.
+// This module uses neither node:crypto nor Buffer. Acknowledged limits: (1) the same seller can register the same code with a different salt, so a duplicate code is not detected through
+// the hash; what holds it back is the issuer check before the key is released, the value limit for codes without a check, the guarantee, and reputation. (2) A code that has already been used cannot be proven fraudulent:
+// without an issuer API (`verifiable = false`) the buyer is protected only by the value limit and the seller's guarantee.
 import { bytesToHex, concatBytes, randomBytes } from "@noble/hashes/utils.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { contentHash, createRelease, encryptContent, makeCheatProof, verifyDelivery, type CheatProof, type DeliveryVerdict, type LicenseRelease } from "./license.js";
@@ -19,7 +19,7 @@ export const UNVERIFIABLE_CODE_LIMIT: U128String = "20000000";
 export const VERIFIABLE_CODE_LIMIT: U128String = "100000000";
 export const MIN_CODE_BYTES = 8;
 export const MAX_CODE_BYTES = 1024;
-/** Jendela sengketa kode, detik (ADR-48): 1 jam. */
+/** Code dispute window, seconds (ADR-48): 1 hour. */
 export const CODE_DISPUTE_WINDOW_SECONDS = 3600;
 
 export type CodeErrorCode =
@@ -47,9 +47,9 @@ const parseAmount = (value: unknown, name: string, code: CodeErrorCode): bigint 
   return n;
 };
 
-/** Hasil cek penerbit atas satu kode. `unknown`: penerbit tidak mengenal kode itu atau tidak menjawab. */
+/** Result of the issuer's check on one code. `unknown`: the issuer does not recognize the code or does not answer. */
 export type CodeCheck = "valid" | "used" | "unknown";
-/** Adapter penerbit: dipanggil sebelum kunci dilepas bila `verifiable`. Implementasinya milik backend (BE-069) dan penerbit tiruan di tes. */
+/** Issuer adapter: called before the key is released if `verifiable`. The implementation belongs to the backend (BE-069) and a mock issuer in tests. */
 export interface CodeIssuer {
   checkCode(code: string): Promise<CodeCheck>;
 }
@@ -57,21 +57,21 @@ export interface CodeIssuer {
 export type CodeDocument = {
   circle: AccountId;
   seller: AccountId;
-  /** `codeCommitment(kode, salt)`: 64 heksadesimal huruf kecil. Tidak membocorkan kode; salt dan kode hanya ada di payload terenkripsi. */
+  /** `codeCommitment(code, salt)`: 64 lowercase hex characters. Does not leak the code; salt and code exist only in the encrypted payload. */
   code_commitment: string;
-  /** Penerbit kode (akun NEAR atau nama layanan yang dikenal backend); hanya dicatat, penerbit tidak ikut menandatangani. */
+  /** Code issuer (NEAR account or a service name known to the backend); only recorded, the issuer does not co-sign. */
   issuer: string;
-  /** Nilai kode dalam unit terkecil credit, string bilangan bulat > 0. */
+  /** Code value in the smallest credit unit, a positive integer string. */
   value: U128String;
-  /** Penerbit punya API cek (`CodeIssuer`), jadi backend mengecek kode sebelum kunci dilepas. */
+  /** The issuer has a check API (`CodeIssuer`), so the backend checks the code before the key is released. */
   verifiable: boolean;
-  /** Arbiter jaminan CT-094; `null` bila tanpa jaminan. */
+  /** CT-094 guarantee arbiter; `null` if no guarantee. */
   arbiter?: AccountId | null;
   nonce: string;
 };
 
 export const CODE_SALT_BYTES = 32;
-/** Salt acak 32 byte untuk satu kode. */
+/** Random 32-byte salt for one code. */
 export const newCodeSalt = (): Uint8Array => randomBytes(CODE_SALT_BYTES);
 
 function checkCodeText(code: string): Uint8Array {
@@ -80,12 +80,12 @@ function checkCodeText(code: string): Uint8Array {
   if (code !== code.trim() || /[\u0000-\u001f]/.test(code)) return fail("code_bad_code", "code must not start or end with whitespace and must not contain control characters");
   return bytes;
 }
-/** Isi yang dienkripsi dan dihash: `salt (32) ‖ byte UTF-8 kode`. */
+/** The encrypted and hashed content: `salt (32) ‖ UTF-8 bytes of the code`. */
 export function codePayload(code: string, salt: Uint8Array): Uint8Array {
   if (salt.length !== CODE_SALT_BYTES) return fail("code_bad_salt", `salt must be ${CODE_SALT_BYTES} bytes`);
   return concatBytes(salt, checkCodeText(code));
 }
-/** `code_commitment` = `contentHash` SD-070 atas `salt ‖ kode`. */
+/** `code_commitment` = SD-070 `contentHash` of `salt ‖ code`. */
 export const codeCommitment = (code: string, salt: Uint8Array): string => contentHash(codePayload(code, salt));
 
 export function normalizeCode(doc: CodeDocument): Required<CodeDocument> {
@@ -125,7 +125,7 @@ export function checkCodeDocument(doc: CodeDocument, limit: U128String = UNVERIF
   return normal;
 }
 
-/** JSON kanonik: kunci `circle, seller, code_commitment, issuer, value, verifiable, arbiter, nonce`. Tidak memeriksa batas nilai (lihat `checkCodeDocument`). */
+/** Canonical JSON: keys `circle, seller, code_commitment, issuer, value, verifiable, arbiter, nonce`. Does not check the value limit (see `checkCodeDocument`). */
 export const serializeCode = (doc: CodeDocument): string => JSON.stringify(normalizeCode(doc));
 export const codeDocumentHash = (doc: CodeDocument): string => bytesToHex(sha256(utf8(serializeCode(doc))));
 export function codeResource(hash: string): string {
@@ -138,14 +138,14 @@ export function parseCodeResource(resource: string): string | null {
   return HASH.test(hash) ? hash : null;
 }
 
-/** Sisi penjual: mengenkripsi `salt ‖ kode` (XChaCha20-Poly1305, SD-070). Pasang `ciphertext` di sumber mana saja; `code_commitment` masuk ke dokumen listing. Salt acak bila tidak diberikan; simpan `salt`. */
+/** Seller side: encrypts `salt ‖ code` (XChaCha20-Poly1305, SD-070). Put the `ciphertext` at any source; `code_commitment` goes into the listing document. Random salt if not given; keep the `salt`. */
 export function encryptCode(code: string, options: Parameters<typeof encryptContent>[1] & { salt?: Uint8Array } = {}): { ciphertext: Uint8Array; key: Uint8Array; code_commitment: string; salt: Uint8Array } {
   const { salt = newCodeSalt(), ...rest } = options;
   const payload = codePayload(code, salt);
   return { ...encryptContent(payload, rest), code_commitment: contentHash(payload), salt };
 }
 
-/** Sisi penjual: rilis kunci untuk satu pembeli. Memeriksa batas nilai dan bahwa `salt` dan `code` cocok dengan `doc.code_commitment` (`code_bad_commitment` bila tidak). */
+/** Seller side: key release for one buyer. Checks the value limit and that `salt` and `code` match `doc.code_commitment` (`code_bad_commitment` if not). */
 export function createCodeRelease(args: Omit<Parameters<typeof createRelease>[0], "license_hash" | "content_hash" | "content_size" | "circle"> & { doc: CodeDocument; code: string; salt: Uint8Array; limit?: U128String; verifiableLimit?: U128String }): ReturnType<typeof createRelease> {
   const { doc, code, salt, limit, verifiableLimit, ...rest } = args;
   const normal = checkCodeDocument(doc, limit, verifiableLimit);

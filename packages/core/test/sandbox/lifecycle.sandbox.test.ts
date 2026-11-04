@@ -1,5 +1,5 @@
-// TC-SD-011-17: log nyata dari near-sandbox untuk event siklus hidup epoch. Dengan X207_UPDATE_FIXTURES=1 log disimpan
-// ke spec/test-vectors/events/sandbox/<event>.log; event.fixtures.test.ts mem-parse berkas itu tanpa sandbox.
+// TC-SD-011-17: real logs from near-sandbox for epoch lifecycle events. With X207_UPDATE_FIXTURES=1 the logs are saved
+// to spec/test-vectors/events/sandbox/<event>.log; event.fixtures.test.ts parses that file without a sandbox.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,13 +59,13 @@ describe.skipIf(!sandboxAvailable)("SD-011 epoch lifecycle on near-sandbox", () 
     const defaulter = await onboard("scraper");
     const epoch = await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", {});
 
-    // voucher_registered: 10 credit dari payer ke payee
+    // voucher_registered: 10 credit from payer to payee
     const { signature, ...voucher } = signVoucher(
       { circle: fx.circle.accountId, payer: payer.account.accountId, payee: payee.account.accountId, epoch: epoch.epoch, seq: 1, cumulativeAmount: "10000000", unit: "credit", resource: "https://seller.example/api" },
       payer.secretKey,
     );
     await call(payer.account, { receiverId: fx.circle.accountId, methodName: "register_cumulative", args: { voucher, signature }, deposit: 0n, gas: 100_000_000_000_000n });
-    // Arah sebaliknya 4 credit, supaya kliring membentuk siklus dua simpul dengan sisa 6 credit.
+    // The opposite direction 4 credit, so clearing forms a two-node cycle with 6 credit left over.
     const back = signVoucher(
       { circle: fx.circle.accountId, payer: payee.account.accountId, payee: payer.account.accountId, epoch: epoch.epoch, seq: 1, cumulativeAmount: "4000000", unit: "credit", resource: "https://seller.example/api" },
       payee.secretKey,
@@ -73,7 +73,7 @@ describe.skipIf(!sandboxAvailable)("SD-011 epoch lifecycle on near-sandbox", () 
     const { signature: backSignature, ...backVoucher } = back;
     await call(payee.account, { receiverId: fx.circle.accountId, methodName: "register_cumulative", args: { voucher: backVoucher, signature: backSignature }, deposit: 0n, gas: 100_000_000_000_000n });
 
-    // Debtor ketiga berutang 5 credit dan tidak membayar, supaya finalize_epoch menghasilkan member_defaulted.
+    // A third debtor owes 5 credit and does not pay, so finalize_epoch produces member_defaulted.
     const owed = signVoucher(
       { circle: fx.circle.accountId, payer: defaulter.account.accountId, payee: payee.account.accountId, epoch: epoch.epoch, seq: 1, cumulativeAmount: "5000000", unit: "credit", resource: "https://seller.example/api" },
       defaulter.secretKey,
@@ -87,7 +87,7 @@ describe.skipIf(!sandboxAvailable)("SD-011 epoch lifecycle on near-sandbox", () 
       await new Promise((r) => setTimeout(r, 3_000));
     };
 
-    // params_updated: pemilik (dao) menjadwalkan params baru, berlaku saat close_epoch membuka epoch berikutnya.
+    // params_updated: the owner (dao) schedules new params, effective when close_epoch opens the next epoch.
     const dao = await fx.sandbox.createAccount("dao", "5");
     await call(dao, { receiverId: fx.circle.accountId, methodName: "set_params", args: { params: { ...SHORT_PARAMS, limit_cap: "900000000" } }, deposit: 0n });
 
@@ -106,7 +106,7 @@ describe.skipIf(!sandboxAvailable)("SD-011 epoch lifecycle on near-sandbox", () 
     await call(fresh(payee.account), { receiverId: fx.circle.accountId, methodName: "commit_epoch", args: { epoch: epoch.epoch }, deposit: 0n, gas: 200_000_000_000_000n });
     const paying = await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", { epoch: epoch.epoch });
 
-    // residual_paid: payer melunasi 10 credit dalam payment window
+    // residual_paid: the payer settles 10 credit within the payment window
     await call(fresh(payer.account), buildSettleTransferCall({ circleContract: fx.circle.accountId, amount: "6000000", epoch: epoch.epoch, usdtTokenId: fx.usdt.accountId }));
     await at(paying.payment_deadline);
     await call(fresh(payer.account), { receiverId: fx.circle.accountId, methodName: "finalize_epoch", args: { epoch: epoch.epoch }, deposit: 0n, gas: 200_000_000_000_000n });

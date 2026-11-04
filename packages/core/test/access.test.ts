@@ -1,5 +1,5 @@
-// SD-050: tipe F8 dan antarmuka AccessAssetAdapter dari @x207/core (hanya ekspor publik, seperti developer luar). Adaptor contoh di bawah harus lolos
-// type-check; `tsc` test (npm run typecheck) memeriksanya.
+// SD-050: F8 types and the AccessAssetAdapter interface from @x207/core (public exports only, like an outside developer). The example adapter below must pass
+// type-check; the `tsc` test (npm run typecheck) checks it.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -17,7 +17,7 @@ const grant = (patch: Partial<AccessGrant> = {}): AccessGrant => ({
   unit: "day", unit_price: "250000", operator: null, delivery_pubkey: null, status: "active", proof_hash: null, proof_kind: null, ...patch,
 });
 
-// Adaptor contoh kelas D: endpoint x402 milik pemberi. `deliver` = endpoint, `meter` = voucher per panggilan, `revoke` mencatat payer yang ditolak.
+// Class D example adapter: the grantor's x402 endpoint. `deliver` = endpoint, `meter` = voucher per call, `revoke` records the rejected payer.
 class ExampleEndpointAdapter implements AccessAssetAdapter<{ endpoint: string }> {
   readonly assetClass = "D" as const;
   readonly revoked: Array<{ grantId: number; reason: RevokeReason }> = [];
@@ -56,7 +56,7 @@ describe("SD-050 F8 types and interface", () => {
     expect(() => meterGrant(grant({ grantee: null }), { quantity: 1 })).toThrow(/no grantee/);
     expect(() => meterGrant(grant(), { quantity: 0 })).toThrow(/quantity/);
     expect(() => meterGrant(grant(), { quantity: 1.5 })).toThrow(/quantity/);
-    // jumlah besar tidak kehilangan presisi
+    // a large amount does not lose precision
     expect(meterGrant(grant({ unit_price: "340282366920938463463374607431768211455" }), { quantity: 2 }).amount).toBe("680564733841876926926749214863536422910");
   });
 

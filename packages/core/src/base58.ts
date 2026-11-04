@@ -1,4 +1,4 @@
-// Base58 (alfabet Bitcoin) untuk kunci dan tanda tangan `ed25519:<base58>` gaya NEAR.
+// Base58 (Bitcoin alphabet) for NEAR-style `ed25519:<base58>` keys and signatures.
 const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 const INDEX = new Map([...ALPHABET].map((char, i) => [char, BigInt(i)] as const));
 
@@ -15,7 +15,7 @@ export function base58Encode(bytes: Uint8Array): string {
   return "1".repeat(zeros) + out;
 }
 
-/** Melempar error bila ada karakter di luar alfabet. */
+/** Throws an error if there is a character outside the alphabet. */
 export function base58Decode(text: string): Uint8Array {
   let zeros = 0;
   while (zeros < text.length && text[zeros] === "1") zeros++;

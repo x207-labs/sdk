@@ -1,5 +1,5 @@
-// SD-033: round-trip x402 di CI: x207Middleware, facilitator (createApp + createFacilitatorService), kontrak mock,
-// klien @x402/fetch + x207. Seluruh jaringan dilayani satu fungsi fetch.
+// SD-033: x402 round-trip in CI: x207Middleware, facilitator (createApp + createFacilitatorService), mock contract,
+// @x402/fetch + x207 client. The whole network is served by one fetch function.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { wrapFetchWithPayment } from "@x402/fetch";
@@ -68,7 +68,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
 
   let routed: typeof fetch;
   const seller = x207Middleware({
-    routes: { "/api/summarize": { price: "$0.02", description: "Ringkas teks" } },
+    routes: { "/api/summarize": { price: "$0.02", description: "Summarize text" } },
     facilitatorUrl: "http://facilitator.test", circleId: "agents-main", payTo: B,
     fetch: (input, init) => routed(input, init),
     extra: new X207ExtraSource({ facilitatorUrl: "http://facilitator.test", fetch: (i, n) => routed(i, n), now: () => clock.now }),
@@ -87,7 +87,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
       if (request.method === "POST") {
         const body = (await request.clone().json()) as any;
         if (body.paymentRequirements?.scheme === "exact") {
-          // Facilitator `exact` tiruan (SD-036 menguji jalur @x402/near sungguhan).
+          // Mock `exact` facilitator (SD-036 tests the real @x402/near path).
           return Response.json(
             pathname === "/verify" ? { isValid: true, payer: A } : { success: true, transaction: "EXACTTX", network: "near:mainnet", payer: A },
           );
@@ -102,7 +102,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
       });
       if (state.dropNextSellerResponse && request.headers.has("PAYMENT-SIGNATURE")) {
         state.dropNextSellerResponse = false;
-        throw new TypeError("koneksi diputus");
+        throw new TypeError("connection dropped");
       }
       return response;
     }
@@ -114,7 +114,7 @@ function makeWorld(options: { handlerStatus?: number } = {}) {
     findDefaultAsset: (asset: string) => (asset === USDT_TOKEN_ID ? { asset, decimals: 6, symbol: "USDT" } : undefined),
     createPaymentPayload: async (v: number) => ({ x402Version: v, payload: { signedDelegateAction: "AAAA" } }),
   };
-  /** Pembeli lengkap: x207 + `exact` tiruan untuk jatuh balik. */
+  /** Complete buyer: x207 + mock `exact` for fallback. */
   const buyer = (payer: string, seed: Uint8Array) => {
     const client = new X207PaymentClient({
       payer, secretKey: seed, now: () => clock.now,

@@ -1,5 +1,5 @@
-// Integrasi near-sandbox untuk F1: TC-SD-012-07, TC-SD-012-08, TC-SD-013-01, TC-SD-013-02, sebagian TC-SD-011-17.
-// Dilewati bila binary near-sandbox atau wasm kontrak tidak ada (lihat test-support/sandbox.ts).
+// near-sandbox integration for F1: TC-SD-012-07, TC-SD-012-08, TC-SD-013-01, TC-SD-013-02, part of TC-SD-011-17.
+// Skipped if the near-sandbox binary or the contract wasm is missing (see test-support/sandbox.ts).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   buildJoinCall,
@@ -59,7 +59,7 @@ describe.skipIf(!sandboxAvailable)("SD-011/012/013 onboarding on near-sandbox", 
     expect(keys.keys.map((k) => k.public_key)).not.toContain(result.publicKey);
   }, 120_000);
 
-  it("TC-SD-012-08 join, stake 50 USDT mock, baca member", async () => {
+  it("TC-SD-012-08 join, stake 50 mock USDT, read member", async () => {
     const summarizer = await fx.member("summarizer");
     await onboardMember(
       { sendCall: sender(summarizer), view, pollIntervalMs: 200, timeoutMs: 20_000 },

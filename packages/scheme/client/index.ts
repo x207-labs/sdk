@@ -1,4 +1,4 @@
-// Peran client binding x207 (SD-015, SD-018): voucher kumulatif per (payer, payee, epoch).
+// Role of the x207 client binding (SD-015, SD-018): cumulative vouchers per (payer, payee, epoch).
 import type { PaymentCreationContext, PaymentResponseContext } from "@x402/core/client";
 import type {
   DefaultAsset,
@@ -34,15 +34,15 @@ const USD_CREDIT: DefaultAsset = { asset: "USD", decimals: CREDIT_DECIMALS, symb
 const U128_MAX = 340282366920938463463374607431768211455n;
 const UINT_STRING = /^(?:0|[1-9]\d*)$/;
 
-/** Batas belanja lokal dari pemilik agent, dalam satuan terkecil credit (string desimal). Dicek sebelum voucher ditandatangani. */
+/** Local spending limit from the agent owner, in the smallest credit unit (decimal string). Checked before the voucher is signed. */
 export type SpendLimit = {
-  /** Batas satu panggilan berbayar. */
+  /** Limit for a single paid call. */
   maxPerCall?: string;
-  /** Batas total semua pembayaran payer ini dalam satu epoch (lintas payee). */
+  /** Limit for the total of all payments by this payer in one epoch (across payees). */
   maxPerEpoch?: string;
 };
 
-/** Pembayaran ditolak klien karena batas belanja pemilik; tidak ada voucher yang ditandatangani. */
+/** Payment rejected by the client because of the owner's spending limit; no voucher was signed. */
 export class SpendLimitError extends Error {
   readonly limit: "per_call" | "per_epoch";
   readonly amount: string;
@@ -65,23 +65,23 @@ export class SpendLimitError extends Error {
 
 export type X207ClientOptions = {
   payer: AccountId;
-  /** Kunci voucher ed25519 payer (ADR-06), bukan access key NEAR. */
+  /** ed25519 voucher key of the payer (ADR-06), not a NEAR access key. */
   secretKey: VoucherSecretKey;
   store?: VoucherStateStore;
   /**
-   * Batas menunggu respons sebelum voucher yang belum terkonfirmasi dilepas tanpa commit, supaya
-   * antrian tidak macet bila koneksi putus. Default 60 detik = `maxTimeoutSeconds` (ADR-25).
+   * Limit on waiting for a response before an unconfirmed voucher is released without commit, so
+   * the queue does not stall if the connection drops. Default 60 seconds = `maxTimeoutSeconds` (ADR-25).
    */
   confirmTimeoutMs?: number;
   /**
-   * Leg bundle F5 (SD-048): `bundle_id` untuk pembayaran ke `payee` di `epoch`, atau `undefined` bila bukan leg. Voucher leg sama
-   * byte-nya dengan voucher biasa; `bundleId` di payload membuat facilitator memeriksa batas leg dan mendaftarkan lewat
-   * `register_in_bundle` (headroom cadangan).
+   * F5 bundle leg (SD-048): `bundle_id` for payment to `payee` in `epoch`, or `undefined` if not a leg. A leg voucher is the same
+   * bytes as a plain voucher; `bundleId` in the payload makes the facilitator check the leg limit and register via
+   * `register_in_bundle` (reserved leg headroom).
    */
   bundleFor?: (payee: AccountId, epoch: number) => number | undefined;
-  /** Batas belanja lokal (SD-020): voucher yang melampauinya tidak ditandatangani walau headroom kontrak cukup. */
+  /** Local spending limit (SD-020): a voucher that exceeds it is not signed even if the contract headroom is sufficient. */
   spendLimit?: SpendLimit;
-  /** Hitungan sendiri pembeli (SD-068): 402 yang mengumumkan `extra.meter` harus cocok dengan yang diminta pembeli, kalau tidak tidak ada voucher yang ditandatangani. */
+  /** The buyer's own count (SD-068): a 402 that announces `extra.meter` must match what the buyer requested, otherwise no voucher is signed. */
   meter?: BuyerMeter;
 };
 
@@ -96,7 +96,7 @@ type InFlight = {
 
 type Resync = { epoch: number; lastSeq: number; lastCumulativeAmount: string };
 
-/** `extensions.x207` pada `PAYMENT-RESPONSE` penolakan (Spec Binding 5.2, K-29). */
+/** `extensions.x207` on the rejection `PAYMENT-RESPONSE` (Spec Binding 5.2, K-29). */
 function readResync(response: PaymentResponseContext["settleResponse"]): Resync | null {
   const ext = (response?.extensions as Record<string, any> | undefined)?.x207;
   if (typeof ext !== "object" || ext === null) return null;
@@ -120,12 +120,12 @@ export class X207SchemeClient implements SchemeNetworkClient {
   private readonly bundleFor: ((payee: AccountId, epoch: number) => number | undefined) | undefined;
   private readonly spendLimit: SpendLimit | undefined;
   private readonly meter: BuyerMeter | undefined;
-  /** Belanja per epoch yang sudah dicadangkan: voucher yang ditandatangani dan belum ditolak server. */
+  /** Spend per epoch already reserved: vouchers signed and not yet rejected by the server. */
   private readonly spent = new Map<number, bigint>();
-  /** `createPaymentPayload` x402 tidak menerima `resource`; hook sebelum pembuatan menitipkannya. */
+  /** x402 `createPaymentPayload` does not accept `resource`; the before-creation hook passes it along. */
   private readonly resources = new WeakMap<PaymentRequirements, string>();
   private readonly inFlight = new WeakMap<X207Payload, InFlight>();
-  /** Ekor antrian per (payer, payee): paling banyak satu voucher belum terkonfirmasi. */
+  /** Queue tail per (payer, payee): at most one unconfirmed voucher. */
   private readonly queues = new Map<string, Promise<void>>();
   private readonly retried = new WeakSet<X207Payload>();
   private readonly retryPending = new Set<string>();
@@ -140,7 +140,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
     this.meter = options.meter;
   }
 
-  /** Belanja epoch `epoch` yang terhitung terhadap `maxPerEpoch`. */
+  /** Spend in epoch `epoch` counted against `maxPerEpoch`. */
   spentInEpoch(epoch: number): bigint {
     return this.spent.get(epoch) ?? 0n;
   }
@@ -169,8 +169,8 @@ export class X207SchemeClient implements SchemeNetworkClient {
   };
 
   /**
-   * Tanpa ini `x402Client` menolak entri `asset: "USD"` lewat spendControls bawaannya, karena
-   * "USD" bukan aset bawaan network mana pun.
+   * Without this `x402Client` rejects `asset: "USD"` entries through its default spendControls, because
+   * "USD" is not a default asset of any network.
    */
   findDefaultAsset(asset: string): DefaultAsset | undefined {
     return asset === USD_CREDIT.asset ? USD_CREDIT : undefined;
@@ -184,14 +184,14 @@ export class X207SchemeClient implements SchemeNetworkClient {
     const checked = validatePaymentRequirements(requirements);
     if (!checked.ok) throw new Error(`x207 requirements not valid: ${checked.field} ${checked.message}`);
     const { payTo, amount, extra } = checked.value;
-    // Endpoint grant (SD-053): resource voucher = `x207:grant:<grantId>`, payee = payTo pemberi (bukan akun broker yang melayani URL-nya)
+    // Grant endpoint (SD-053): voucher resource = `x207:grant:<grantId>`, payee = the grantor's payTo (not the broker account serving its URL)
     const resource = extra.grantId === undefined ? this.resources.get(requirements) : grantResource(extra.grantId);
     if (resource === undefined) {
       throw new Error("resource.url unknown: build the payload through x402Client so the hook is installed");
     }
 
     this.meter?.authorize((requirements.extra as { meter?: MeterAnnouncement } | undefined)?.meter, amount);
-    // Batas belanja dicek dan dicadangkan secara sinkron, sebelum antrian pasangan dan sebelum signVoucher.
+    // Spending limit is checked and reserved synchronously, before the pair queue and before signVoucher.
     this.reserve(extra.epoch, BigInt(amount));
     const key: VoucherPairKey = { payer: this.payer, payee: payTo, epoch: extra.epoch };
     const pairId = JSON.stringify([key.payer, key.payee]);
@@ -246,7 +246,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
     return previous.then(() => release);
   }
 
-  /** Melepas antrian satu voucher; mengembalikan datanya, atau `undefined` bila sudah dilepas. */
+  /** Releases one voucher from the queue; returns its data, or `undefined` if already released. */
   private settleFlight(payload: X207Payload): InFlight | undefined {
     const flight = this.inFlight.get(payload);
     if (!flight) return undefined;
@@ -267,7 +267,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
         await this.store.commit(flight.key, flight.next);
         return undefined;
       }
-      // Ditolak server: voucher tidak jadi kewajiban, anggaran dikembalikan
+      // Rejected by the server: the voucher does not become an obligation, the budget is returned
       this.refund(flight.epoch, flight.amount);
       const resync = readResync(response);
       if (!resync) return undefined;

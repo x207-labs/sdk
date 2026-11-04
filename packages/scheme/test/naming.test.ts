@@ -15,7 +15,7 @@ function* sources(dir: string): Generator<string> {
   }
 }
 
-describe("SD-041 penamaan publik", () => {
+describe("SD-041 public naming", () => {
   it("scheme and network use the brand name, not the internal name", () => {
     expect(X207_SCHEME).toBe("batch-settlement");
     expect(X207_NETWORK_FAMILY).toBe("x207:*");
@@ -27,7 +27,7 @@ describe("SD-041 penamaan publik", () => {
     for (const file of files) {
       for (const [i, line] of readFileSync(file, "utf8").split("\n").entries()) {
         if (!/mutual-credit/i.test(line)) continue;
-        // Satu-satunya sebutan yang sah adalah aturan yang melarangnya (spec bagian nama internal).
+        // The only legitimate mention is the rule that forbids it (spec section on internal names).
         if (!/MUST NOT|nama internal/i.test(line)) offenders.push(`${file.slice(root.length)}:${i + 1}`);
       }
     }

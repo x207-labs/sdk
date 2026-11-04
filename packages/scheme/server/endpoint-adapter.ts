@@ -1,6 +1,6 @@
-// Adaptor referensi kelas D (SD-051, F8): endpoint x402 milik pemberi dibungkus sebagai `AccessAssetAdapter` tanpa mengubah alur F2.
-// `deliver` = endpoint, `meter` = voucher ADR-17 (payee = pemberi), `revoke` = facilitator menolak payer yang `suspended` (kontrak yang menyetel
-// status; adaptor hanya mencatat dan memberi tahu). `paywall()` mengembalikan `x207Middleware` yang sama persis, jadi 402 dan alurnya identik.
+// Class D reference adapter (SD-051, F8): the grantor's x402 endpoint is wrapped as an `AccessAssetAdapter` without changing the F2 flow.
+// `deliver` = endpoint, `meter` = ADR-17 voucher (payee = grantor), `revoke` = the facilitator rejects a `suspended` payer (the contract sets the
+// status; the adapter only records and notifies). `paywall()` returns exactly the same `x207Middleware`, so the 402 and its flow are identical.
 import {
   meterGrant, priceOfGrant, type AccessAssetAdapter, type AccessGrant, type MeterCharge, type PriceQuote, type ProofResult, type RevokeReason, type Usage,
 } from "@x207/core";
@@ -9,21 +9,21 @@ import { x207Middleware, type X207Middleware, type X207MiddlewareOptions } from 
 export type EndpointDelivery = { endpoint: string };
 
 export type EndpointAdapterOptions = {
-  /** URL dasar endpoint penjual yang diserahkan ke penerima. */
+  /** Base URL of the seller endpoint handed to the recipient. */
   endpoint: string;
-  /** Opsi `x207Middleware` penjual, dipakai apa adanya oleh `paywall()`. */
+  /** Seller `x207Middleware` options, used as-is by `paywall()`. */
   paywall: X207MiddlewareOptions;
-  /** Dipanggil saat `revoke`; contoh: operator menandai payer untuk diperiksa ulang. Penolakan sebenarnya dilakukan facilitator (`member_not_active`). */
+  /** Called on `revoke`; example: an operator flags the payer for re-review. The actual rejection is done by the facilitator (`member_not_active`). */
   onRevoke?: (grant: AccessGrant, reason: RevokeReason) => void | Promise<void>;
 };
 
 export class EndpointAdapter implements AccessAssetAdapter<EndpointDelivery> {
   readonly assetClass = "D" as const;
-  /** Grant yang dicabut, urut waktu. */
+  /** Revoked grants, in time order. */
   readonly revoked: Array<{ grantId: number; grantee: string | null; reason: RevokeReason }> = [];
   readonly #options: EndpointAdapterOptions;
 
-  // Tanpa parameter property: berkas ini dimuat agents yang memakai erasableSyntaxOnly.
+  // No parameter properties: this file is loaded by agents that use erasableSyntaxOnly.
   constructor(options: EndpointAdapterOptions) {
     this.#options = options;
   }
@@ -32,7 +32,7 @@ export class EndpointAdapter implements AccessAssetAdapter<EndpointDelivery> {
     return priceOfGrant(grant);
   }
 
-  /** Kelas D tidak butuh bukti: endpoint adalah milik pemberi sendiri. */
+  /** Class D needs no proof: the endpoint belongs to the grantor itself. */
   prove(): ProofResult {
     return { valid: true };
   }
@@ -50,7 +50,7 @@ export class EndpointAdapter implements AccessAssetAdapter<EndpointDelivery> {
     await this.#options.onRevoke?.(grant, reason);
   }
 
-  /** Middleware penjual yang sama dengan `x207Middleware(opsi)`: 402 dan alur F2 tidak berubah. */
+  /** Seller middleware identical to `x207Middleware(options)`: the 402 and the F2 flow do not change. */
   paywall(): X207Middleware {
     return x207Middleware(this.#options.paywall);
   }

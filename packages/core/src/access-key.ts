@@ -1,14 +1,14 @@
-// F8 kelas B (SD-052): `prove` untuk grant function-call key. Memeriksa lewat RPC `view_access_key` bahwa kunci yang dipasang broker di akun sewa
-// persis sesuai batas grant: receiver_id sama, hanya method yang diizinkan, allowance tidak lebih besar, dan bukan kunci akses penuh. Protokol
-// NEAR sendiri menolak method lain dan deposit pada function-call key; pemeriksaan ini membuktikan kuncinya memang dibatasi seperti janji grant.
+// F8 class B (SD-052): `prove` for function-call key grants. Checks through the RPC `view_access_key` that the key the broker installed on the rental account
+// matches the grant limits exactly: same receiver_id, only the allowed methods, allowance not larger, and not a full-access key. The NEAR
+// protocol itself rejects other methods and deposits on a function-call key; this check proves the key is really restricted as the grant promised.
 import { RPC_URLS } from "./constants.js";
 import type { AccessGrant, ProofResult } from "./access.js";
 import type { AccountId } from "./types.js";
 
-/** Isi `permission` sebuah access key seperti RPC mengembalikannya. */
+/** The `permission` content of an access key as the RPC returns it. */
 export type AccessKeyPermission = "FullAccess" | { FunctionCall: { allowance: string | null; receiver_id: string; method_names: string[] } };
 export type AccessKeyView = { nonce: number | string; permission: AccessKeyPermission };
-/** Membaca satu access key; `null` bila kunci tidak ada di akun itu. Melempar bila RPC tidak terjangkau. */
+/** Reads one access key; `null` if the key is not on that account. Throws if the RPC is unreachable. */
 export type ViewAccessKeyFn = (account: AccountId, publicKey: string) => Promise<AccessKeyView | null>;
 
 export type ViewAccessKeyOptions = {
@@ -16,11 +16,11 @@ export type ViewAccessKeyOptions = {
   fetch?: typeof fetch;
   /** Timeout per endpoint (default 10000 ms, ADR-25). */
   timeoutMs?: number;
-  /** Default `final`; `optimistic` melihat kunci yang baru dipasang lebih cepat. */
+  /** Default `final`; `optimistic` sees a newly installed key sooner. */
   finality?: "final" | "optimistic";
 };
 
-/** `ViewAccessKeyFn` lewat RPC `query` `view_access_key` dengan failover antar endpoint. */
+/** `ViewAccessKeyFn` through the RPC `query` `view_access_key` with failover between endpoints. */
 export function createViewAccessKeyFn(options: ViewAccessKeyOptions = {}): ViewAccessKeyFn {
   const urls = options.rpcUrls ?? RPC_URLS;
   const fetchFn = options.fetch ?? fetch;
@@ -58,12 +58,12 @@ export function createViewAccessKeyFn(options: ViewAccessKeyOptions = {}): ViewA
   };
 }
 
-/** Batas function-call key di `GrantLimits.scope` untuk kelas B: JSON `{receiver_id, method_names, allowance}` (Spec Antarmuka Kontrak 15.1). */
+/** Function-call key limits in `GrantLimits.scope` for class B: JSON `{receiver_id, method_names, allowance}` (Contract Interface Spec 15.1). */
 export type FunctionCallKeyScope = { receiver_id: AccountId; method_names: string[]; allowance: string };
 
 const YOCTO = /^(0|[1-9]\d*)$/;
 
-/** Baca `scope` kelas B; melempar `Error` dengan alasan bila bentuknya tidak sah. */
+/** Read the class B `scope`; throws an `Error` with a reason if the shape is not valid. */
 export function parseFunctionCallKeyScope(scope: string): FunctionCallKeyScope {
   let parsed: unknown;
   try {
@@ -84,10 +84,10 @@ export function parseFunctionCallKeyScope(scope: string): FunctionCallKeyScope {
 const invalid = (reason: string): ProofResult => ({ valid: false, reason });
 
 /**
- * `prove` kelas B: kunci `publicKey` di akun `account` sesuai `grant`. `valid` bila kuncinya function-call key dengan `receiver_id` yang sama,
- * `method_names` tidak kosong dan seluruhnya ada di batas grant, serta `allowance` tidak lebih besar dari batas grant. Alasan penolakan:
+ * Class B `prove`: key `publicKey` on account `account` matches `grant`. `valid` if the key is a function-call key with the same `receiver_id`,
+ * non-empty `method_names` all within the grant limits, and `allowance` not larger than the grant limit. Rejection reasons:
  * `not_class_b`, `bad_scope`, `key_not_found`, `full_access_key`, `receiver_mismatch`, `method_not_allowed`, `allowance_exceeded`.
- * Melempar bila RPC tidak terjangkau: itu bukan bukti bahwa kunci salah.
+ * Throws if the RPC is unreachable: that is not proof the key is wrong.
  */
 export async function verifyFunctionCallKey(account: AccountId, publicKey: string, grant: AccessGrant, view: ViewAccessKeyFn): Promise<ProofResult> {
   if (grant.class !== "B") return invalid("not_class_b");
@@ -102,10 +102,10 @@ export async function verifyFunctionCallKey(account: AccountId, publicKey: strin
   if (key.permission === "FullAccess" || !("FunctionCall" in key.permission)) return invalid("full_access_key");
   const permission = key.permission.FunctionCall;
   if (permission.receiver_id !== scope.receiver_id) return invalid("receiver_mismatch");
-  // daftar method kosong berarti semua method: lebih longgar dari grant
+  // an empty method list means all methods: looser than the grant
   const allowed = new Set(scope.method_names);
   if (permission.method_names.length === 0 || !permission.method_names.every((m) => allowed.has(m))) return invalid("method_not_allowed");
-  // allowance null berarti tanpa batas
+  // allowance null means no limit
   if (permission.allowance === null || BigInt(permission.allowance) > BigInt(scope.allowance)) return invalid("allowance_exceeded");
   return { valid: true };
 }

@@ -1,4 +1,4 @@
-// Sumber `extra` x207 untuk server: `GET /supported` facilitator, cache of at most 60 seconds (Spec Binding 5.3).
+// Source of the x207 `extra` for the server: the facilitator `GET /supported`, cached for at most 60 seconds (Spec Binding 5.3).
 import { CREDIT_DECIMALS, CREDIT_UNIT, validateX207Extra, type X207Extra } from "@x207/core";
 import { X207_SCHEME } from "../shared/circle.js";
 
@@ -27,7 +27,7 @@ export class X207ExtraSource {
     this.now = options.now ?? Date.now;
   }
 
-  /** `extra` untuk network `x207:<circleId>`; `epoch` ikut cache `/supported`, `unit` dan `decimals` dari konstanta core. */
+  /** `extra` for network `x207:<circleId>`; `epoch` follows the `/supported` cache, `unit` and `decimals` come from the core constants. */
   async get(network: string): Promise<X207Extra> {
     const body = await this.supported();
     const kind = body.kinds?.find((k) => k.scheme === X207_SCHEME && k.network === network);

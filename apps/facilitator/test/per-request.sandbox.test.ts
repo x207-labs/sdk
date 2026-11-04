@@ -1,4 +1,4 @@
-// SD-029: mode per_request terhadap kontrak nyata di near-sandbox: register_voucher per request dan jatuh ke register_cumulative bila seq melompat.
+// SD-029: per_request mode against a real contract on near-sandbox: register_voucher per request, falling back to register_cumulative when seq jumps.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createCircleViewFn, onboardMember, parseEventLog, signVoucher, type ContractAbi, type ContractCall } from "@x207/core";
 import { TERMS_HASH, deployCircle, type CircleFixture } from "../../../test-support/circle.js";
@@ -8,7 +8,7 @@ import { NearRegistrationChain } from "../src/relay.js";
 import { NearRpc } from "../src/rpc.js";
 import { RegistrationScheduler } from "../src/scheduler.js";
 
-describe.skipIf(!sandboxAvailable)("SD-029 per_request di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-029 per_request on near-sandbox", () => {
   let fx: CircleFixture;
   let relayer: SandboxAccount;
   beforeAll(async () => {

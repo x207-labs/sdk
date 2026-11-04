@@ -1,6 +1,6 @@
 {
   "name": "stake",
-  "description": "msg ft_transfer_call stake untuk pengirim sendiri (Spec Antarmuka Kontrak 4.1).",
+  "description": "msg ft_transfer_call stake for the sender itself (Contract Interface Spec 4.1).",
   "input": { "cases": [{}] },
   "expected": { "msgs": ["{\"action\":\"stake\"}"] }
 }

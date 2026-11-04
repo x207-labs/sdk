@@ -1,5 +1,5 @@
-// TC-SD-028-19: 50 voucher A ke B (total 1000000) di near-sandbox menghasilkan satu register_cumulative.
-// Dilewati bila binary near-sandbox atau wasm kontrak tidak ada (lihat test-support/sandbox.ts).
+// TC-SD-028-19: 50 vouchers A to B (total 1000000) on near-sandbox produce one register_cumulative.
+// Skipped if the near-sandbox binary or the contract wasm is missing (see test-support/sandbox.ts).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createCircleViewFn, onboardMember, parseEventLog, signVoucher, type ContractAbi, type ContractCall } from "@x207/core";
 import { TERMS_HASH, deployCircle, type CircleFixture } from "../../../test-support/circle.js";
@@ -11,7 +11,7 @@ import { RegistrationScheduler } from "../src/scheduler.js";
 
 const STAKE = "50000000";
 
-describe.skipIf(!sandboxAvailable)("SD-028 registrasi di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-028 registration on near-sandbox", () => {
   let fx: CircleFixture;
   let relayer: SandboxAccount;
 

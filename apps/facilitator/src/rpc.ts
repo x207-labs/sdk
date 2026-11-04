@@ -1,4 +1,4 @@
-// Klien JSON-RPC NEAR dengan failover antar endpoint dan timeout per panggilan (ADR-25).
+// NEAR JSON-RPC client with failover between endpoints and a per-call timeout (ADR-25).
 export class ChainUnavailableError extends Error {
   constructor(message: string) {
     super(message);
@@ -6,7 +6,7 @@ export class ChainUnavailableError extends Error {
   }
 }
 
-/** Jawaban RPC yang sah tetapi berisi error (mis. kontrak panic); tidak memicu failover. */
+/** A valid RPC answer that contains an error (e.g. contract panic); does not trigger failover. */
 export class RpcError extends Error {
   constructor(readonly method: string, readonly detail: unknown) {
     super(`RPC ${method} error: ${JSON.stringify(detail)}`);
@@ -16,7 +16,7 @@ export class RpcError extends Error {
 
 export type NearRpcOptions = {
   urls: readonly string[];
-  /** Timeout tiap percobaan ke satu endpoint. */
+  /** Timeout of each attempt to a single endpoint. */
   timeoutMs: number;
   fetch?: typeof fetch;
   /**
@@ -52,7 +52,7 @@ export class NearRpc {
     });
   }
 
-  /** Coba endpoint berurutan; `ChainUnavailableError` bila semuanya gagal. */
+  /** Try endpoints in order; `ChainUnavailableError` if all fail. */
   async call<T>(method: string, params: unknown): Promise<T> {
     const failures: string[] = [];
     for (const url of this.#urls) {
@@ -84,7 +84,7 @@ export class NearRpc {
     throw new ChainUnavailableError(`all RPC endpoints failed (${failures.join("; ")})`);
   }
 
-  /** Panggil view method kontrak; hasil di-parse sebagai JSON. */
+  /** Call a contract view method; the result is parsed as JSON. */
   async view<T>(contractId: string, methodName: string, args: unknown = {}): Promise<T> {
     const result = await this.call<{ result: number[] }>("query", {
       request_type: "call_function",

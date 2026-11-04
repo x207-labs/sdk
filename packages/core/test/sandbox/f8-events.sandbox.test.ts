@@ -1,6 +1,6 @@
-// SD-050 di near-sandbox (interface 0.0.6): log nyata `asset_class_set`, `grant_offered`, `grant_activated` dari kontrak ter-parse oleh parser,
-// dan tipe `AccessGrant` cocok dengan view `get_grant`. Dengan X207_UPDATE_FIXTURES=1 log disimpan ke spec/test-vectors/events/sandbox/.
-// `grant_revoked` datang dari `revoke_grant` (CT-071): pemberi mencabut grant dan statusnya final.
+// SD-050 in near-sandbox (interface 0.0.6): real `asset_class_set`, `grant_offered`, `grant_activated` logs from the contract are parsed by the parser,
+// and the `AccessGrant` type matches the `get_grant` view. With X207_UPDATE_FIXTURES=1 the logs are saved to spec/test-vectors/events/sandbox/.
+// `grant_revoked` comes from `revoke_grant` (CT-071): the giver revokes the grant and its status is final.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
@@ -66,7 +66,7 @@ describe.skipIf(!sandboxAvailable)("SD-050 F8 events and views on near-sandbox",
 
     const active = await fx.sandbox.view<AccessGrant | null>(fx.circle.accountId, "get_grant", { grant_id: 1 });
     expect(active).toMatchObject({ grant_id: 1, status: "active", grantor: grantor.accountId, grantee: grantee.accountId, class: "B", unit: "call", unit_price: "10000" });
-    // meter: tagihan 3 panggilan = 30000 dari penerima ke pemberi, resource memuat grantId
+    // meter: a bill of 3 calls = 30000 from the recipient to the giver, resource carries grantId
     expect(meterGrant(active!, { quantity: 3 })).toEqual({ payer: grantee.accountId, payee: grantor.accountId, amount: "30000", resource: grantResource(1) });
     const revoked = await grantor.call({ receiverId: fx.circle.accountId, methodName: "revoke_grant", args: { grant_id: 1, reason: "grantor" }, deposit: 0n });
     expect(revoked.failures).toEqual([]);

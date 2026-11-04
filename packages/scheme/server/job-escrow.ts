@@ -1,41 +1,41 @@
-// Escrow kredit untuk job P5 tanpa ubah kontrak (SD-067, ADR-43). Anggaran job (harga semua potongan) dikunci sebagai leg bundle F5: pembeli ke penjual dengan `max_amount` =
-// anggaran. `commit_bundle` mencadangkan headroom pembeli untuk anggaran itu di epoch yang berjalan, jadi tiap voucher potongan bisa didaftarkan lewat `register_in_bundle`
-// (facilitator, SD-048) walau headroom bebas pembeli habis oleh bundle atau voucher lain. Voucher itu kumulatif (ADR-17): potongan k dilunasi voucher `k × harga potongan`.
+// Credit escrow for P5 jobs without changing the contract (SD-067, ADR-43). The job budget (price of all chunks) is locked as an F5 bundle leg: buyer to seller with `max_amount` =
+// the budget. `commit_bundle` reserves the buyer's headroom for that budget in the current epoch, so each chunk voucher can be registered through `register_in_bundle`
+// (facilitator, SD-048) even when the buyer's free headroom is used up by bundles or other vouchers. The voucher is cumulative (ADR-17): chunk k is settled by a voucher of `k × chunk price`.
 //
-// Kontrak mewajibkan bundle punya paling sedikit DUA leg (`ERR_BAD_BUNDLE`), jadi syaratnya membawa leg pendamping penjual ke pembeli sebesar satu satuan terkecil
-// (`JOB_ESCROW_COUNTER_LEG`): tidak pernah didaftarkan, hanya memenuhi bentuk bundle, dan penjual yang menandatangani bundle sudah ikut sebagai peserta.
+// The contract requires a bundle to have at least TWO legs (`ERR_BAD_BUNDLE`), so the terms carry a companion leg from seller to buyer of one smallest unit
+// (`JOB_ESCROW_COUNTER_LEG`): it is never registered, it only satisfies the bundle shape, and the seller who signs the bundle already takes part as a member.
 //
-// Aturan risiko (bayar di depan satu potongan):
-//   - penjual mengerjakan potongan k hanya setelah voucher potongan k tiba (`SellerJob.next()`), jadi penjual tidak pernah bekerja tanpa dibayar: pembeli yang berhenti tidak
-//     merugikan penjual sama sekali;
-//   - pembeli menandatangani voucher potongan k+1 hanya setelah potongan k diterima (`BuyerJob.nextVoucherAmount()`), jadi pembeli yang ditinggal penjual rugi paling banyak
-//     satu potongan (yang sudah dibayar dan tidak dikerjakan);
-//   - total yang bisa dibayar tidak pernah melebihi anggaran (cadangan bundle).
-// Voucher kumulatif itu milik pasangan (pembeli, penjual) di epoch, bukan job: `baseCumulative` dan `baseSeq` adalah keadaan pasangan saat job mulai, dan selama job berjalan
-// pembayaran lain pasangan itu menunggu.
-// Kelas ini hanya mesin status: tanpa jaringan dan tanpa waktu. Memverifikasi dan menyelesaikan voucher tetap tugas `/verify` dan `/settle`.
+// Risk rules (pay one chunk ahead):
+//   - the seller works on chunk k only after the voucher for chunk k arrives (`SellerJob.next()`), so the seller never works unpaid: a buyer who stops does not
+//     hurt the seller at all;
+//   - the buyer signs the voucher for chunk k+1 only after chunk k is received (`BuyerJob.nextVoucherAmount()`), so a buyer abandoned by the seller loses at most
+//     one chunk (paid for and not delivered);
+//   - the total that can be paid never exceeds the budget (the bundle reserve).
+// The cumulative voucher belongs to the (buyer, seller) pair in the epoch, not to the job: `baseCumulative` and `baseSeq` are the pair's state when the job starts, and while the job runs
+// other payments of that pair wait.
+// This class is only a state machine: no network and no time. Verifying and settling vouchers remains the job of `/verify` and `/settle`.
 import { CREDIT_UNIT, bundleInput, signVoucher, termsHash, type AccountId, type BundleTerms, type U128String, type UnsignedVoucher, type Voucher, type VoucherSecretKey } from "@x207/core";
 import { MeteredJob, type MeteredJobOptions } from "./metered-job.js";
 import { MeterRejection } from "./metering.js";
 
-/** Leg pendamping penjual ke pembeli: satuan terkecil, karena kontrak menuntut bundle dengan dua leg dan `max_amount` > 0. */
+/** Companion leg from seller to buyer: the smallest unit, because the contract demands a bundle with two legs and `max_amount` > 0. */
 export const JOB_ESCROW_COUNTER_LEG = "1";
 
 export type JobEscrowOptions = Omit<MeteredJobOptions, "maxUnpaidChunks"> & {
   circle: AccountId;
   buyer: AccountId;
   seller: AccountId;
-  /** Epoch yang berjalan saat bundle di-commit; anggaran terkunci untuk epoch ini saja, jadi job harus selesai di dalamnya. */
+  /** The epoch running when the bundle is committed; the budget is locked for this epoch only, so the job must finish within it. */
   epoch: number;
   /**
-   * Keadaan pasangan (pembeli, penjual) di epoch ini saat job mulai: jumlah kumulatif dan `seq` terakhir yang sudah terdaftar (0 bila belum ada voucher). Voucher kumulatif
-   * itu milik PASANGAN, bukan job, jadi voucher potongan harus melanjutkannya; selama job berjalan pembayaran lain pasangan itu menunggu.
+   * State of the (buyer, seller) pair in this epoch when the job starts: the cumulative amount and last `seq` already registered (0 if there is no voucher yet). The cumulative voucher
+   * belongs to the PAIR, not the job, so chunk vouchers must continue it; while the job runs other payments of that pair wait.
    */
   baseCumulative?: U128String;
   baseSeq?: number;
 };
 
-/** Angka dan syarat bersama pembeli dan penjual. */
+/** Numbers and terms shared by buyer and seller. */
 export class JobBudget {
   readonly jobId: string;
   readonly circle: AccountId;
@@ -45,7 +45,7 @@ export class JobBudget {
   readonly unit: string;
   readonly chunks: number;
   readonly chunkAmount: bigint;
-  /** Harga seluruh job = `max_amount` leg pembeli, satuan credit terkecil. */
+  /** Price of the whole job = the buyer leg's `max_amount`, in the smallest credit unit. */
   readonly budget: bigint;
   readonly baseCumulative: bigint;
   readonly baseSeq: number;
@@ -71,7 +71,7 @@ export class JobBudget {
     if (!Number.isSafeInteger(this.baseSeq) || this.baseSeq < 0) throw new MeterRejection(`baseSeq must be an integer >= 0, got ${this.baseSeq}`);
   }
 
-  /** Syarat bundle yang ditandatangani pembeli dan penjual: leg pembeli ke penjual sebesar anggaran, ditambah leg pendamping. */
+  /** Bundle terms signed by buyer and seller: buyer to seller leg for the budget, plus the companion leg. */
   terms(): BundleTerms {
     return {
       circle: this.circle,
@@ -83,7 +83,7 @@ export class JobBudget {
     };
   }
 
-  /** Argumen `bundle` untuk `commit_bundle`. */
+  /** Argument `bundle` for `commit_bundle`. */
   commitArgs(): ReturnType<typeof bundleInput> {
     return bundleInput(this.terms());
   }
@@ -92,7 +92,7 @@ export class JobBudget {
     return termsHash(this.terms());
   }
 
-  /** Dipanggil setelah `commit_bundle` mengembalikan `bundle_id`; voucher potongan lalu membawa `bundleId` ini. */
+  /** Called after `commit_bundle` returns `bundle_id`; chunk vouchers then carry this `bundleId`. */
   attach(bundleId: number): void {
     if (!Number.isSafeInteger(bundleId) || bundleId < 1) throw new MeterRejection(`bundleId must be an integer >= 1, got ${bundleId}`);
     this.#bundleId = bundleId;
@@ -102,13 +102,13 @@ export class JobBudget {
     return this.#bundleId;
   }
 
-  /** Jumlah kumulatif voucher pasangan yang melunasi potongan ke-`chunk` (1 sampai total): keadaan awal pasangan + `chunk × harga potongan`. */
+  /** Cumulative voucher amount of the pair that settles chunk number `chunk` (1 to total): the pair's starting state + `chunk × chunk price`. */
   cumulativeFor(chunk: number): bigint {
     if (!Number.isSafeInteger(chunk) || chunk < 1 || chunk > this.chunks) throw new MeterRejection(`chunk must be 1 to ${this.chunks}, got ${chunk}`);
     return this.baseCumulative + this.chunkAmount * BigInt(chunk);
   }
 
-  /** Voucher belum bertanda tangan untuk potongan `chunk`; `seq` naik satu per potongan. */
+  /** Unsigned voucher for chunk `chunk`; `seq` rises by one per chunk. */
   voucherFor(chunk: number): UnsignedVoucher {
     return {
       circle: this.circle, payer: this.buyer, payee: this.seller, epoch: this.epoch, seq: this.baseSeq + chunk,
@@ -123,13 +123,13 @@ export type SellerJobSummary = {
   startedChunks: number;
   completedChunks: number;
   paidChunks: number;
-  /** Yang sudah dibayar untuk job ini (kumulatif pasangan dikurangi keadaan awalnya). */
+  /** What has been paid for this job (the pair's cumulative minus its starting state). */
   cumulativePaid: string;
-  /** Yang sudah dikerjakan penjual tanpa dibayar: selalu 0, karena potongan dimulai hanya setelah dibayar. */
+  /** What the seller has worked on without being paid: always 0, because a chunk starts only after it is paid. */
   unpaidWork: string;
 };
 
-/** Sisi penjual: potongan baru dimulai setelah voucher potongan itu tiba. */
+/** Seller side: a new chunk starts only after the voucher for that chunk arrives. */
 export class SellerJob {
   readonly budget: JobBudget;
   #started = 0;
@@ -150,8 +150,8 @@ export class SellerJob {
   }
 
   /**
-   * Terima voucher (yang sudah lolos `/verify`): pasangan, epoch, dan unit harus sama dengan job, `seq` naik, jumlah kumulatif tidak turun (`cumulative_decreased`),
-   * tidak melebihi anggaran (`over_budget`), dan tidak lebih dari satu potongan di depan potongan yang selesai (`prepaid_too_far`). Jumlah yang sama diterima tanpa efek.
+   * Accept a voucher (one that passed `/verify`): pair, epoch, and unit must equal the job's, `seq` rises, the cumulative amount does not fall (`cumulative_decreased`),
+   * does not exceed the budget (`over_budget`), and is not more than one chunk ahead of the completed chunk (`prepaid_too_far`). The same amount is accepted with no effect.
    */
   accept(voucher: Pick<Voucher, "circle" | "payer" | "payee" | "epoch" | "seq" | "cumulativeAmount" | "unit" | "resource">): SellerJobSummary {
     const b = this.budget;
@@ -173,7 +173,7 @@ export class SellerJob {
     return this.summary();
   }
 
-  /** Nomor potongan yang boleh dikerjakan sekarang: hanya bila voucher potongan itu sudah tiba dan potongan sebelumnya selesai; selain itu `null`. */
+  /** Number of the chunk that may be worked on now: only if the voucher for that chunk has arrived and the previous chunk is finished; otherwise `null`. */
   next(): number | null {
     if (this.#aborted || this.#started >= this.budget.chunks || this.#started > this.#completed) return null;
     return this.paidChunks >= this.#started + 1 ? this.#started + 1 : null;
@@ -212,11 +212,11 @@ export type BuyerJobSummary = {
   confirmedChunks: number;
   signedChunks: number;
   cumulativeSigned: string;
-  /** Yang sudah ditandatangani dan belum diterima: paling banyak satu potongan. */
+  /** Signed and not yet received: at most one chunk. */
   atRisk: string;
 };
 
-/** Sisi pembeli: voucher potongan k+1 ditandatangani hanya setelah potongan k diterima. */
+/** Buyer side: the voucher for chunk k+1 is signed only after chunk k is received. */
 export class BuyerJob {
   readonly budget: JobBudget;
   #confirmed = 0;
@@ -227,14 +227,14 @@ export class BuyerJob {
     this.budget = budget;
   }
 
-  /** Potongan `chunk` diterima dan sah (hitungan pembeli sendiri; SD-068 menyediakan hitungannya). Harus berurutan dan sudah dibayar. */
+  /** Chunk `chunk` received and valid (the buyer's own count; SD-068 provides the count). Must be in order and already paid. */
   confirm(chunk: number): void {
     if (this.#aborted) throw new MeterRejection("the job has already been stopped");
     if (chunk !== this.#confirmed + 1 || chunk > this.#signed) throw new MeterRejection(`chunk ${chunk} is not being awaited`);
     this.#confirmed = chunk;
   }
 
-  /** Potongan berikut yang boleh dibayar: yang pertama di awal, lalu hanya setelah potongan sebelumnya diterima; `null` bila menunggu pengiriman atau selesai. */
+  /** Next chunk that may be paid: the first one at the start, then only after the previous chunk is received; `null` when waiting for delivery or finished. */
   nextChunk(): number | null {
     if (this.#aborted || this.#signed >= this.budget.chunks || this.#signed > this.#confirmed) return null;
     return this.#signed + 1;
@@ -245,7 +245,7 @@ export class BuyerJob {
     return chunk === null ? null : this.budget.cumulativeFor(chunk).toString();
   }
 
-  /** Tandatangani voucher potongan berikut, atau lempar bila potongan sebelumnya belum diterima (tidak membayar dua potongan di depan). */
+  /** Sign the voucher for the next chunk, or throw if the previous chunk is not yet received (never pay two chunks ahead). */
   signNext(secretKey: VoucherSecretKey): { chunk: number; voucher: Voucher; bundleId: number | null } {
     const chunk = this.nextChunk();
     if (chunk === null) throw new MeterRejection("the next voucher is signed only after the previous chunk is received");
@@ -254,7 +254,7 @@ export class BuyerJob {
     return { chunk, voucher, bundleId: this.budget.bundleId };
   }
 
-  /** Penjual berhenti: pembeli tidak menandatangani apa pun lagi. */
+  /** The seller stopped: the buyer signs nothing more. */
   abort(): BuyerJobSummary {
     this.#aborted = true;
     return this.summary();

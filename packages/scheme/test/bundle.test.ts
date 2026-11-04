@@ -1,5 +1,5 @@
-// SD-048: voucher leg bundle F5. Bytes voucher sama dengan voucher biasa; `bundleId` di payload membuat facilitator memeriksa batas leg
-// D8 (`get_bundle`) alih-alih headroom bebas, dan klien memilih x207 walau headroom bebas habis.
+// SD-048: F5 bundle leg voucher. The voucher bytes equal an ordinary voucher; the `bundleId` in the payload makes the facilitator check the D8
+// leg limit (`get_bundle`) instead of free headroom, and the client chooses x207 even when free headroom is used up.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { PaymentRequirements } from "@x402/core/types";
@@ -93,7 +93,7 @@ describe("SD-048 verify voucher leg bundle", () => {
   });
 });
 
-describe("SD-048 klien", () => {
+describe("SD-048 client", () => {
   const unsignedFor = (client: X207SchemeClient, amount = "20000") =>
     (async () => {
       const reqs = requirements(amount);

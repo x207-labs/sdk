@@ -1,6 +1,6 @@
-// SD-047 (interface 0.0.5) di near-sandbox: `search_leg` di syarat bundle. Kontrak menghitung `terms_hash` dari legs dan `search_leg` sendiri,
-// jadi `get_bundle.terms_hash` sama dengan `termsHash(terms)` dari SDK membuktikan byte JSON kanoniknya sama. Lewati bila binary near-sandbox
-// atau wasm kontrak 0.0.5 tidak ada.
+// SD-047 (interface 0.0.5) in near-sandbox: `search_leg` in the bundle terms. The contract computes `terms_hash` from the legs and `search_leg` itself,
+// so `get_bundle.terms_hash` equal to the SDK's `termsHash(terms)` proves the canonical JSON bytes are the same. Skipped if the near-sandbox binary
+// or the 0.0.5 contract wasm is missing.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ContractAbi, createCircleViewFn, onboardMember, signBundle, termsHash, type BundleTerms, type ContractCall } from "../../src/index.js";
 import { TERMS_HASH, deployCircle, type CircleFixture } from "../../../../test-support/circle.js";
@@ -59,10 +59,10 @@ describe.skipIf(!sandboxAvailable)("SD-047 search_leg on near-sandbox", () => {
     const search = { payer: c.id, payee: a.id };
     const base = { circle: fx.circle.accountId, epoch };
 
-    // 6 dari 101 credit melewati batas bawaan 500 bps
+    // 6 of 101 credit passes the default limit of 500 bps
     const over = await commit({ ...base, legs: legs(55n, 40n, 6n), search_leg: search });
     expect(over.failures.join(" ")).toContain("ERR_SEARCH_SHARE_EXCEEDED");
-    // search_leg yang bukan leg: SDK menolaknya sebelum menandatangani, jadi kirim mentah; kontrak menolaknya sebelum memeriksa tanda tangan
+    // a search_leg that is not a leg: the SDK rejects it before signing, so send it raw; the contract rejects it before checking signatures
     expect(() => termsHash({ ...base, legs: legs(55n, 40n, 5n), search_leg: { payer: a.id, payee: c.id } })).toThrow(/search_leg/);
     const stranger = await solver.call(
       {
@@ -72,18 +72,18 @@ describe.skipIf(!sandboxAvailable)("SD-047 search_leg on near-sandbox", () => {
       "EXECUTED_OPTIMISTIC",
     );
     expect(stranger.failures.join(" ")).toContain("ERR_BAD_BUNDLE");
-    // peserta menandatangani syarat tanpa search_leg, kontrak menghitung hash dengan search_leg: tanda tangan tidak cocok
+    // participants sign the terms without search_leg, the contract computes the hash with search_leg: signature does not match
     const unsigned = await commit({ ...base, legs: legs(55n, 40n, 5n), search_leg: search }, { ...base, legs: legs(55n, 40n, 5n) });
     expect(unsigned.failures.join(" ")).toContain("ERR_BUNDLE_SIGNATURES");
 
-    // tepat 500 bps: diterima, dan hash yang disimpan kontrak sama dengan hash SDK
+    // exactly 500 bps: accepted, and the hash stored by the contract equals the SDK hash
     const withSearch: BundleTerms = { ...base, legs: legs(55n, 40n, 5n), search_leg: search };
     const ok = await commit(withSearch);
     expect(ok.failures).toEqual([]);
     const stored = await fx.sandbox.view<ContractAbi.BundleView | null>(fx.circle.accountId, "get_bundle", { bundle_id: 1 });
     expect(stored?.terms_hash).toBe(termsHash(withSearch));
 
-    // tanpa search_leg bytes tidak berubah dari format lama; legs lain supaya hash berbeda
+    // without search_leg the bytes do not change from the old format; other legs so the hash differs
     const plain: BundleTerms = { ...base, legs: legs(10n, 10n, 10n) };
     expect((await commit(plain)).failures).toEqual([]);
     const storedPlain = await fx.sandbox.view<ContractAbi.BundleView | null>(fx.circle.accountId, "get_bundle", { bundle_id: 2 });

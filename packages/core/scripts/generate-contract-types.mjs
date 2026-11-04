@@ -1,8 +1,8 @@
-// Membangkitkan tipe client kontrak `x207-circle` dari `abi/x207-circle.abi.json` (SD-010).
-// Pakai: node scripts/generate-contract-types.mjs            (bangkitkan dari ABI yang dipin)
-//        node scripts/generate-contract-types.mjs --pin <abi.json>  (salin ABI baru ke pin, lalu bangkitkan)
-// Konstruk JSON Schema di luar yang dipakai ABI 0.0.1 sengaja melempar error, supaya perubahan
-// bentuk ABI tidak lolos diam-diam.
+// Generates the `x207-circle` contract client types from `abi/x207-circle.abi.json` (SD-010).
+// Usage: node scripts/generate-contract-types.mjs            (generate from the pinned ABI)
+//        node scripts/generate-contract-types.mjs --pin <abi.json>  (copy a new ABI into the pin, then generate)
+// JSON Schema constructs beyond those the ABI 0.0.1 uses deliberately throw an error, so that changes
+// in the ABI shape do not slip through silently.
 import { createHash } from "node:crypto";
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -61,7 +61,7 @@ function methodType(fn) {
     ? "Record<string, never>"
     : `{ ${args.map((a) => {
         const type = tsType(a.type_schema, `${fn.name}.${a.name}`);
-        // Option<T> di Rust boleh dihilangkan di JSON.
+        // Rust Option<T> may be omitted in JSON.
         return `${JSON.stringify(a.name)}${/\bnull\b/.test(type) ? "?" : ""}: ${type}`;
       }).join("; ")} }`;
   const result = fn.result === undefined ? "void" : tsType(fn.result.type_schema, `${fn.name}.result`);
@@ -69,7 +69,7 @@ function methodType(fn) {
   return `{ args: ${argsType}; result: ${result}${flags.map((f) => `; ${f}`).join("")} }`;
 }
 
-/** `abiText` = isi berkas ABI; hasil = isi `types.generated.ts`. */
+/** `abiText` = content of the ABI file; result = content of `types.generated.ts`. */
 export function generate(abiText) {
   const abi = JSON.parse(abiText);
   const sha256 = createHash("sha256").update(abiText).digest("hex");
@@ -77,7 +77,7 @@ export function generate(abiText) {
   const functions = abi.body.functions;
   const views = functions.filter((f) => f.kind === "view");
   const calls = functions.filter((f) => f.kind === "call");
-  if (views.length + calls.length !== functions.length) throw new Error("kind method selain view/call");
+  if (views.length + calls.length !== functions.length) throw new Error("method kind other than view/call");
 
   const out = [];
   out.push(
@@ -93,14 +93,14 @@ export function generate(abiText) {
   for (const [name, schema] of Object.entries(definitions)) {
     out.push(`export type ${name} = ${tsType(schema, name)};`);
   }
-  out.push("", "/** View: `args` = argumen JSON, `result` = nilai kembalian. */", "export type CircleViews = {");
+  out.push("", "/** View: `args` = JSON arguments, `result` = return value. */", "export type CircleViews = {");
   for (const fn of views) out.push(`  ${JSON.stringify(fn.name)}: ${methodType(fn)};`);
-  out.push("};", "", "/** Call: transaksi. `payable`, `init`, `private` dari modifier ABI. */", "export type CircleCalls = {");
+  out.push("};", "", "/** Call: transaction. `payable`, `init`, `private` from the ABI modifier. */", "export type CircleCalls = {");
   for (const fn of calls) out.push(`  ${JSON.stringify(fn.name)}: ${methodType(fn)};`);
   out.push("};", "");
   out.push(`export const CIRCLE_VIEW_METHODS = ${JSON.stringify(views.map((f) => f.name))} as const;`);
   out.push(`export const CIRCLE_CALL_METHODS = ${JSON.stringify(calls.map((f) => f.name))} as const;`, "");
-  out.push("/** Nama event NEP-297 dan urutan field `data`-nya. */", "export const CIRCLE_EVENTS = {");
+  out.push("/** NEP-297 event names and the order of their `data` fields. */", "export const CIRCLE_EVENTS = {");
   for (const event of abi.events) out.push(`  ${JSON.stringify(event.name)}: ${JSON.stringify(event.fields)},`);
   out.push("} as const;", "", "export type CircleEventName = keyof typeof CIRCLE_EVENTS;", "");
   return out.join("\n");
@@ -110,7 +110,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const pinIndex = process.argv.indexOf("--pin");
   if (pinIndex !== -1) {
     const source = process.argv[pinIndex + 1];
-    if (!source) throw new Error("--pin butuh path abi.json");
+    if (!source) throw new Error("--pin needs the path of abi.json");
     copyFileSync(source, PINNED_ABI_PATH);
   }
   writeFileSync(GENERATED_PATH, generate(readFileSync(PINNED_ABI_PATH, "utf8")));

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Runner conformance x207 (SD-058). Satu perintah dari akar sdk:
-//   npm run conformance                         (adapter referensi @x207/core)
-//   npm run conformance -- --cmd "python3 impl.py"   (implementasi lain; protokol NDJSON di conformance/README.md)
-// Keluar 0 bila semua kasus lulus, 1 bila ada yang gagal atau adapter tidak menjawab.
+// x207 conformance runner (SD-058). One command from the sdk root:
+//   npm run conformance                         (reference adapter @x207/core)
+//   npm run conformance -- --cmd "python3 impl.py"   (another implementation; NDJSON protocol in conformance/README.md)
+// Exits 0 if all cases pass, 1 if any fails or the adapter does not answer.
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,7 @@ const args = process.argv.slice(2);
 const at = args.indexOf("--cmd");
 const command = at >= 0 ? args[at + 1] : `node ${JSON.stringify(reference)}`;
 if (!command) {
-  console.error("--cmd butuh perintah");
+  console.error("--cmd needs a command");
   process.exit(2);
 }
 const TIMEOUT_MS = 30_000;
@@ -27,7 +27,7 @@ lines.on("line", (line) => {
     const answer = JSON.parse(line);
     answers.set(answer.id, answer);
   } catch {
-    // baris yang bukan JSON diabaikan
+    // lines that are not JSON are ignored
   }
 });
 const closed = new Promise((resolve) => child.on("close", resolve));

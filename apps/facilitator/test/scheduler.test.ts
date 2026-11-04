@@ -51,7 +51,7 @@ class FakeChain implements RegistrationChain {
 const stores: PendingStore[] = [];
 const dirs: string[] = [];
 afterEach(() => {
-  stores.splice(0).forEach((s) => { try { s.close(); } catch { /* sudah ditutup */ } });
+  stores.splice(0).forEach((s) => { try { s.close(); } catch { /* already closed */ } });
   dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true }));
 });
 
@@ -311,7 +311,7 @@ describe("SD-028 RegistrationScheduler", () => {
   });
 });
 
-describe("SD-054 pemetaan ERR_EXITING", () => {
+describe("SD-054 ERR_EXITING mapping", () => {
   it("TC-SD-054-11 registration rejected with ERR_EXITING: logged as member_exiting and the row state is failed", async () => {
     const { store, chain, logs, scheduler } = setup();
     store.upsert(CIRCLE, voucher(B, 50, "1000000"), SIG);
@@ -322,7 +322,7 @@ describe("SD-054 pemetaan ERR_EXITING", () => {
   });
 });
 
-describe("SD-048 registrasi voucher leg bundle", () => {
+describe("SD-048 bundle leg voucher registration", () => {
   it("TC-SD-048-09 a row with bundle_id is registered through bundleId; ERR_BUNDLE_LEG_EXCEEDED drops the row", async () => {
     const { store, chain, scheduler } = setup();
     chain.registerArgs = [];

@@ -16,7 +16,7 @@ const A = "translator.x207-circle.near";
 const B = "summarizer.x207-circle.near";
 const C = "scraper.x207-circle.near";
 
-/** NEP-413 dibangun tangan, terpisah dari kode produk. */
+/** NEP-413 built by hand, separate from product code. */
 function nep413(message: string, nonce: Buffer, recipient: string): Buffer {
   const str = (s: string) => Buffer.concat([Buffer.from(new Uint32Array([Buffer.byteLength(s)]).buffer), Buffer.from(s)]);
   return sha256(Buffer.concat([Buffer.from([0x9d, 0x01, 0x00, 0x80]), str(message), nonce, str(recipient), Buffer.from([0])]));
@@ -87,10 +87,10 @@ describe("SD-047 barter intent and bundle", () => {
     }
     const pubkeys = searchVector.participants as Record<string, string>;
     expect(bundleFullySigned(terms, searchVector.signatures, pubkeys)).toBe(true);
-    // search_leg diubah atau dibuang: tanda tangan lama tidak berlaku
+    // search_leg changed or dropped: the old signature does not apply
     expect(bundleFullySigned({ ...terms, search_leg: { payer: A, payee: B } }, searchVector.signatures, pubkeys)).toBe(false);
     expect(bundleFullySigned({ ...terms, search_leg: undefined }, searchVector.signatures, pubkeys)).toBe(false);
-    // tanpa search_leg (kosong, undefined atau null) bytes sama dengan vector lama
+    // without search_leg (empty, undefined or null) the bytes equal the old vector
     const old = bundleVector.terms as BundleTerms;
     expect(serializeBundleTerms({ ...old, search_leg: undefined })).toBe(bundleVector.message);
     expect(serializeBundleTerms({ ...old, search_leg: null })).toBe(bundleVector.message);
@@ -153,7 +153,7 @@ describe("SD-047 barter intent and bundle", () => {
 
   it("search_leg must be one of the legs and hold valid accounts", () => {
     const terms = bundleVector.terms as BundleTerms;
-    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: A, payee: C } })).toThrow(BarterFormatError); // A -> C bukan leg
+    expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: A, payee: C } })).toThrow(BarterFormatError); // A -> C is not a leg
     expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: "NOT AN ACCOUNT", payee: A } })).toThrow(/search_leg/);
     expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: C } as never })).toThrow(/search_leg/);
     expect(() => serializeBundleTerms({ ...terms, search_leg: { payer: C, payee: A } })).not.toThrow();

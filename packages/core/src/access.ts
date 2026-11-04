@@ -1,6 +1,6 @@
-// F8 Adaptor Aset Akses (SD-050, interface 0.0.8): tipe D10/D11 dari `abi.json` yang dipin dan antarmuka `AccessAssetAdapter` dengan lima fungsi
-// `price`, `prove`, `deliver`, `meter`, `revoke` (Spec Antarmuka Kontrak 15, note Fitur F8). Prinsip: serahkan akses, bukan rahasia. `meter`
-// selalu menghasilkan voucher ADR-17 biasa, dengan `payee` = pemberi grant (bukan akun broker), jadi inti x207 tidak berubah.
+// F8 Access Asset Adapter (SD-050, interface 0.0.8): types D10/D11 from the pinned `abi.json` and the `AccessAssetAdapter` interface with five functions
+// `price`, `prove`, `deliver`, `meter`, `revoke` (Contract Interface Spec 15, Feature F8 note). Principle: hand over access, not secrets. `meter`
+// always produces a plain ADR-17 voucher, with `payee` = the grant giver (not the broker account), so the x207 core is unchanged.
 import type * as Abi from "./contract/types.generated.js";
 import type { AccountId, U128String } from "./types.js";
 import type { ContractCall } from "./contract/settlement.js";
@@ -8,42 +8,42 @@ import type { ContractCall } from "./contract/settlement.js";
 import type { AssetClass } from "./marketplace.js";
 
 /**
- * Kelas aset seperti disimpan registri D10: A dialihkan native, B kredensial turunan, C rahasia di broker TEE, D endpoint x402, dan X
- * (ditolak). `AssetClass` dari `marketplace.ts` adalah A sampai D saja, yaitu kelas yang boleh dipakai grant dan listing.
+ * Asset classes as stored by the D10 registry: A transferred natively, B derived credential, C secret held in a TEE broker, D x402 endpoint, and X
+ * (rejected). `AssetClass` from `marketplace.ts` covers only A to D, the classes grants and listings may use.
  */
 export type RegisteredAssetClass = Abi.AssetClass;
-/** Satu baris registri kelas aset D10, diset owner (DAO). */
+/** One D10 asset class registry row, set by the owner (DAO). */
 export type AssetClassEntry = Abi.AssetClassEntry;
 export type GrantLimits = Abi.GrantLimits;
 export type GrantInput = Abi.GrantInput;
-/** Satu grant D11. Tanpa field rahasia: yang disimpan hanya hash bukti dan status. */
+/** One D11 grant. No secret fields: only the proof hash and status are stored. */
 export type AccessGrant = Abi.AccessGrant;
 export type GrantStatus = Abi.GrantStatus;
 export type GrantRole = Abi.GrantRole;
-/** `GrantId` kontrak: angka, urutan sendiri dan terpisah dari `bundle_id`. */
+/** The contract's `GrantId`: a number, its own sequence, separate from `bundle_id`. */
 export type GrantId = number;
-/** Alasan `revoke_grant` (Spec 15.3), juga di event `grant_revoked`. */
+/** Reason for `revoke_grant` (Spec 15.3), also in the `grant_revoked` event. */
 export type RevokeReason = Abi.RevokeReason;
 
 /**
- * Escrow kelas A (interface 0.0.7, CT-075): NFT dipegang kontrak lingkaran sampai grant selesai. Grant kelas A tidak memakai `accept_grant`
- * (ditolak); pembeli memanggil `complete_escrow` dengan voucher bertanda tangan, pemberi bisa `cancel_escrow` setelah `expires_at`.
+ * Class A escrow (interface 0.0.7, CT-075): the NFT is held by the circle contract until the grant completes. Class A grants do not use `accept_grant`
+ * (rejected); the buyer calls `complete_escrow` with a signed voucher, and the giver can `cancel_escrow` after `expires_at`.
  */
 export type EscrowState = Abi.EscrowState;
-/** Langkah yang diselesaikan `on_escrow_resolved`, juga di event `escrow_failed`. */
+/** Step completed by `on_escrow_resolved`, also in the `escrow_failed` event. */
 export type EscrowStep = Abi.EscrowStep;
-/** Hasil view `get_escrow`; `null` bila grant tidak punya escrow. */
+/** Result of the `get_escrow` view; `null` if the grant has no escrow. */
 export type EscrowView = Abi.EscrowView;
 
 /**
- * `limits.scope` wajib untuk grant kelas A (interface 0.0.8): JSON dengan `nft_contract` dan `token_id`, tanpa itu `offer_grant` menjawab
- * `ERR_BAD_GRANT` dan `nft_on_transfer` menolak NFT lain dengan `ERR_ESCROW_NFT_MISMATCH`.
+ * `limits.scope` is required for class A grants (interface 0.0.8): JSON with `nft_contract` and `token_id`; without it `offer_grant` answers
+ * `ERR_BAD_GRANT` and `nft_on_transfer` rejects any other NFT with `ERR_ESCROW_NFT_MISMATCH`.
  */
 export const escrowGrantScope = (nftContract: AccountId, tokenId: string): string => JSON.stringify({ nft_contract: nftContract, token_id: tokenId });
 
 /**
- * Titipan NFT pemberi grant kelas A: `nft_transfer_call` NEP-171 di kontrak NFT ke kontrak lingkaran dengan `msg` `{"grant_id":N}` (tanpa `action`, beda dengan token),
- * deposit 1 yoctoNEAR. Hanya NFT dan kontrak yang tertulis di scope (`escrowGrantScope`) yang diterima (`ERR_ESCROW_NFT_MISMATCH`).
+ * Grant giver's NFT deposit for class A: NEP-171 `nft_transfer_call` on the NFT contract to the circle contract with `msg` `{"grant_id":N}` (no `action`, unlike tokens),
+ * deposit 1 yoctoNEAR. Only the NFT and contract written in the scope (`escrowGrantScope`) are accepted (`ERR_ESCROW_NFT_MISMATCH`).
  */
 export function buildNftEscrowDepositCall(input: { circleContract: AccountId; nftContract: AccountId; tokenId: string; grantId: GrantId }): ContractCall {
   if (!Number.isSafeInteger(input.grantId) || input.grantId < 1) throw new AccessGrantError(`grantId must be an integer >= 1, got ${input.grantId}`);
@@ -57,22 +57,22 @@ export function buildNftEscrowDepositCall(input: { circleContract: AccountId; nf
 }
 
 /**
- * Escrow kelas A untuk token fungible NEP-141 (interface 0.0.10, CT-090): jumlah persis yang dipegang kontrak lingkaran. Hasil view `get_ft_escrow`; `null`
- * bila grant tidak punya escrow token. Token dengan transfer fee are not supported: kontrak memegang jumlah yang benar-benar tiba, dan jumlah itu harus
- * sama dengan `amount` di `limits.scope`, jadi titipan dari token berbiaya ditolak.
+ * Class A escrow for NEP-141 fungible tokens (interface 0.0.10, CT-090): the exact amount held by the circle contract. Result of the `get_ft_escrow` view; `null`
+ * if the grant has no token escrow. Tokens with a transfer fee are not supported: the contract holds the amount that actually arrived, and that amount must
+ * equal `amount` in `limits.scope`, so a deposit from a fee-charging token is rejected.
  */
 export type FtEscrowView = Abi.FtEscrowView;
 
 /**
- * Escrow kelas A untuk satu multi-token NEP-245 (interface 0.0.11, CT-092): jumlah persis dari satu `token_id` di satu kontrak multi-token, misalnya saldo
- * `nep141:<usdt>` di NEAR Intents atau share pool. Hasil view `get_mt_escrow`; `null` bila grant tidak punya escrow multi-token. Satu titipan hanya boleh
- * memuat satu token dan satu jumlah (`ERR_ESCROW_MT_BATCH` untuk titipan batch). Token bertransfer fee are not supported seperti pada NEP-141.
+ * Class A escrow for one NEP-245 multi-token (interface 0.0.11, CT-092): the exact amount of one `token_id` in one multi-token contract, for example a balance of
+ * `nep141:<usdt>` in NEAR Intents or a pool share. Result of the `get_mt_escrow` view; `null` if the grant has no multi-token escrow. One deposit may hold only
+ * one token and one amount (`ERR_ESCROW_MT_BATCH` for batch deposits). Tokens with a transfer fee are not supported, as with NEP-141.
  */
 export type MtEscrowView = Abi.MtEscrowView;
 
 /**
- * `limits.scope` grant kelas A untuk multi-token: JSON dengan `mt_contract`, `token_id` dan `amount` (satuan terkecil token itu, teks). Titipan harus sama
- * persis; kontrak, token, atau jumlah lain ditolak (`ERR_ESCROW_MT_MISMATCH`, `ERR_ESCROW_MT_AMOUNT`).
+ * Class A grant `limits.scope` for multi-tokens: JSON with `mt_contract`, `token_id` and `amount` (the token's smallest unit, as text). The deposit must match
+ * exactly; any other contract, token, or amount is rejected (`ERR_ESCROW_MT_MISMATCH`, `ERR_ESCROW_MT_AMOUNT`).
  */
 export const mtEscrowGrantScope = (mtContract: AccountId, tokenId: string, amount: U128String): string => {
   if (tokenId.length === 0) throw new AccessGrantError("tokenId must not be empty");
@@ -81,9 +81,9 @@ export const mtEscrowGrantScope = (mtContract: AccountId, tokenId: string, amoun
 };
 
 /**
- * Titipan pemberi grant untuk multi-token: `mt_transfer_call` NEP-245 (satu token) di kontrak multi-token ke kontrak lingkaran, dengan `msg` yang sama
- * seperti titipan NEP-141 (`{"action":"escrow","grant_id":N}`), jumlah persis dari scope, dan deposit 1 yoctoNEAR. Titipan batch (`mt_batch_transfer_call`)
- * ditolak kontrak.
+ * Grant giver's deposit for multi-tokens: NEP-245 `mt_transfer_call` (one token) on the multi-token contract to the circle contract, with the same `msg`
+ * as the NEP-141 deposit (`{"action":"escrow","grant_id":N}`), the exact amount from the scope, and a deposit of 1 yoctoNEAR. Batch deposits (`mt_batch_transfer_call`)
+ * are rejected by the contract.
  */
 export function buildMtEscrowDepositCall(input: { circleContract: AccountId; mtContract: AccountId; tokenId: string; amount: U128String; grantId: GrantId }): ContractCall {
   mtEscrowGrantScope(input.mtContract, input.tokenId, input.amount);
@@ -96,23 +96,23 @@ export function buildMtEscrowDepositCall(input: { circleContract: AccountId; mtC
 }
 
 /**
- * `limits.scope` grant kelas A untuk token NEP-141: JSON dengan `ft_contract` dan `amount` (satuan terkecil token, teks). Titipan harus sama persis dengan
- * jumlah ini; kontrak token lain atau jumlah lain ditolak saat titip.
+ * Class A grant `limits.scope` for NEP-141 tokens: JSON with `ft_contract` and `amount` (the token's smallest unit, as text). The deposit must match this amount
+ * exactly; any other token contract or amount is rejected at deposit.
  */
 export const ftEscrowGrantScope = (ftContract: AccountId, amount: U128String): string => {
   if (!/^[1-9]\d*$/.test(amount)) throw new AccessGrantError(`amount must be an integer string > 0, got ${JSON.stringify(amount)}`);
   return JSON.stringify({ ft_contract: ftContract, amount });
 };
 
-/** `msg` titipan token: `{"action":"escrow","grant_id":N}` (diterima `ft_on_transfer` dari token mana pun selain USDT lingkaran). */
+/** Token deposit `msg`: `{"action":"escrow","grant_id":N}` (accepted by `ft_on_transfer` from any token except the circle's USDT). */
 export function buildFtEscrowMsg(grantId: GrantId): string {
   if (!Number.isSafeInteger(grantId) || grantId < 1) throw new AccessGrantError(`grantId must be an integer >= 1, got ${grantId}`);
   return JSON.stringify({ action: "escrow", grant_id: grantId });
 }
 
 /**
- * Titipan pemberi grant: `ft_transfer_call` di kontrak token ke kontrak lingkaran dengan `msg` escrow dan jumlah persis dari scope. Deposit 1 yoctoNEAR
- * (standar NEP-141). Pemberi harus sudah menawarkan grant (`offer_grant`) dengan scope yang sama, dan harus anggota aktif.
+ * Grant giver's deposit: `ft_transfer_call` on the token contract to the circle contract with the escrow `msg` and the exact amount from the scope. Deposit 1 yoctoNEAR
+ * (NEP-141 standard). The giver must already have offered the grant (`offer_grant`) with the same scope, and must be an active member.
  */
 export function buildFtEscrowDepositCall(input: { circleContract: AccountId; ftContract: AccountId; amount: U128String; grantId: GrantId }): ContractCall {
   ftEscrowGrantScope(input.ftContract, input.amount);
@@ -125,9 +125,9 @@ export function buildFtEscrowDepositCall(input: { circleContract: AccountId; ftC
 }
 
 /**
- * Pembeli harus terdaftar di kontrak token (NEP-145 `storage_balance_of` tidak `null`) sebelum `complete_escrow`: kalau tidak, `ft_transfer` ke pembeli
- * gagal dan pembayaran dibatalkan. Helper ini membaca view di kontrak token dan menolak sebelum transaksi dikirim.
- * @param view membaca view di kontrak mana pun: `(contractId, method, args) => hasil JSON`
+ * The buyer must be registered at the token contract (NEP-145 `storage_balance_of` not `null`) before `complete_escrow`: otherwise `ft_transfer` to the buyer
+ * fails and the payment is cancelled. This helper reads the view on the token contract and rejects before the transaction is sent.
+ * @param view reads a view on any contract: `(contractId, method, args) => JSON result`
  */
 export async function assertBuyerRegisteredAtToken(
   view: (contractId: AccountId, methodName: string, args: object) => Promise<unknown>,
@@ -146,8 +146,8 @@ export async function assertBuyerRegisteredAtToken(
 }
 
 /**
- * Semua grant `offered` dan `active` milik satu akun dalam satu peran. `grants_of` berhalaman sejak interface 0.0.8 dan tidak lagi memuat
- * grant yang sudah berakhir (`get_grant` tetap menjawabnya), jadi halaman dibaca sampai halaman yang tidak penuh.
+ * All `offered` and `active` grants of one account in one role. `grants_of` has been paginated since interface 0.0.8 and no longer includes
+ * grants that have already ended (`get_grant` still answers them), so pages are read until a page that is not full.
  */
 export async function listGrantsOf(view: (methodName: string, args: object) => Promise<unknown>, accountId: AccountId, role: GrantRole, pageSize = 50): Promise<AccessGrant[]> {
   const all: AccessGrant[] = [];
@@ -158,40 +158,40 @@ export async function listGrantsOf(view: (methodName: string, args: object) => P
   }
 }
 
-/** Unit harga yang dikenal kontrak (`GrantInput.unit`). */
+/** Price units known to the contract (`GrantInput.unit`). */
 export const GRANT_UNITS = ["call", "minute", "day", "once"] as const;
 export type GrantUnit = (typeof GRANT_UNITS)[number];
 
-/** Harga per unit sebuah grant, dalam satuan terkecil credit (6 desimal). */
+/** Price per unit of a grant, in the smallest credit unit (6 decimals). */
 export type PriceQuote = { assetType: string; unit: string; unitPrice: U128String };
 
-/** Hasil `prove`: aset ada dan sesuai klaim. Bukan penilaian kualitas layanan. */
+/** Result of `prove`: the asset exists and matches the claim. Not an assessment of service quality. */
 export type ProofResult = { valid: true } | { valid: false; reason: string };
 
 /**
- * Tagihan pemakaian dari `meter`: bahan satu voucher kumulatif ADR-17. `payee` selalu pemberi grant dan `payer` penerima; `resource` memuat
- * `grantId` supaya facilitator dan penjual mengenali grant yang dibayar.
+ * Usage bill from `meter`: the input for one cumulative ADR-17 voucher. `payee` is always the grant giver and `payer` the recipient; `resource` carries
+ * `grantId` so the facilitator and seller recognise which grant is being paid.
  */
 export type MeterCharge = { payer: AccountId; payee: AccountId; amount: U128String; resource: string };
 
-/** Pemakaian yang diukur: `quantity` unit (panggilan, menit, hari, atau 1 untuk `once`). */
+/** Metered usage: `quantity` units (calls, minutes, days, or 1 for `once`). */
 export type Usage = { quantity: number };
 
 /**
- * Lima fungsi adaptor. `Delivery` adalah apa yang pembeli terima dan tidak pernah berisi rahasia pemberi: endpoint (kelas D), kunci turunan
- * (kelas B), atau URL proxy (kelas C).
+ * The five adapter functions. `Delivery` is what the buyer receives and never contains the giver's secrets: an endpoint (class D), a derived key
+ * (class B), or a proxy URL (class C).
  */
 export interface AccessAssetAdapter<Delivery = unknown, Evidence = unknown> {
   readonly assetClass: AssetClass;
-  /** Harga dari grant. */
+  /** Price from the grant. */
   price(grant: AccessGrant): PriceQuote | Promise<PriceQuote>;
-  /** Buktikan aset ada dan sesuai grant (kelas B: `verifyFunctionCallKey`; kelas D: tidak perlu). */
+  /** Prove the asset exists and matches the grant (class B: `verifyFunctionCallKey`; class D: not needed). */
   prove(grant: AccessGrant, evidence?: Evidence): ProofResult | Promise<ProofResult>;
-  /** Serahkan akses ke penerima. */
+  /** Hand access to the recipient. */
   deliver(grant: AccessGrant): Delivery | Promise<Delivery>;
-  /** Ukur pemakaian menjadi tagihan voucher ADR-17. */
+  /** Turn measured usage into an ADR-17 voucher bill. */
   meter(grant: AccessGrant, usage: Usage): MeterCharge | Promise<MeterCharge>;
-  /** Cabut akses. Kontrak yang mencatat status; adaptor menutup aksesnya (hapus kunci, hentikan proxy, tolak payer). */
+  /** Revoke access. The contract records the status; the adapter closes the access (delete the key, stop the proxy, reject the payer). */
   revoke(grant: AccessGrant, reason: RevokeReason): void | Promise<void>;
 }
 
@@ -202,10 +202,10 @@ export class AccessGrantError extends Error {
   }
 }
 
-/** `resource` voucher yang membayar sebuah grant: `x207:grant:<grantId>` (note Fitur F8). */
+/** The `resource` of a voucher that pays a grant: `x207:grant:<grantId>` (Feature F8 note). */
 export const grantResource = (grantId: GrantId): string => `x207:grant:${grantId}`;
 
-/** Kebalikan `grantResource`; `null` bila `resource` bukan resource grant. */
+/** Inverse of `grantResource`; `null` if `resource` is not a grant resource. */
 export function parseGrantResource(resource: string): GrantId | null {
   const match = /^x207:grant:(0|[1-9]\d*)$/.exec(resource);
   if (match === null) return null;
@@ -214,8 +214,8 @@ export function parseGrantResource(resource: string): GrantId | null {
 }
 
 /**
- * Tagihan standar `quantity` × `unit_price` untuk grant `active`. `payee` = pemberi, bukan operator atau broker. Dipakai adaptor sebagai
- * dasar `meter`.
+ * Standard bill `quantity` × `unit_price` for an `active` grant. `payee` = the giver, not the operator or broker. Used by adapters as the
+ * basis for `meter`.
  */
 export function meterGrant(grant: AccessGrant, usage: Usage): MeterCharge {
   if (grant.status !== "active") throw new AccessGrantError(`grant ${grant.grant_id} has status ${grant.status}, not active`);
@@ -225,5 +225,5 @@ export function meterGrant(grant: AccessGrant, usage: Usage): MeterCharge {
   return { payer: grant.grantee, payee: grant.grantor, amount: amount.toString(), resource: grantResource(grant.grant_id) };
 }
 
-/** `price` standar: unit dan harga yang tertulis di grant. */
+/** Default `price`: the unit and price written in the grant. */
 export const priceOfGrant = (grant: AccessGrant): PriceQuote => ({ assetType: grant.asset_type, unit: grant.unit, unitPrice: grant.unit_price });

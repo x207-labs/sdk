@@ -1,4 +1,4 @@
-// @x207/core (M2): titik masuk publik. Tipe, konstanta, dan fungsi ditambahkan per item backlog.
+// @x207/core (M2): public entry point. Types, constants, and functions are added per backlog item.
 export * from "./constants.js";
 export * from "./types.js";
 export * from "./validate.js";

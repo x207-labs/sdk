@@ -1,8 +1,8 @@
-// Fixture lingkaran di near-sandbox: kontrak `x207-circle`, mock NEP-141 sebagai USDT, dan akun anggota.
+// Circle fixture on near-sandbox: the `x207-circle` contract, a mock NEP-141 as USDT, and member accounts.
 import { readFileSync } from "node:fs";
 import { CIRCLE_WASM, MOCK_FT_WASM, MOCK_INTENTS_WASM, Sandbox, SandboxAccount, startSandbox } from "./sandbox.js";
 
-/** Jendela pendek di dalam rentang sah (Spec Antarmuka Kontrak 3.4), sama dengan `short_params` di contracts. */
+/** Short windows inside the valid range (Contract Interface Spec 3.4), the same as `short_params` in contracts. */
 export const SHORT_PARAMS = {
   epoch_length: 300, payment_window: 900, proposal_window: 60, base_limit_ratio: 8000,
   limit_growth: 1000, limit_cap: "1000000000", limit_decay: 0,
@@ -34,20 +34,20 @@ export type CircleFixture = {
   circleId: string;
   circle: SandboxAccount;
   usdt: SandboxAccount;
-  /** Hanya dengan `deployCircle(params, { mockIntents: true })`: kontrak `mock_intents` yang menjadi `intents_id` kontrak lingkaran. */
+  /** Only with `deployCircle(params, { mockIntents: true })`: the `mock_intents` contract that becomes the circle contract's `intents_id`. */
   intents?: SandboxAccount;
-  /** Akun anggota yang dibuat `member()`, dengan 1.000 USDT mock. */
+  /** Member accounts created by `member()`, with 1,000 mock USDT. */
   members: Map<string, SandboxAccount>;
   member(name: string): Promise<SandboxAccount>;
   stop(): Promise<void>;
 };
 
-/** Sandbox baru dengan kontrak ter-deploy dan di-`new`. */
+/** New sandbox with the contract deployed and `new` called. */
 export type DeployCircleOptions = {
   /**
-   * `intents_id` kontrak lingkaran diisi akun dengan wasm `mock_intents` (method `new`, `mt_transfer_call`, `ft_withdraw`, `balance_of`),
-   * untuk test residual lewat Intents (`mt_on_transfer`, `withdraw_intents_balance`, interface 0.0.9). Butuh
-   * `cargo near build non-reproducible-wasm --manifest-path probes/mock_intents/Cargo.toml` di `contracts`. Bawaan: akun kosong.
+   * The circle contract's `intents_id` is filled with an account running the `mock_intents` wasm (methods `new`, `mt_transfer_call`, `ft_withdraw`, `balance_of`),
+   * for residual tests through Intents (`mt_on_transfer`, `withdraw_intents_balance`, interface 0.0.9). Needs
+   * `cargo near build non-reproducible-wasm --manifest-path probes/mock_intents/Cargo.toml` in `contracts`. Default: an empty account.
    */
   mockIntents?: boolean;
 };

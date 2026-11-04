@@ -1,6 +1,6 @@
 {
   "name": "one_pending_unregistered",
-  "description": "Satu pending belum terdaftar (TC-SD-023-02).",
+  "description": "One pending row not yet registered (TC-SD-023-02).",
   "input": {
     "epoch": 42,
     "payer": "a.x207-circle.near",

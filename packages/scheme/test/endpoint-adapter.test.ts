@@ -1,4 +1,4 @@
-// SD-051: EndpointAdapter (kelas D). Lima fungsi adaptor, dan paywall()-nya menghasilkan 402 yang identik dengan x207Middleware langsung.
+// SD-051: EndpointAdapter (class D). Five adapter functions, and its paywall() produces a 402 identical to x207Middleware directly.
 import { describe, expect, it } from "vitest";
 import type { AccessAssetAdapter, AccessGrant } from "@x207/core";
 import { EndpointAdapter, x207Middleware, type X207ExtraSource, type X207MiddlewareOptions } from "@x207/scheme";
@@ -12,7 +12,7 @@ const grant = (patch: Partial<AccessGrant> = {}): AccessGrant => ({
 });
 const extra = { get: async () => ({ circleContract: "x207-circle.near", unit: "credit", decimals: 6, epoch: 42 }) } as unknown as X207ExtraSource;
 const paywallOptions: X207MiddlewareOptions = {
-  routes: { "/api/summarize": { price: "$0.02", description: "Ringkas teks" } },
+  routes: { "/api/summarize": { price: "$0.02", description: "Summarize text" } },
   facilitatorUrl: "http://facilitator.invalid", circleId: "agents-main", payTo: GRANTOR, extra,
 };
 
@@ -43,7 +43,7 @@ describe("SD-051 EndpointAdapter", () => {
     expect(b.status).toBe(a.status);
     expect(b.headers.get("PAYMENT-REQUIRED")).toBe(a.headers.get("PAYMENT-REQUIRED"));
     expect(await b.text()).toBe(await a.text());
-    // rute di luar daftar diteruskan tanpa 402, sama seperti langsung
+    // routes outside the list are passed through without a 402, same as directly
     const free = await wrapped(new Request("http://seller.example/other"), () => new Response("ok"));
     expect(free.status).toBe(200);
   });

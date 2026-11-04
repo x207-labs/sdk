@@ -1,5 +1,5 @@
-// Pending store D3 (bagian off-chain): voucher diterima yang belum diregistrasi on-chain.
-// Satu baris per (circle_contract, payer, payee, epoch), hanya `seq` tertinggi (Spec Binding x402 6.2, ADR-17).
+// D3 pending store (off-chain part): accepted vouchers not yet registered on-chain.
+// One row per (circle_contract, payer, payee, epoch), only the highest `seq` (Spec Binding x402 6.2, ADR-17).
 import { DatabaseSync, type StatementSync } from "node:sqlite";
 import type { AccountId, Ed25519Signature, PendingRowState, U128String, UnsignedVoucher } from "@x207/core";
 
@@ -12,19 +12,19 @@ export type PendingKey = {
 
 export type PendingRow = PendingKey & {
   seq: number;
-  /** U128 desimal; bandingkan sebagai BigInt (K-31). */
+  /** Decimal U128; compare as BigInt (K-31). */
   cumulativeAmount: U128String;
   voucher: UnsignedVoucher;
   signature: Ed25519Signature;
   registeredSeq: number;
   registeredCumulative: U128String;
   state: PendingRowState;
-  /** Percobaan registrasi yang gagal. */
+  /** Failed registration attempts. */
   attempts: number;
   nextAttemptAt: number | null;
   lastError: string | null;
   updatedAt: number;
-  /** Voucher leg bundle F5 (SD-048): didaftarkan lewat `register_in_bundle`; `null` untuk voucher biasa. */
+  /** F5 bundle leg voucher (SD-048): registered via `register_in_bundle`; `null` for a plain voucher. */
   bundleId: number | null;
 };
 
@@ -86,13 +86,13 @@ export class PendingStore {
   readonly #giveUp: StatementSync;
   readonly #open: StatementSync;
 
-  /** `path` berkas SQLite, atau `":memory:"`. `now` mengembalikan unix ms. */
+  /** `path` of the SQLite file, or `":memory:"`. `now` returns unix ms. */
   constructor(path: string, now: () => number = Date.now) {
     this.#db = new DatabaseSync(path);
     this.#now = now;
     this.#db.exec("PRAGMA journal_mode = WAL");
     this.#db.exec(SCHEMA);
-    // Basis data lama (sebelum SD-048) belum punya kolom bundle_id.
+    // Old database (before SD-048) does not have the bundle_id column yet.
     const columns = this.#db.prepare("PRAGMA table_info(pending_vouchers)").all() as Array<{ name: string }>;
     if (!columns.some((c) => c.name === "bundle_id")) this.#db.exec("ALTER TABLE pending_vouchers ADD COLUMN bundle_id INTEGER");
     this.#upsert = this.#db.prepare(`
@@ -132,7 +132,7 @@ export class PendingStore {
     );
   }
 
-  /** Simpan voucher bila `seq` lebih besar dari yang tersimpan. `true` bila baris berubah. */
+  /** Store a voucher if `seq` is greater than the stored one. `true` if the row changed. */
   upsert(circleContract: AccountId, voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean {
     const result = this.#upsert.run(
       circleContract, voucher.payer, voucher.payee, voucher.epoch, voucher.seq,
@@ -146,27 +146,27 @@ export class PendingStore {
     return raw ? toRow(raw) : null;
   }
 
-  /** Semua baris payer di satu epoch, urut menurut payee. */
+  /** All rows of a payer in one epoch, ordered by payee. */
   listByPayer(circleContract: AccountId, payer: AccountId, epoch: number): PendingRow[] {
     return (this.#byPayer.all(circleContract, payer, epoch) as Raw[]).map(toRow);
   }
 
-  /** Baris yang belum lunas registrasi (`pending` atau `retrying`) untuk satu kontrak, urut epoch lalu pasangan. */
+  /** Rows not yet fully registered (`pending` or `retrying`) for one contract, ordered by epoch then pair. */
   listOpen(circleContract: AccountId): PendingRow[] {
     return (this.#open.all(circleContract) as Raw[]).map(toRow);
   }
 
-  /** Registrasi gagal: `attempts + 1`, status `retrying`. */
+  /** Registration failed: `attempts + 1`, status `retrying`. */
   recordFailure(key: PendingKey, error: string, nextAttemptAt: number | null = null): void {
     this.#fail.run(error, nextAttemptAt, this.#now(), key.circleContract, key.payer, key.payee, key.epoch);
   }
 
-  /** Registrasi sukses sampai `seq`/kumulatif itu; baris lunas bila `seq` sama dengan yang tersimpan, selain itu kembali `pending`. */
+  /** Registration succeeded up to `seq`/cumulative; the row is settled if `seq` equals the stored one, otherwise it goes back to `pending`. */
   recordRegistered(key: PendingKey, seq: number, cumulativeAmount: U128String): void {
     this.#ok.run(seq, cumulativeAmount, seq, this.#now(), key.circleContract, key.payer, key.payee, key.epoch);
   }
 
-  /** Tetap gagal sampai `cutoff` atau error permanen; status `failed` hanya internal (K-31). */
+  /** Keeps failing until `cutoff` or a permanent error; status `failed` is internal only (K-31). */
   markFailed(key: PendingKey, error: string): void {
     this.#giveUp.run(error, this.#now(), key.circleContract, key.payer, key.payee, key.epoch);
   }

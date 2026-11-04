@@ -1,4 +1,4 @@
-// Menjalankan facilitator lokal: `npm run start -w @x207/facilitator`.
+// Runs the local facilitator: `npm run start -w @x207/facilitator`.
 import { serve } from "@hono/node-server";
 import type { KeyPairString } from "@near-js/crypto";
 import { createFacilitatorNearSigner } from "@x402/near";
@@ -13,21 +13,21 @@ import { NearRpc } from "./rpc.js";
 const config = loadConfig();
 const pending = new PendingStore(config.pendingDbPath);
 
-// Bawaan near:mainnet; X207_EXACT_NETWORK=near:testnet hanya untuk gladi testnet.
+// Default near:mainnet; X207_EXACT_NETWORK=near:testnet is only for testnet rehearsals.
 const exactNetwork: ExactNearNetwork = process.env.X207_EXACT_NETWORK === "near:testnet" ? "near:testnet" : EXACT_NEAR_NETWORK;
 const rpc = new NearRpc({ urls: config.rpcUrls, timeoutMs: config.rpcTimeoutMs });
-// `exact` near:mainnet butuh akun relayer; tanpa itu facilitator hanya melayani x207.
+// `exact` on near:mainnet needs a relayer account; without it the facilitator only serves x207.
 const exactSigner = config.relayer
   ? createFacilitatorNearSigner({
       relayers: [{ accountId: config.relayer.accountId, secretKey: config.relayer.privateKey as KeyPairString }],
       rpcUrls: { [exactNetwork]: config.rpcUrls[0]! },
     })
   : undefined;
-// Penjadwal registrasi (SD-028) jalan bila akun relayer dikonfigurasi; tanpa itu voucher hanya tersimpan di D3.
+// The registration scheduler (SD-028) runs if a relayer account is configured; without it vouchers are only stored in D3.
 const schedulers = config.relayer
   ? config.circles.map((circle) =>
       (() => {
-        // SD-031: dengan gas key, registrasi berjalan paralel di jalur nonce berbeda
+        // SD-031: with a gas key, registration runs in parallel on different nonce lanes
         const chain = new NearRegistrationChain({ rpc, circleContract: circle.circleContract, relayer: config.relayer!, ...(config.gasKey ? { gasKey: config.gasKey } : {}) });
         return new RegistrationScheduler({
           circleContract: circle.circleContract, store: pending, chain, mode: config.registerMode, concurrency: chain.concurrency,
@@ -56,7 +56,7 @@ const service = createFacilitatorService({
         },
       }
     : {}),
-  // Mode demo SD-029: `/settle` menunggu registrasi on-chain, atau menjawab `settlement_pending` setelah timeout (SD-030).
+  // SD-029 demo mode: `/settle` waits for on-chain registration, or answers `settlement_pending` after a timeout (SD-030).
   ...(config.registerMode === "per_request"
     ? {
         perRequest: {

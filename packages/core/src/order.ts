@@ -1,12 +1,12 @@
-// Format pesanan jasa (SD-069, pipeline P6, ADR-45). Pesanan adalah kesepakatan pembeli dan penjual atas jasa kerja; yang ada di rantai hanya voucher biasa dengan
-// `resource = "x207:order:<hash>"`. Kontrak tidak berubah. Tiga pola bayar:
-//   - `milestone`: kiriman per tonggak `{amount, due_at}`, dibayar setelah pembeli mengonfirmasi atau otomatis setelah jendela sengketa (ADR-42, BE-047);
-//   - `outcome`: bayar per hasil yang diterima pembeli (`lead`, `bug`); tiap tonggak adalah satu tempat hasil;
-//   - `proof`: bayar per transaksi penyedia yang terlihat di rantai (`keeper`, `solver`), lewat `payForProofs`; `delegate` (SD-072) memakai pola yang sama tetapi dibayar per
-//     `proposal_id` yang dipilih delegate dengan `VoteApprove` atau `VoteReject`, terhadap mandat publik (`mandate_hash`).
-// Aturan pencegah salah pakai ada di dokumennya: contoh (`sample_hash`) wajib untuk `prompt` karena hasil yang mudah disalin tidak boleh bisa disengketakan setelah disalin, dan
-// bukti kepemilikan `target` wajib untuk `loadtest` supaya x207 tidak menjadi pasar sewa DDoS (backend memeriksa target, BE-054). Anggaran dikunci sebagai bundle seperti SD-067
-// (`orderBundleTerms`); bundle hanya hidup di satu epoch, jadi tonggak yang jatuh tempo di epoch berbeda memakai bundle berbeda (`epochForTime` di invoice.ts).
+// Service order format (SD-069, pipeline P6, ADR-45). An order is an agreement between buyer and seller over work done; all that exists on-chain is a plain voucher with
+// `resource = "x207:order:<hash>"`. The contract does not change. Three payment patterns:
+//   - `milestone`: deliveries per milestone `{amount, due_at}`, paid after the buyer confirms or automatically after the dispute window (ADR-42, BE-047);
+//   - `outcome`: pay per result the buyer accepts (`lead`, `bug`); each milestone is one result slot;
+//   - `proof`: pay per provider transaction visible on-chain (`keeper`, `solver`), via `payForProofs`; `delegate` (SD-072) uses the same pattern but is paid per
+//     `proposal_id` the delegate votes on with `VoteApprove` or `VoteReject`, against a public mandate (`mandate_hash`).
+// Rules that prevent misuse live in the document: a sample (`sample_hash`) is required for `prompt` because a result that is easy to copy must not be disputable once copied, and
+// proof of ownership of `target` is required for `loadtest` so x207 does not become a DDoS-for-hire market (the backend checks the target, BE-054). The budget is locked as a bundle like SD-067
+// (`orderBundleTerms`); a bundle lives in only one epoch, so a milestone due in a different epoch uses a different bundle (`epochForTime` in invoice.ts).
 import { createHash } from "node:crypto";
 import { CREDIT_UNIT } from "./constants.js";
 import type { BundleTerms } from "./barter.js";
@@ -17,21 +17,21 @@ import type { InvoicePairState } from "./invoice.js";
 export const ORDER_KINDS = ["prompt", "research", "translation", "annotation", "scraping", "audit", "loadtest", "freelance", "bug", "lead", "keeper", "solver", "delegate"] as const;
 export type OrderKind = (typeof ORDER_KINDS)[number];
 export type OrderPattern = "milestone" | "outcome" | "proof";
-/** Pola bayar tiap jenis. Pemantauan (`day`) dan konsultasi (`minute`) tidak ada di sini: keduanya terukur seperti P5 dan memakai endpoint terukur. */
+/** Payment pattern per kind. Monitoring (`day`) and consulting (`minute`) are not here: both are metered like P5 and use a metered endpoint. */
 export const ORDER_PATTERN: Readonly<Record<OrderKind, OrderPattern>> = {
   prompt: "milestone", research: "milestone", translation: "milestone", annotation: "milestone", scraping: "milestone", audit: "milestone", loadtest: "milestone", freelance: "milestone",
   bug: "outcome", lead: "outcome", keeper: "proof", solver: "proof", delegate: "proof",
 };
-/** Nomor katalog barter tiap jenis. */
+/** Barter catalog number per kind. */
 export const ORDER_CATALOG_NO: Readonly<Record<OrderKind, number>> = {
   prompt: 39, research: 40, translation: 41, annotation: 42, scraping: 43, audit: 52, loadtest: 53, freelance: 83, bug: 88, lead: 51, keeper: 46, solver: 48, delegate: 16,
 };
 /**
- * Method kontrak yang dihitung sebagai bukti, per jenis. Untuk `delegate` ini bawaan (`act_proposal` dari Sputnik v2); sebuah DAO yang memakai method lain memberinya lewat
- * `OrderOptions.delegateMethods` pada `normalizeOrder`, `serializeOrder`, dan `orderHash`.
+ * Contract methods counted as proof, per kind. For `delegate` this is the default (`act_proposal` from Sputnik v2); a DAO that uses another method supplies it via
+ * `OrderOptions.delegateMethods` on `normalizeOrder`, `serializeOrder`, and `orderHash`.
  */
 export const PROOF_METHODS: Readonly<Record<"keeper" | "solver" | "delegate", readonly string[]>> = { keeper: ["close_epoch", "finalize_epoch"], solver: ["submit_clearing"], delegate: ["act_proposal"] };
-/** Aksi pemungutan suara yang dibayar untuk pesanan `delegate`; aksi lain dari method yang sama (`Finalize`, `VoteRemove`, ...) tidak dibayar. */
+/** Voting actions that are paid for `delegate` orders; other actions of the same method (`Finalize`, `VoteRemove`, ...) are not paid. */
 export const DELEGATE_VOTE_ACTIONS: readonly string[] = ["VoteApprove", "VoteReject"];
 export type OrderOptions = { delegateMethods?: readonly string[] };
 export const ORDER_RESOURCE_PREFIX = "x207:order:";
@@ -56,20 +56,20 @@ export type OrderDocument = {
   kind: OrderKind;
   buyer: AccountId;
   seller: AccountId;
-  /** sha256 heks dari spesifikasi kerja (isi tetap di luar rantai). */
+  /** sha256 hex of the work specification (the content stays off-chain). */
   spec_hash: string;
   milestones: OrderMilestone[];
-  /** Contoh hasil: wajib untuk `prompt`; hash dikunci saat pesanan dibuat. */
+  /** Sample result: required for `prompt`; the hash is locked when the order is created. */
   sample_hash?: string | null;
-  /** Nama host target uji beban: wajib untuk `loadtest`, dilarang untuk jenis lain. */
+  /** Load-test target hostname: required for `loadtest`, forbidden for other kinds. */
   target?: string | null;
-  /** Wajib untuk `keeper`, `solver`, dan `delegate`, dilarang untuk jenis lain. Untuk `delegate`, `amount_per_tx` adalah harga satu suara (satu `proposal_id`). */
+  /** Required for `keeper`, `solver`, and `delegate`, forbidden for other kinds. For `delegate`, `amount_per_tx` is the price of one vote (one `proposal_id`). */
   proof?: OrderProof | null;
-  /** sha256 heks dari mandat publik (`mandateHash`): wajib untuk `delegate`, dilarang untuk jenis lain; hanya pesanan `delegate` yang memuatnya di JSON kanonik (hash pesanan lain tidak berubah). */
+  /** sha256 hex of the public mandate (`mandateHash`): required for `delegate`, forbidden for other kinds; only `delegate` orders include it in the canonical JSON (the hash of other orders does not change). */
   mandate_hash?: string | null;
   nonce: string;
 };
-/** Bentuk kanonik: `mandate_hash` hanya ada untuk pesanan `delegate`. */
+/** Canonical form: `mandate_hash` exists only for `delegate` orders. */
 export type NormalizedOrder = Required<Omit<OrderDocument, "mandate_hash">> & { mandate_hash?: string };
 
 const ACCOUNT = /^(?:[a-z\d]+[-_])*[a-z\d]+(?:\.(?:[a-z\d]+[-_])*[a-z\d]+)*$/;
@@ -84,7 +84,7 @@ const fail = (code: OrderErrorCode, message: string): never => {
 const isAccount = (v: unknown): v is string => typeof v === "string" && v.length >= 2 && v.length <= 64 && ACCOUNT.test(v);
 const isAmount = (v: unknown): v is string => typeof v === "string" && AMOUNT.test(v) && BigInt(v) <= U128_MAX;
 
-/** Memeriksa dokumen dan mengembalikan bentuk kanonik (kunci tetap, `null` untuk yang kosong). */
+/** Validates the document and returns the canonical form (fixed keys, `null` for empty values). */
 export function normalizeOrder(order: OrderDocument, options: OrderOptions = {}): NormalizedOrder {
   if (!ORDER_KINDS.includes(order.kind)) fail("order_bad_kind", `unknown order kind: ${JSON.stringify(order.kind)}; choose ${ORDER_KINDS.join(", ")}`);
   for (const [name, value] of [["circle", order.circle], ["buyer", order.buyer], ["seller", order.seller]] as const) if (!isAccount(value)) fail("order_bad_account", `${name} is not a NEAR account: ${JSON.stringify(value)}`);
@@ -130,27 +130,27 @@ export function normalizeOrder(order: OrderDocument, options: OrderOptions = {})
   };
 }
 
-/** JSON kanonik pesanan: kunci `circle, kind, buyer, seller, spec_hash, milestones, sample_hash, target, proof, nonce`, tanpa spasi; pesanan `delegate` menyisipkan `mandate_hash` setelah `proof`. */
+/** Canonical order JSON: keys `circle, kind, buyer, seller, spec_hash, milestones, sample_hash, target, proof, nonce`, no whitespace; `delegate` orders insert `mandate_hash` after `proof`. */
 /** For the helpers that work on an order that was already accepted: the method of its own proof is taken as allowed (the DAO list is checked where the order is accepted). */
 const ownMethod = (o: OrderDocument): OrderOptions => (o.kind === "delegate" ? { delegateMethods: o.proof ? [o.proof.method] : [] } : {});
 export const serializeOrder = (order: OrderDocument, options: OrderOptions = {}): string => JSON.stringify(normalizeOrder(order, options));
 export const orderHash = (order: OrderDocument, options: OrderOptions = {}): string => createHash("sha256").update(serializeOrder(order, options)).digest("hex");
 
-// ---- mandat delegate (SD-072) ------------------------------------------------------------------------------------------------------------------------------------------------------
+// ---- delegate mandate (SD-072) ------------------------------------------------------------------------------------------------------------------------------------------------------
 
 export type DelegateMandate = {
   circle: AccountId;
-  /** Akun DAO tempat delegate memberi suara. */
+  /** DAO account where the delegate votes. */
   dao: AccountId;
-  /** Jenis proposal (varian `ProposalKind` Sputnik v2 dalam snake_case) yang boleh dibayar. */
+  /** Proposal kinds (`ProposalKind` variants of Sputnik v2 in snake_case) that may be paid. */
   kinds: string[];
-  /** sha256 heks dari teks aturan publik: kapan delegate memilih apa. Teksnya di luar rantai. */
+  /** sha256 hex of the public rules text: when the delegate picks what. The text stays off-chain. */
   rules_hash: string;
 };
 const KIND = /^[a-z][a-z0-9_]{1,31}$/;
 export const MAX_MANDATE_KINDS = 16;
 
-/** Memeriksa mandat dan mengembalikan bentuk kanonik: `kinds` terurut naik, tanpa duplikat. */
+/** Validates the mandate and returns the canonical form: `kinds` sorted ascending, no duplicates. */
 export function normalizeMandate(m: DelegateMandate): DelegateMandate {
   if (!isAccount(m.circle) || !isAccount(m.dao)) fail("order_bad_mandate", "circle and dao must be NEAR accounts");
   if (!Array.isArray(m.kinds) || m.kinds.length < 1 || m.kinds.length > MAX_MANDATE_KINDS) fail("order_bad_mandate", `kinds must be 1 to ${MAX_MANDATE_KINDS} proposal kinds`);
@@ -159,17 +159,17 @@ export function normalizeMandate(m: DelegateMandate): DelegateMandate {
   if (!HASH.test(m.rules_hash)) fail("order_bad_mandate", "rules_hash must be 64 lowercase hex characters");
   return { circle: m.circle, dao: m.dao, kinds: [...m.kinds].sort(), rules_hash: m.rules_hash };
 }
-/** JSON kanonik mandat: kunci `circle, dao, kinds, rules_hash`, tanpa spasi. */
+/** Canonical mandate JSON: keys `circle, dao, kinds, rules_hash`, no whitespace. */
 export const serializeMandate = (m: DelegateMandate): string => JSON.stringify(normalizeMandate(m));
 export const mandateHash = (m: DelegateMandate): string => createHash("sha256").update(serializeMandate(m)).digest("hex");
 
-// ---- klaim transaksi delegate -------------------------------------------------------------------------------------------------------------------------------------------------------
+// ---- delegate transaction claim -------------------------------------------------------------------------------------------------------------------------------------------------------
 
 const TX_HASH = /^[1-9A-HJ-NP-Za-km-z]{32,64}$/;
 export type OrderClaimNotice = { circle: AccountId; order_hash: string; actor: AccountId; action: "claim"; at: number; tx_hash: string };
 /**
- * Notice klaim: penjual (delegate) menyatakan transaksi suaranya ke backend (`POST orders/{hash}/claims`), karena suara di DAO tidak lewat indexer x207. Urutan kunci:
- * `circle, order_hash, actor, action, at, tx_hash`. Backend memeriksa transaksi itu lewat RPC.
+ * Claim notice: the seller (delegate) declares its vote transaction to the backend (`POST orders/{hash}/claims`), because votes in the DAO do not pass through the x207 indexer. Key order:
+ * `circle, order_hash, actor, action, at, tx_hash`. The backend checks that transaction over RPC.
  */
 export function orderClaimNotice(args: { circle: AccountId; orderHash: string; actor: AccountId; at: number; txHash: string }): OrderClaimNotice {
   if (!isAccount(args.circle) || !isAccount(args.actor)) fail("order_bad_account", "circle and actor must be NEAR accounts");
@@ -178,7 +178,7 @@ export function orderClaimNotice(args: { circle: AccountId; orderHash: string; a
   if (!TX_HASH.test(args.txHash)) fail("order_bad_hash", "tx_hash is not a NEAR transaction hash (base58)");
   return { circle: args.circle, order_hash: args.orderHash, actor: args.actor, action: "claim", at: args.at, tx_hash: args.txHash };
 }
-/** Tanda tangan notice klaim: NEP-413 atas JSON notice dengan penerima akun kontrak, skema yang sama dengan notice buku lain. */
+/** Claim notice signature: NEP-413 over the notice JSON with the contract account as recipient, the same scheme as other ledger notices. */
 export function signOrderClaim(notice: OrderClaimNotice, secretKey: VoucherSecretKey): string {
   const json = JSON.stringify(notice);
   return signHash(nep413SigningHash(json, createHash("sha256").update(json, "utf8").digest(), notice.circle), secretKey);
@@ -194,14 +194,14 @@ export function parseOrderResource(resource: string): string | null {
   return HASH.test(hash) ? hash : null;
 }
 
-/** Jumlah semua tonggak: anggaran pesanan (batas atas yang bisa dibayar). */
+/** Sum of all milestones: the order budget (upper bound that can be paid). */
 export function orderBudget(order: OrderDocument): U128String {
   return normalizeOrder(order, ownMethod(order)).milestones.reduce((n, m) => n + BigInt(m.amount), 0n).toString();
 }
 
 /**
- * Syarat bundle yang mengunci anggaran pesanan di `epoch`, seperti SD-067: leg pembeli ke penjual sebesar `amount` (bawaan: seluruh anggaran) ditambah leg pendamping penjual ke
- * pembeli sebesar 1 satuan terkecil, karena kontrak menuntut dua leg. Bundle hanya hidup di epoch itu.
+ * Terms of the bundle that locks the order budget in `epoch`, as in SD-067: a buyer-to-seller leg of `amount` (default: the whole budget) plus a companion seller-to-
+ * buyer leg of 1 smallest unit, because the contract demands two legs. The bundle lives only in that epoch.
  */
 export function orderBundleTerms(args: { order: OrderDocument; epoch: number; amount?: U128String }): BundleTerms {
   const o = normalizeOrder(args.order, ownMethod(args.order));
@@ -215,9 +215,9 @@ export function orderBundleTerms(args: { order: OrderDocument; epoch: number; am
 }
 
 /**
- * Voucher untuk tonggak `index` (mulai 1) sesudah tonggak itu terkonfirmasi, melanjutkan keadaan pasangan di `epoch`. Tonggak yang disengketakan tidak dibayar dan tidak mengubah
- * keadaan, jadi voucher tonggak berikutnya dibuat dari keadaan pasangan yang sebenarnya (`state`), bukan dari rantai voucher yang dihitung di depan.
- * `paid` wajib: indeks tonggak yang sudah dibayar pemanggil (`OrderLedger` mencatatnya); tonggak yang sudah dibayar ditolak, jadi satu tonggak tidak dibayar dua kali.
+ * Voucher for milestone `index` (from 1) after that milestone is confirmed, continuing the pair state in `epoch`. A disputed milestone is not paid and does not change
+ * the state, so the next milestone's voucher is built from the real pair state (`state`), not from a voucher chain computed ahead of time.
+ * `paid` is required: the milestone indexes the caller has already paid (`OrderLedger` records them); an already-paid milestone is rejected, so one milestone is never paid twice.
  */
 export function milestoneVoucher(args: { order: OrderDocument; index: number; epoch: number; state: InvoicePairState; paid: readonly number[] }): UnsignedVoucher {
   const o = normalizeOrder(args.order, ownMethod(args.order));
@@ -235,23 +235,23 @@ export function milestoneVoucher(args: { order: OrderDocument; index: number; ep
   };
 }
 
-/** Bukti on-chain dari backend (`GET orders/{hash}/onchain-proofs`, BE-055): satu transaksi penyedia. */
+/** On-chain proof from the backend (`GET orders/{hash}/onchain-proofs`, BE-055): one provider transaction. */
 export type OnchainProof = {
   txHash: string; method: string; signer: AccountId;
-  /** Hanya pesanan `delegate` (SD-072): kontrak yang dipanggil, proposal yang dipilih, aksinya, dan jenis proposalnya (varian `ProposalKind` snake_case). */
+  /** `delegate` orders only (SD-072): the contract called, the proposal voted on, its action, and its proposal kind (`ProposalKind` variant in snake_case). */
   receiver?: AccountId; proposal_id?: number; action?: string; proposal_kind?: string;
 };
 export type ProofRefusal = { txHash: string; reason: "wrong_signer" | "wrong_method" | "already_paid" | "over_budget" | "unverified" | "wrong_receiver" | "not_a_vote" | "kind_not_in_mandate" };
 /**
- * `paid` adalah hash transaksi yang dibayar; `paidKeys` adalah kunci anti-ganda yang dicatat: hash transaksi, atau `proposal:<id>` untuk pesanan `delegate`. Panggilan berikutnya memberi
- * `paidKeys` (bukan `paid`) sebagai `alreadyPaid` (B5-F1, review BE-062).
+ * `paid` is the hash of paid transactions; `paidKeys` is the anti-duplicate keys recorded: transaction hashes, or `proposal:<id>` for `delegate` orders. The next call passes
+ * `paidKeys` (not `paid`) as `alreadyPaid` (B5-F1, BE-062 review).
  */
 export type PayForProofsResult = { vouchers: Voucher[]; paid: string[]; paidKeys: string[]; refused: ProofRefusal[]; state: InvoicePairState; spent: U128String };
 
 /**
- * Helper pembeli untuk pesanan `keeper` dan `solver`: satu voucher per bukti yang cocok, masing-masing sebesar `proof.amount_per_tx`, berurutan di epoch `epoch` mulai dari keadaan
- * pasangan `state`. Bukti ditolak (bukan dibayar) bila ditandatangani akun lain, memakai method lain, sudah dibayar (`alreadyPaid`, juga bila muncul dua kali), atau akan melewati
- * anggaran pesanan (`alreadySpent` + yang dibayar di sini tidak boleh melebihi `orderBudget`). Tidak ada yang dibayar untuk pesanan dengan pola lain.
+ * Buyer helper for `keeper` and `solver` orders: one voucher per matching proof, each of `proof.amount_per_tx`, in sequence in epoch `epoch` starting from pair state
+ * `state`. A proof is rejected (not paid) if signed by another account, uses another method, was already paid (`alreadyPaid`, also if it appears twice), or would exceed the
+ * order budget (`alreadySpent` + what is paid here must not exceed `orderBudget`). Nothing is paid for orders with another pattern.
  */
 export type PayForProofsArgs = {
   order: OrderDocument;
@@ -259,17 +259,17 @@ export type PayForProofsArgs = {
   state: InvoicePairState;
   proofs: readonly OnchainProof[];
   /**
-   * Wajib (F4): kunci yang sudah dibayar, yaitu `paidKeys` dari panggilan sebelumnya (untuk `keeper` dan `solver` sama dengan hash transaksi, untuk `delegate` `proposal:<id>`); `[]`
-   * ditulis eksplisit pada panggilan pertama. Untuk pesanan `delegate` isi yang bukan `proposal:<id>` ditolak, karena hash transaksi tidak melindungi proposal yang sama.
+   * Required (F4): the keys already paid, i.e. `paidKeys` from the previous call (for `keeper` and `solver` the same as the transaction hash, for `delegate` `proposal:<id>`); `[]`
+   * is written explicitly on the first call. For `delegate` orders, entries that are not `proposal:<id>` are rejected, because a transaction hash does not protect the same proposal.
    */
   alreadyPaid: readonly string[];
-  /** Wajib (F4): yang sudah dibayar untuk pesanan ini, satuan credit terkecil (`"0"` pada panggilan pertama). */
+  /** Required (F4): what is already paid for this order, in smallest credit units (`"0"` on the first call). */
   alreadySpent: U128String;
-  /** Opsional (F12): tanya rantai apakah transaksi itu nyata, dari penyedia itu, dengan method itu; `false` menolaknya (`unverified`). Tanpa ini bukti dipercaya dari backend apa adanya. */
+  /** Optional (F12): ask the chain whether that transaction is real, from that provider, with that method; `false` rejects it (`unverified`). Without this, proofs are trusted from the backend as-is. */
   verifyTx?: (proof: OnchainProof) => boolean;
-  /** Wajib untuk pesanan `delegate`: mandat yang hash-nya ada di dokumen (`mandate_hash`). */
+  /** Required for `delegate` orders: the mandate whose hash is in the document (`mandate_hash`). */
   mandate?: DelegateMandate;
-  /** Method bukti yang dipakai DAO untuk pesanan `delegate` (bawaan `PROOF_METHODS.delegate`). */
+  /** Proof method used by the DAO for `delegate` orders (default `PROOF_METHODS.delegate`). */
   options?: OrderOptions;
   secretKey: VoucherSecretKey;
 };
@@ -368,9 +368,9 @@ export function rpcTxVerifier(rpcUrl: string, fetchImpl: typeof fetch = fetch): 
 }
 
 /**
- * Buku bayar satu pesanan di sisi pembeli (F4 dan F5): mencatat tonggak dan transaksi yang sudah dibayar dan jumlahnya, jadi satu tonggak tidak dibayar dua kali dan satu bukti tidak
- * dibayar dua kali, juga setelah agen dijalankan lagi (simpan `snapshot()` dan buat lagi dengan `OrderLedger.restore`). Voucher tetap harus didaftarkan penjual; buku ini hanya mengingat
- * apa yang sudah ditandatangani.
+ * Payment ledger of one order on the buyer side (F4 and F5): records the milestones and transactions already paid and their amount, so one milestone is not paid twice and one proof is not
+ * paid twice, also after the agent is run again (save `snapshot()` and rebuild with `OrderLedger.restore`). The seller must still register vouchers; this ledger only remembers
+ * what has been signed.
  */
 export class OrderLedger {
   readonly order: OrderDocument;
@@ -398,7 +398,7 @@ export class OrderLedger {
     return this.#spent.toString();
   }
 
-  /** Voucher untuk tonggak yang terkonfirmasi, dicatat sebagai dibayar; tonggak yang sama dua kali ditolak. */
+  /** Voucher for a confirmed milestone, recorded as paid; the same milestone twice is rejected. */
   payMilestone(args: { index: number; epoch: number; state: InvoicePairState; secretKey: VoucherSecretKey }): Voucher {
     const unsigned = milestoneVoucher({ order: this.order, index: args.index, epoch: args.epoch, state: args.state, paid: [...this.#milestones] });
     const amount = BigInt(unsigned.cumulativeAmount) - BigInt(args.state.cumulativeAmount);
@@ -427,7 +427,7 @@ export class OrderLedger {
     return result;
   }
 
-  /** Bayar per bukti on-chain dengan catatan buku ini. */
+  /** Pay per on-chain proof, recording it in this ledger. */
   payProofs(args: { epoch: number; state: InvoicePairState; proofs: readonly OnchainProof[]; secretKey: VoucherSecretKey; verifyTx?: (proof: OnchainProof) => boolean; mandate?: DelegateMandate; options?: OrderOptions }): PayForProofsResult {
     const result = payForProofs({
       order: this.order, epoch: args.epoch, state: args.state, proofs: args.proofs, alreadyPaid: [...this.#proofs], alreadySpent: this.#spent.toString(), secretKey: args.secretKey,

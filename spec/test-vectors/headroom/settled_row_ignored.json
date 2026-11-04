@@ -1,6 +1,6 @@
 {
   "name": "settled_row_ignored",
-  "description": "Pending sudah lunas terdaftar: kontribusi 0 (TC-SD-023-07).",
+  "description": "A pending row already settled and registered: contribution 0 (TC-SD-023-07).",
   "input": {
     "epoch": 42,
     "payer": "a.x207-circle.near",

@@ -1,5 +1,5 @@
-// SD-048 di near-sandbox: bundle F5 A -> B -> C -> A di-commit, voucher leg diperiksa facilitator terhadap batas leg lalu didaftarkan
-// scheduler lewat register_in_bundle dengan headroom cadangan. Lewati bila binary near-sandbox atau wasm kontrak 0.0.4 tidak ada.
+// SD-048 in near-sandbox: F5 bundle A -> B -> C -> A is committed, the facilitator checks leg vouchers against the leg limit, then the
+// scheduler registers them through register_in_bundle with reserved headroom. Skipped if the near-sandbox binary or the 0.0.4 contract wasm is missing.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createCircleViewFn, onboardMember, signBundle, signVoucher, termsHash, type BundleTerms, type ContractAbi, type ContractCall,
@@ -15,7 +15,7 @@ import { RegistrationScheduler } from "../src/scheduler.js";
 
 const CREDIT = 1_000_000n;
 
-describe.skipIf(!sandboxAvailable)("SD-048 voucher leg bundle di near-sandbox", () => {
+describe.skipIf(!sandboxAvailable)("SD-048 bundle leg voucher in near-sandbox", () => {
   let fx: CircleFixture;
   let relayer: SandboxAccount;
   beforeAll(async () => {
@@ -48,7 +48,7 @@ describe.skipIf(!sandboxAvailable)("SD-048 voucher leg bundle di near-sandbox", 
     const headroom = async (m: { account: SandboxAccount }) => BigInt(await fx.sandbox.view<string>(fx.circle.accountId, "headroom", { account_id: m.account.accountId }));
     const freeBefore = await headroom(a);
 
-    // Bundle: a -> b 30, b -> c 20, c -> a 25 credit; ketiganya menandatangani terms_hash
+    // Bundle: a -> b 30, b -> c 20, c -> a 25 credit; all three sign terms_hash
     const terms: BundleTerms = {
       circle: fx.circle.accountId, epoch,
       legs: [
@@ -68,14 +68,14 @@ describe.skipIf(!sandboxAvailable)("SD-048 voucher leg bundle di near-sandbox", 
     expect(committed.failures).toEqual([]);
     const stored = await fx.sandbox.view<ContractAbi.BundleView | null>(fx.circle.accountId, "get_bundle", { bundle_id: 1 });
     expect(stored).toMatchObject({ bundle_id: 1, epoch, terms_hash: termsHash(terms), status: "active" });
-    // headroom bebas a berkurang sebesar cadangan leg-nya
+    // a's free headroom is reduced by its leg reserve
     expect(await headroom(a)).toBe(freeBefore - 30n * CREDIT);
 
     const rpc = new NearRpc({ urls: [fx.sandbox.rpcUrl], timeoutMs: 30_000 });
     const circle = { network: "x207:agents-main", circleContract: fx.circle.accountId } as const;
     const pending = new PendingStore(":memory:");
     const nearChain = new NearChain(rpc, circle as never, pending);
-    // NearRpc membaca blok final; tunggu bundle yang baru di-commit terlihat di sana (sebelumnya verify menjawab bundle_unknown)
+    // NearRpc reads the final block; wait until the newly committed bundle is visible there (before that verify answered bundle_unknown)
     for (let i = 0; i < 60 && !(await nearChain.bundle(1)); i++) await new Promise((r) => setTimeout(r, 1_000));
     expect(await nearChain.bundle(1)).not.toBeNull();
     const facilitator = new X207SchemeFacilitator({ network: circle.network, circleContract: circle.circleContract, verify: { chain: nearChain } });
@@ -89,13 +89,13 @@ describe.skipIf(!sandboxAvailable)("SD-048 voucher leg bundle di near-sandbox", 
       return { payload: { x402Version: 2, resource: { url: unsigned.resource }, accepted: requirements, payload: { voucher, signature, ...(bundleId === undefined ? {} : { bundleId }) } } as never, requirements: requirements as never, voucher, signature };
     };
 
-    // verify memakai batas leg: 40 > 30 ditolak; 30 lolos
+    // verify uses the leg limit: 40 > 30 is rejected; 30 passes
     const tooBig = voucherPayload(40n * CREDIT, 1);
     expect(await facilitator.verify(tooBig.payload, tooBig.requirements)).toMatchObject({ isValid: false, invalidReason: "bundle_leg_exceeded" });
     const fits = voucherPayload(30n * CREDIT, 1);
     expect(await facilitator.verify(fits.payload, fits.requirements)).toEqual({ isValid: true, payer: a.account.accountId });
 
-    // scheduler mendaftarkan lewat register_in_bundle; headroom bebas tidak berubah
+    // the scheduler registers through register_in_bundle; free headroom does not change
     const logs: string[][] = [];
     pending.upsert(fx.circle.accountId, fits.voucher, fits.signature, 1);
     const scheduler = new RegistrationScheduler({
@@ -110,7 +110,7 @@ describe.skipIf(!sandboxAvailable)("SD-048 voucher leg bundle di near-sandbox", 
     expect(after.legs.find((l) => l.payer === a.account.accountId)?.registered).toBe(String(30n * CREDIT));
     expect(await headroom(a)).toBe(freeBefore - 30n * CREDIT);
 
-    // kontrak juga menolak voucher di atas batas leg bila facilitator dilewati
+    // the contract also rejects a voucher above the leg limit if the facilitator is bypassed
     const direct = voucherPayload(40n * CREDIT, 1);
     const stale = signVoucher({ ...direct.voucher, seq: 2 }, a.secretKey);
     const { signature: sig2, ...v2 } = stale;

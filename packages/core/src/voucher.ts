@@ -1,5 +1,5 @@
-// Serialisasi kanonik voucher (gaya NEP-413, ADR-06) dan tanda tangan ed25519.
-// Format byte: spec/voucher-format.md. Kontrak Rust membangun byte yang sama (Spec Antarmuka Kontrak 3.3).
+// Canonical voucher serialization (NEP-413 style, ADR-06) and ed25519 signature.
+// Byte format: spec/voucher-format.md. The Rust contract builds the same bytes (Contract Interface Spec 3.3).
 import {
   createHash,
   createPrivateKey,
@@ -20,7 +20,7 @@ import { validateUnsignedVoucher } from "./validate.js";
 /** Tag NEP-413: 2^31 + 413. */
 export const NEP413_TAG = 2147484061;
 
-/** Kunci voucher ed25519: seed 32 byte, atau string `ed25519:<base58 64 byte>` (seed + pubkey, gaya NEAR). */
+/** ed25519 voucher key: a 32-byte seed, or the string `ed25519:<base58 64 bytes>` (seed + pubkey, NEAR style). */
 export type VoucherSecretKey = Uint8Array | `ed25519:${string}`;
 
 const PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
@@ -46,14 +46,14 @@ function assertSerializable(voucher: UnsignedVoucher): void {
   if (!result.ok) throw new Error(`voucher cannot be serialized: ${result.field} ${result.message}`);
 }
 
-/** JSON kanonik tanpa `signature`: urutan key tetap, tanpa spasi, `cumulativeAmount` string, `epoch` dan `seq` number. */
+/** Canonical JSON without `signature`: fixed key order, no whitespace, `cumulativeAmount` a string, `epoch` and `seq` numbers. */
 export function serializeVoucherMessage(voucher: UnsignedVoucher): string {
   assertSerializable(voucher);
   const ordered = Object.fromEntries(UNSIGNED_VOUCHER_KEYS.map((key) => [key, voucher[key]]));
   return JSON.stringify(ordered);
 }
 
-/** `sha256("x207:" + payer + ":" + payee + ":" + epoch + ":" + seq)`, 32 byte. */
+/** `sha256("x207:" + payer + ":" + payee + ":" + epoch + ":" + seq)`, 32 bytes. */
 export function voucherNonce(voucher: UnsignedVoucher): Uint8Array {
   assertSerializable(voucher);
   const { payer, payee, epoch, seq } = voucher;
@@ -71,7 +71,7 @@ export function voucherPayload(voucher: UnsignedVoucher): Uint8Array {
   ]);
 }
 
-/** Yang ditandatangani: `sha256(payload)`. */
+/** What is signed: `sha256(payload)`. */
 export const voucherSigningHash = (voucher: UnsignedVoucher): Uint8Array =>
   sha256(voucherPayload(voucher));
 
@@ -89,13 +89,13 @@ function seedOf(secretKey: VoucherSecretKey): Uint8Array {
 const privateKeyOf = (seed: Uint8Array) =>
   createPrivateKey({ key: Buffer.concat([PKCS8_PREFIX, seed]), format: "der", type: "pkcs8" });
 
-/** Pubkey voucher `ed25519:<base58>` (nilai `pubkey_voucher` di D1). */
+/** Voucher pubkey `ed25519:<base58>` (the `pubkey_voucher` value in D1). */
 export function voucherPublicKey(secretKey: VoucherSecretKey): `ed25519:${string}` {
   const spki = createPublicKey(privateKeyOf(seedOf(secretKey))).export({ format: "der", type: "spki" });
   return `${ED25519_PREFIX}${base58Encode(spki.subarray(SPKI_PREFIX.length))}`;
 }
 
-/** Keypair voucher baru. Kunci ini bukan access key NEAR (ADR-06). */
+/** New voucher keypair. This key is not a NEAR access key (ADR-06). */
 export function generateVoucherKeypair(): { secretKey: `ed25519:${string}`; publicKey: `ed25519:${string}` } {
   const seed = randomBytes(32);
   const publicKey = voucherPublicKey(seed);
@@ -103,7 +103,7 @@ export function generateVoucherKeypair(): { secretKey: `ed25519:${string}`; publ
   return { secretKey: `${ED25519_PREFIX}${base58Encode(Buffer.concat([seed, pub]))}`, publicKey };
 }
 
-/** `sha256` dari payload NEP-413 untuk pesan apa pun: `u32 tag` + borsh `{ message, nonce[32], recipient, callback_url: None }`. */
+/** `sha256` of the NEP-413 payload for any message: `u32 tag` + borsh `{ message, nonce[32], recipient, callback_url: None }`. */
 export function nep413SigningHash(message: string, nonce: Uint8Array, recipient: string): Uint8Array {
   if (nonce.length !== 32) throw new Error("NEP-413 nonce must be 32 bytes");
   return sha256(
@@ -111,12 +111,12 @@ export function nep413SigningHash(message: string, nonce: Uint8Array, recipient:
   );
 }
 
-/** Tanda tangan ed25519 atas hash 32 byte, ditulis `ed25519:<base58 64 byte>`. */
+/** ed25519 signature over a 32-byte hash, written `ed25519:<base58 64 bytes>`. */
 export function signHash(hash: Uint8Array, secretKey: VoucherSecretKey): Ed25519Signature {
   return `${ED25519_PREFIX}${base58Encode(nodeSign(null, hash, privateKeyOf(seedOf(secretKey))))}` as Ed25519Signature;
 }
 
-/** `true` hanya bila `signature` sah atas `hash` untuk `publicKey`; input rusak menghasilkan `false`. */
+/** `true` only if `signature` is valid over `hash` for `publicKey`; malformed input yields `false`. */
 export function verifyHash(hash: Uint8Array, signature: string, publicKey: string): boolean {
   try {
     if (!publicKey.startsWith(ED25519_PREFIX) || !signature.startsWith(ED25519_PREFIX)) return false;
@@ -140,7 +140,7 @@ export function signVoucher(voucher: UnsignedVoucher, secretKey: VoucherSecretKe
   };
 }
 
-/** `true` hanya bila tanda tangan sah atas byte kanonik. Input rusak menghasilkan `false`, tidak melempar. */
+/** `true` only if the signature is valid over the canonical bytes. Malformed input yields `false`, does not throw. */
 export function verifyVoucher(voucher: Voucher, publicKey: string): boolean {
   try {
     if (!publicKey.startsWith(ED25519_PREFIX) || !voucher.signature.startsWith(ED25519_PREFIX)) return false;

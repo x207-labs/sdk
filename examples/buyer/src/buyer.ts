@@ -1,13 +1,13 @@
-// Pembeli x207 minimal: satu wrapper `@x402/fetch` dan klien x207 (`x207:*` sudah terdaftar di dalamnya).
-// Voucher dipakai selama headroom cukup; selebihnya klien jatuh ke entri `exact` bila agent mendaftarkannya.
+// Minimal x207 buyer: one `@x402/fetch` wrapper and the x207 client (`x207:*` is already registered in it).
+// The voucher is used while headroom is sufficient; beyond that the client falls back to the `exact` entry if the agent registered it.
 import { wrapFetchWithPayment } from "@x402/fetch";
 import type { AccountId, VoucherSecretKey } from "@x207/core";
 import { X207PaymentClient, headroomFromRpc } from "@x207/scheme";
 
 export type BuyerOptions = {
-  /** Akun NEAR agent; anggota `active` lingkaran (lihat `onboardMember`). */
+  /** NEAR account of the agent; an `active` member of the circle (see `onboardMember`). */
   accountId: AccountId;
-  /** Kunci voucher ed25519 agent (ADR-06), bukan access key NEAR. */
+  /** The agent's ed25519 voucher key (ADR-06), not a NEAR access key. */
   secretKey: VoucherSecretKey;
   rpcUrls?: readonly string[];
   fetch?: typeof fetch;

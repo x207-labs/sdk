@@ -1,12 +1,12 @@
-// Format lisensi konten dan pertukaran adil dengan enkripsi (SD-070, pipeline P7, ADR-46). Yang dijual adalah lisensi atas berkas; berkasnya sendiri tidak disimpan x207.
-// Alur: penjual memasang ciphertext di sumber mana saja dan mencatat `cipher_hash`; pembeli mengunduh dan mengecek `cipher_hash`; penjual melepas kunci berkas yang disegel ke
-// kunci x25519 pembeli dan menandatangani rilis itu; pembeli mendekripsi dan mengecek `content_hash`. Cocok: konfirmasi. Tidak cocok: bukti curang yang bisa diperiksa siapa saja.
+// Content license format and fair exchange with encryption (SD-070, pipeline P7, ADR-46). What is sold is a license over a file; x207 does not store the file itself.
+// Flow: the seller posts the ciphertext at any source and records `cipher_hash`; the buyer downloads and checks `cipher_hash`; the seller releases the file key sealed to the
+// buyer's x25519 key and signs that release; the buyer decrypts and checks `content_hash`. Match: confirmation. Mismatch: a cheat proof anyone can verify.
 //
-// Modul ini tidak memakai node:crypto atau Buffer, jadi jalan di browser (FE-028) dan di Node. Kripto dari @noble (XChaCha20-Poly1305, ed25519 dan x25519, sha256, HMAC).
+// This module uses neither node:crypto nor Buffer, so it runs in the browser (FE-028) and in Node. Crypto is from @noble (XChaCha20-Poly1305, ed25519 and x25519, sha256, HMAC).
 //
-// Batas yang diakui: (1) bukti curang hanya mungkin bila kunci yang dilepas bisa dibuka pembeli; penjual yang melepas kunci tersegel yang rusak tidak bisa dibuktikan, hanya
-// tidak dibayar (pembeli menyengketakan `other`, voucher tidak didaftarkan). (2) Lisensi eksklusif dicatat per `content_hash`; penjual yang mengubah satu byte tidak terdeteksi.
-// (3) Watermark mendeteksi penyebar ulang yang menyalin berkas utuh, bukan yang mengolahnya.
+// Acknowledged limits: (1) a cheat proof is only possible if the released key can be opened by the buyer; a seller who releases a corrupted sealed key cannot be proven wrong, only
+// goes unpaid (the buyer disputes `other`, the voucher is not registered). (2) Exclusive licenses are recorded per `content_hash`; a seller who changes one byte goes undetected.
+// (3) Watermarks detect a redistributor who copies the whole file, not one who processes it.
 import { xchacha20poly1305 } from "@noble/ciphers/chacha.js";
 import { ed25519, x25519 } from "@noble/curves/ed25519.js";
 import { hmac } from "@noble/hashes/hmac.js";
@@ -38,12 +38,12 @@ const isAccount = (v: unknown): v is string => typeof v === "string" && v.length
 
 // ---- content_hash: the Merkle root of leaves per 4 MiB, one scheme for every size -------------------------------------------------------------------------
 
-/** Ukuran potongan untuk Merkle dan untuk enkripsi: 4 MiB. */
+/** Chunk size for Merkle and for encryption: 4 MiB. */
 export const CONTENT_CHUNK = 4 * 1024 * 1024;
 const LEAF = Uint8Array.of(0);
 const NODE = Uint8Array.of(1);
 
-/** Akar Merkle gaya RFC 6962: daun `sha256(0x00 ‖ potongan)`, simpul `sha256(0x01 ‖ kiri ‖ kanan)`, pecahan di pangkat dua terbesar yang kurang dari jumlah daun. */
+/** RFC 6962-style Merkle root: leaf `sha256(0x00 ‖ chunk)`, node `sha256(0x01 ‖ left ‖ right)`, split at the largest power of two less than the leaf count. */
 export function merkleRoot(leaves: readonly Uint8Array[]): Uint8Array {
   if (leaves.length === 0) return fail("cipher_bad_format", "Merkle needs at least one leaf");
   if (leaves.length === 1) return leaves[0]!;
@@ -53,9 +53,9 @@ export function merkleRoot(leaves: readonly Uint8Array[]): Uint8Array {
 }
 
 /**
- * Hash isi bertahap, satu skema untuk semua ukuran (perbaikan F1 dan F2 dari tinjauan BE-062): berkas dipotong per 4 MiB, tiap potongan menjadi daun `sha256(0x00 ‖ potongan)`, dan
- * daun digabung dengan `merkleRoot` (simpul `sha256(0x01 ‖ kiri ‖ kanan)`). Berkas satu potongan, juga yang kosong, tetap melewati daun, jadi tidak ada isi yang bisa sekaligus
- * menjadi daun dan simpul: string 65 byte `0x01 ‖ kiri ‖ kanan` tidak punya hash yang sama dengan berkas besar.
+ * Staged content hash, one scheme for all sizes (fix for F1 and F2 from the BE-062 review): the file is cut per 4 MiB, each chunk becomes a leaf `sha256(0x00 ‖ chunk)`, and
+ * leaves are combined with `merkleRoot` (node `sha256(0x01 ‖ left ‖ right)`). A single-chunk file, including an empty one, still goes through a leaf, so no content can be both
+ * a leaf and a node: the 65-byte string `0x01 ‖ left ‖ right` does not have the same hash as a large file.
  */
 export class ContentHasher {
   #leaf = sha256.create().update(LEAF);
@@ -84,7 +84,7 @@ export class ContentHasher {
     return this.#total;
   }
 
-  /** Hash heks huruf kecil 64 karakter. Boleh dipanggil sekali. */
+  /** Lowercase hex hash, 64 characters. May be called once. */
   digest(): string {
     const leaves = this.#inLeaf > 0 || this.#total === 0 ? [...this.#leaves, this.#leaf.digest()] : this.#leaves;
     return bytesToHex(merkleRoot(leaves));
@@ -99,11 +99,11 @@ export type LicenseDocument = {
   circle: AccountId;
   seller: AccountId;
   content_hash: string;
-  /** Jenis lisensi dari daftar `license_id` backend, mis. `personal` atau `commercial`; ASCII `[a-z0-9.-]` 1 sampai 32. */
+  /** License kind from the backend `license_id` list, e.g. `personal` or `commercial`; ASCII `[a-z0-9.-]` 1 to 32. */
   license_id: string;
-  /** sha256 teks lisensi. */
+  /** sha256 of the license text. */
   license_hash: string;
-  /** sha256 preview (potongan kecil yang boleh dilihat sebelum beli); `null` bila tidak ada. */
+  /** sha256 of the preview (a small chunk that may be seen before buying); `null` if none. */
   preview_hash?: string | null;
   exclusive: boolean;
   nonce: string;
@@ -119,7 +119,7 @@ export function normalizeLicense(doc: LicenseDocument): Required<LicenseDocument
   if (typeof doc.nonce !== "string" || !/^[A-Za-z0-9._-]{1,32}$/.test(doc.nonce)) fail("license_bad_nonce", "nonce must be 1 to 32 characters [A-Za-z0-9._-]");
   return { circle: doc.circle, seller: doc.seller, content_hash: doc.content_hash, license_id: doc.license_id, license_hash: doc.license_hash, preview_hash: preview, exclusive: doc.exclusive, nonce: doc.nonce };
 }
-/** JSON kanonik: kunci `circle, seller, content_hash, license_id, license_hash, preview_hash, exclusive, nonce`. */
+/** Canonical JSON: keys `circle, seller, content_hash, license_id, license_hash, preview_hash, exclusive, nonce`. */
 export const serializeLicense = (doc: LicenseDocument): string => JSON.stringify(normalizeLicense(doc));
 export const licenseDocumentHash = (doc: LicenseDocument): string => bytesToHex(sha256(utf8(serializeLicense(doc))));
 export function licenseResource(hash: string): string {
@@ -147,8 +147,8 @@ const chunkNonce = (prefix: Uint8Array, index: number): Uint8Array => concatByte
 const finalAad = (final: boolean): Uint8Array => Uint8Array.of(final ? 1 : 0);
 
 /**
- * Mengenkripsi `plain` dengan kunci 32 byte (acak bila tidak diberikan). Format: `"X207ENC1" ‖ prefiks 16 byte ‖ potongan`; tiap potongan 4 MiB dienkripsi dengan nonce `prefiks ‖ indeks`
- * dan AAD satu byte penanda potongan terakhir, jadi pemotongan, penyisipan, dan penukaran urutan terdeteksi. Berkas kosong tetap satu potongan.
+ * Encrypts `plain` with a 32-byte key (random if not given). Format: `"X207ENC1" ‖ 16-byte prefix ‖ chunks`; each 4 MiB chunk is encrypted with nonce `prefix ‖ index`
+ * and AAD of one byte marking the last chunk, so truncation, insertion, and reordering are detected. An empty file is still one chunk.
  */
 export function encryptContent(plain: Uint8Array, options: { key?: Uint8Array; prefix?: Uint8Array } = {}): { ciphertext: Uint8Array; key: Uint8Array } {
   const key = options.key ?? randomBytes(32);
@@ -163,7 +163,7 @@ export function encryptContent(plain: Uint8Array, options: { key?: Uint8Array; p
   return { ciphertext: concatBytes(...parts), key };
 }
 
-/** Mendekripsi; melempar `cipher_bad_format` bila bukan format ini, terpotong, atau salah satu potongan gagal diautentikasi (kunci salah atau ciphertext diubah). */
+/** Decrypts; throws `cipher_bad_format` if not this format, truncated, or any chunk fails authentication (wrong key or altered ciphertext). */
 export function decryptContent(ciphertext: Uint8Array, key: Uint8Array): Uint8Array {
   if (key.length !== 32) fail("license_bad_key", "file key must be 32 bytes");
   if (ciphertext.length < HEADER + TAG || !MAGIC.every((b, i) => ciphertext[i] === b)) fail("cipher_bad_format", "not an X207ENC1 ciphertext");
@@ -172,7 +172,7 @@ export function decryptContent(ciphertext: Uint8Array, key: Uint8Array): Uint8Ar
   const full = CONTENT_CHUNK + TAG;
   const count = Math.max(1, Math.ceil(body.length / full));
   const lastLength = body.length - (count - 1) * full;
-  if (lastLength < TAG) fail("cipher_bad_format", "ciphertext terpotong");
+  if (lastLength < TAG) fail("cipher_bad_format", "ciphertext truncated");
   const out: Uint8Array[] = [];
   for (let i = 0; i < count; i++) {
     const piece = body.subarray(i * full, i === count - 1 ? body.length : (i + 1) * full);
@@ -200,14 +200,14 @@ function edPublic(publicKey: string): Uint8Array {
   if (bytes.length !== 32) return fail("license_bad_key", "public key must be 32 bytes");
   return bytes;
 }
-/** Kunci publik `ed25519:<base58>` dari kunci voucher rahasia. */
+/** Public key `ed25519:<base58>` from the secret voucher key. */
 export const licensePublicKey = (secretKey: string): string => `${ED}${base58Encode(ed25519.getPublicKey(edSeed(secretKey)))}`;
 
 const BOX_DOMAIN = utf8("x207:license:box:v1");
 const boxKeyOf = (shared: Uint8Array, ephemeralPub: Uint8Array, recipientPub: Uint8Array): Uint8Array => sha256(concatBytes(BOX_DOMAIN, shared, ephemeralPub, recipientPub));
 const BOX_NONCE = new Uint8Array(24); // the box key is unique per ephemeral key, so a fixed nonce is safe
 
-/** Menyegel kunci berkas ke kunci publik ed25519 pembeli: `ephemeral x25519 pub (32) ‖ ciphertext kunci (32 + 16)`; kunci kotak berasal dari X25519 dengan pembeli. */
+/** Seals the file key to the buyer's ed25519 public key: `ephemeral x25519 pub (32) ‖ key ciphertext (32 + 16)`; the box key comes from X25519 with the buyer. */
 export function sealKey(contentKey: Uint8Array, buyerPublicKey: string, ephemeralSecret?: Uint8Array): Uint8Array {
   if (contentKey.length !== 32) fail("license_bad_key", "file key must be 32 bytes");
   const recipient = ed25519.utils.toMontgomery(edPublic(buyerPublicKey));
@@ -217,7 +217,7 @@ export function sealKey(contentKey: Uint8Array, buyerPublicKey: string, ephemera
   return concatBytes(ephemeralPub, xchacha20poly1305(box, BOX_NONCE).encrypt(contentKey));
 }
 
-/** Kunci kotak (simetris) untuk `sealed`, dari kunci voucher pembeli: dipakai membuka kunci dan, bila perlu, diserahkan sebagai bagian bukti curang. */
+/** Box (symmetric) key for `sealed`, from the buyer's voucher key: used to open the key and, if needed, handed over as part of the cheat proof. */
 export function deriveBoxKey(sealed: Uint8Array, buyerSecretKey: string): Uint8Array {
   if (sealed.length !== 32 + 32 + TAG) fail("release_bad_key", "sealed key must be 80 bytes");
   const seed = edSeed(buyerSecretKey);
@@ -225,7 +225,7 @@ export function deriveBoxKey(sealed: Uint8Array, buyerSecretKey: string): Uint8A
   const ephemeralPub = sealed.subarray(0, 32);
   return boxKeyOf(x25519.getSharedSecret(mine, ephemeralPub), ephemeralPub, x25519.getPublicKey(mine));
 }
-/** Membuka kunci tersegel dengan kunci kotak; melempar `release_bad_key` bila gagal diautentikasi. */
+/** Opens the sealed key with the box key; throws `release_bad_key` if authentication fails. */
 export function openSealedWithBoxKey(sealed: Uint8Array, boxKey: Uint8Array): Uint8Array {
   if (sealed.length !== 32 + 32 + TAG || boxKey.length !== 32) fail("release_bad_key", "invalid sealed key or box key");
   try {
@@ -238,14 +238,14 @@ export const openSealedKey = (sealed: Uint8Array, buyerSecretKey: string): Uint8
 
 // ---- the release signed by the seller ---------------------------------------------------------------------------------------------------------------------------------
 
-/** Rilis kunci yang ditandatangani penjual: mengikat dokumen lisensi, isi, ciphertext, pembeli, dan kunci tersegel. */
+/** Key release signed by the seller: binds the license document, content, ciphertext, buyer, and sealed key. */
 export type LicenseRelease = {
   circle: AccountId; license_hash: string; buyer: AccountId; content_hash: string; cipher_hash: string; sealed_key: string; at: number
-  /** Ukuran berkas asli dan ciphertext dalam byte, ikut ditandatangani: pemeriksa menolak isi yang ukurannya lain (tinjauan BE-062, F1 dan F2). */
+  /** Size of the original file and the ciphertext in bytes, signed as well: the checker rejects content of a different size (BE-062 review, F1 and F2). */
   content_size: number; cipher_size: number
-  /** `sha256` kunci berkas (F11): kunci yang dibuka dari kotak harus cocok, jadi kunci tidak bisa diganti belakangan. */
+  /** `sha256` of the file key (F11): the key opened from the box must match, so the key cannot be swapped later. */
   key_commitment: string
-  /** Pembelian yang dilayani rilis ini (F12): rilis satu pembelian tidak bisa dipakai ulang untuk pembelian lain dari pembeli yang sama. */
+  /** The purchase this release serves (F12): a release for one purchase cannot be reused for another purchase by the same buyer. */
   purchase_id: string
 };
 const serializeRelease = (r: LicenseRelease): string =>
@@ -272,7 +272,7 @@ const borshString = (text: string): Uint8Array => {
   const bytes = utf8(text);
   return concatBytes(u32le(bytes.length), bytes);
 };
-/** Hash NEP-413 yang sama dengan `nep413SigningHash` di voucher.ts, dihitung tanpa node:crypto: nonce = sha256(pesan), penerima = akun kontrak lingkaran. */
+/** The same NEP-413 hash as `nep413SigningHash` in voucher.ts, computed without node:crypto: nonce = sha256(message), recipient = circle contract account. */
 export const releaseSigningHash = (r: LicenseRelease): Uint8Array => {
   checkRelease(r);
   const message = serializeRelease(r);
@@ -291,7 +291,7 @@ export function verifyRelease(release: LicenseRelease, signature: string, seller
   }
 }
 
-/** Sisi penjual: membuat rilis (menyegel kunci ke pembeli) dan menandatanganinya. */
+/** Seller side: builds the release (seals the key to the buyer) and signs it. */
 export function createRelease(args: {
   circle: AccountId; license_hash: string; buyer: AccountId; buyerPublicKey: string; content_hash: string; content_size: number; purchase_id: string; ciphertext: Uint8Array; contentKey: Uint8Array; at: number; sellerSecretKey: string; ephemeralSecret?: Uint8Array
 }): { release: LicenseRelease; signature: string } {
@@ -306,7 +306,7 @@ export function createRelease(args: {
 // ---- the buyer: check the delivery, or make the proof of cheating ------------------------------------------------------------------------------------------------------
 
 export type CheatReason = "content_mismatch" | "decrypt_failed" | "key_mismatch";
-/** Bukti curang: ciphertext, rilis bertanda tangan penjual (memuat `cipher_hash` dan kunci tersegel), dan kunci kotak yang membuka kunci tersegel itu. */
+/** Cheat proof: the ciphertext, the seller-signed release (containing `cipher_hash` and the sealed key), and the box key that opens that sealed key. */
 export type CheatProof = { ciphertext: Uint8Array; release: LicenseRelease; signature: string; box_key: string };
 export type DeliveryVerdict =
   | { ok: true; content: Uint8Array }
@@ -314,8 +314,8 @@ export type DeliveryVerdict =
   | { ok: false; reason: CheatReason; proof: CheatProof };
 
 /**
- * Sisi pembeli: memeriksa kiriman. Urutan: `cipher_hash` (salah = salah sumber, bukan kecurangan penjual), tanda tangan rilis, pembukaan kunci tersegel, dekripsi, `content_hash`.
- * Bila dekripsi gagal atau isinya berbeda dari `content_hash`, hasilnya memuat bukti curang yang lolos `checkCheatProof`. Berkas yang benar tidak pernah menghasilkan bukti.
+ * Buyer side: checks the delivery. Order: `cipher_hash` (wrong = wrong source, not seller cheating), release signature, opening the sealed key, decryption, `content_hash`.
+ * If decryption fails or the content differs from `content_hash`, the result carries a cheat proof that passes `checkCheatProof`. A correct file never produces a proof.
  */
 export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseRelease; signature: string; sellerPublicKey: string; buyerSecretKey: string; purchaseId?: string }): DeliveryVerdict {
   const { ciphertext, release, signature } = args;
@@ -342,7 +342,7 @@ export function verifyDelivery(args: { ciphertext: Uint8Array; release: LicenseR
   return content.length === release.content_size && contentHash(content) === release.content_hash ? { ok: true, content } : proof("content_mismatch");
 }
 
-/** Membuat bukti curang dari kiriman; melempar `proof_not_possible` bila kirimannya benar atau kesalahannya tidak bisa dibuktikan. */
+/** Builds a cheat proof from a delivery; throws `proof_not_possible` if the delivery is correct or the fault cannot be proven. */
 export function makeCheatProof(args: Parameters<typeof verifyDelivery>[0]): CheatProof {
   const verdict = verifyDelivery(args);
   if (verdict.ok) return fail("proof_not_possible", "the file is correct: nothing to prove");
@@ -351,7 +351,7 @@ export function makeCheatProof(args: Parameters<typeof verifyDelivery>[0]): Chea
 }
 
 export type ProofVerdict = { valid: true; reason: CheatReason } | { valid: false; reason: "bad_signature" | "cipher_hash_mismatch" | "box_key_invalid" | "file_is_correct" | "wrong_purchase" };
-/** Pemeriksa bukti curang, bisa dijalankan siapa saja dengan kunci publik penjual: bukti untuk berkas yang benar ditolak (`file_is_correct`). */
+/** Cheat proof checker, runnable by anyone with the seller's public key: a proof for a correct file is rejected (`file_is_correct`). */
 export function checkCheatProof(proof: CheatProof, sellerPublicKey: string, purchaseId?: string): ProofVerdict {
   const { ciphertext, release, signature } = proof;
   if (purchaseId !== undefined && release.purchase_id !== purchaseId) return { valid: false, reason: "wrong_purchase" };
@@ -411,7 +411,7 @@ async function readBody(res: Response, options: FetchOptions): Promise<Uint8Arra
   return concatBytes(...parts);
 }
 
-/** Alamat https tanpa nama pengguna, kata sandi, atau fragmen. Pemeriksaan SSRF (alamat IP privat) ada di backend; di sisi pembeli alamat dibuka oleh browser atau Node pembeli sendiri. */
+/** https address without username, password, or fragment. The SSRF check (private IP addresses) is in the backend; on the buyer side the address is opened by the buyer's own browser or Node. */
 export function httpsRefProblem(ref: string): string | null {
   let url: URL;
   try {
@@ -492,7 +492,7 @@ function varint(bytes: Uint8Array, at: number): [number, number] {
   return fail("source_bad_ref", "malformed CID (varint)");
 }
 
-/** CID yang bisa diverifikasi: CIDv1 (base32), kodek raw (0x55), multihash sha2-256. Selain itu `source_cid_unsupported` (CIDv0 dan dag-pb butuh penelusuran DAG). */
+/** A verifiable CID: CIDv1 (base32), raw codec (0x55), multihash sha2-256. Anything else is `source_cid_unsupported` (CIDv0 and dag-pb need DAG traversal). */
 export function parseRawCid(cid: string): { digest: Uint8Array } {
   if (/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid)) return fail("source_cid_unsupported", "CIDv0 (dag-pb) cannot be verified without walking the DAG; use a CIDv1 raw or an https source");
   if (!cid.startsWith("b")) return fail("source_bad_ref", "CID must be CIDv1 base32 (starting with b)");
@@ -506,7 +506,7 @@ export function parseRawCid(cid: string): { digest: Uint8Array } {
   return { digest: bytes.slice(at3) };
 }
 
-/** CIDv1 raw sha2-256 dari `data`, untuk pengujian dan untuk penjual yang mencatat `ref`. */
+/** CIDv1 raw sha2-256 of `data`, for tests and for sellers who record `ref`. */
 export function rawCidOf(data: Uint8Array): string {
   const bytes = concatBytes(Uint8Array.of(0x01, 0x55, 0x12, 0x20), sha256(data));
   let bits = 0;
@@ -525,7 +525,7 @@ export function rawCidOf(data: Uint8Array): string {
   return `b${out}`;
 }
 
-/** Sumber ipfs lewat gateway https. Gateway tidak dipercaya: byte yang diterima harus cocok dengan CID, kalau tidak gateway berikutnya dicoba. */
+/** ipfs source through an https gateway. The gateway is not trusted: the bytes received must match the CID, otherwise the next gateway is tried. */
 export function ipfsSource(options: { gateways: readonly string[]; fetch?: FetchLike }): ContentSource {
   const doFetch: FetchLike = options.fetch ?? ((input, init) => fetch(input, init));
   return {
@@ -550,7 +550,7 @@ export function ipfsSource(options: { gateways: readonly string[]; fetch?: Fetch
   };
 }
 
-/** Mengunduh dari sumber yang sesuai dengan `ref.kind` lalu memeriksa `cipher_hash`. Kiriman yang tidak cocok ditolak `cipher_hash_mismatch` (salah sumber, bukan bukti curang). */
+/** Downloads from the source matching `ref.kind` then checks `cipher_hash`. A mismatching delivery is rejected `cipher_hash_mismatch` (wrong source, not a cheat proof). */
 export async function fetchCiphertext(ref: ContentRef, cipherHash: string, sources: Partial<Record<ContentRef["kind"], ContentSource>>, options: FetchOptions = {}): Promise<Uint8Array> {
   const source = sources[ref.kind];
   if (!source) return fail("source_bad_ref", `no source for kind ${JSON.stringify(ref.kind)}`);
@@ -566,7 +566,7 @@ export type CanaryOptions = { secret: string | Uint8Array; buyer: AccountId; bas
 const canaryBytes = (o: CanaryOptions, i: number): Uint8Array => hmac(sha256, typeof o.secret === "string" ? utf8(o.secret) : o.secret, utf8(`x207:canary:${o.buyer}:${o.baseContentHash}:${i}`));
 export const canaryLine = (o: CanaryOptions, i: number): string => `${CANARY_PREFIX}${bytesToHex(canaryBytes(o, i)).slice(0, 24)}`;
 
-/** Menyisipkan `count` baris canary khas pembeli di posisi yang diturunkan dari HMAC. Dataset asli tidak boleh sudah memuat baris berawalan canary. */
+/** Inserts `count` buyer-specific canary lines at positions derived from HMAC. The original dataset must not already contain lines starting with the canary. */
 export function addCanaries(lines: readonly string[], o: CanaryOptions): string[] {
   if (!HASH.test(o.baseContentHash) || !Number.isSafeInteger(o.count) || o.count < 1 || o.count > 64) fail("canary_bad_input", "baseContentHash must be a hex hash and count 1 to 64");
   if (lines.some((l) => l.startsWith(CANARY_PREFIX))) fail("canary_bad_input", "dataset already contains a canary line");
@@ -577,9 +577,9 @@ export function addCanaries(lines: readonly string[], o: CanaryOptions): string[
   }
   return out;
 }
-/** Dataset tanpa baris canary: untuk mencocokkan dengan `content_hash` dasar. */
+/** Dataset without canary lines: to match against the base `content_hash`. */
 export const stripCanaries = (lines: readonly string[]): string[] => lines.filter((l) => !l.startsWith(CANARY_PREFIX));
-/** Berapa canary milik pembeli ini yang ditemukan di `lines` (bukti bahwa salinan ini bersumber dari kiriman ke pembeli itu). */
+/** How many of this buyer's canaries are found in `lines` (proof that this copy came from the delivery to that buyer). */
 export function findCanaries(lines: readonly string[], o: CanaryOptions): { found: number; expected: number } {
   const present = new Set(lines.filter((l) => l.startsWith(CANARY_PREFIX)));
   let found = 0;

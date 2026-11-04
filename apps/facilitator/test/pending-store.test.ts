@@ -25,7 +25,7 @@ const memory = (now = () => 1000) => {
   return store;
 };
 afterEach(() => {
-  stores.splice(0).forEach((s) => { try { s.close(); } catch { /* sudah ditutup */ } });
+  stores.splice(0).forEach((s) => { try { s.close(); } catch { /* already closed */ } });
   dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true }));
 });
 
@@ -57,7 +57,7 @@ describe("SD-022 PendingStore", () => {
     expect(store.get(key(A, B, 42))).toMatchObject({ cumulativeAmount: "140000", signature: SIG, updatedAt: 1000 });
   });
 
-  it("TC-SD-022-04 persisten antar restart", () => {
+  it("TC-SD-022-04 persistent across restarts", () => {
     const dir = mkdtempSync(join(tmpdir(), "x207-pending-"));
     dirs.push(dir);
     const file = join(dir, "pending.sqlite");
@@ -139,12 +139,12 @@ describe("SD-022 PendingStore", () => {
     store.recordFailure(key(A, B, 42), "e");
     store.upsert(CIRCLE, v(A, B, 42, 3), SIG);
     expect(store.get(key(A, B, 42))?.state).toBe("retrying");
-    store.markFailed(key(A, B, 42), "sampai cutoff");
-    expect(store.get(key(A, B, 42))).toMatchObject({ state: "failed", lastError: "sampai cutoff" });
+    store.markFailed(key(A, B, 42), "until cutoff");
+    expect(store.get(key(A, B, 42))).toMatchObject({ state: "failed", lastError: "until cutoff" });
   });
 });
 
-describe("SD-048 kolom bundle_id", () => {
+describe("SD-048 bundle_id column", () => {
   it("TC-SD-048-10 bundle_id is stored, rises with seq, and is null for a normal voucher", () => {
     const store = memory();
     store.upsert(CIRCLE, v(A, B, 42, 1), SIG, 7);
@@ -152,7 +152,7 @@ describe("SD-048 kolom bundle_id", () => {
     expect(store.get(key(A, B, 42))?.bundleId).toBe(7);
     expect(store.get(key(A, C, 42))?.bundleId).toBeNull();
     store.upsert(CIRCLE, v(A, B, 42, 2), SIG, 7);
-    // urut menurut payee: scraper (C) sebelum summarizer (B)
+    // ordered by payee: scraper (C) before summarizer (B)
     expect(store.listByPayer(CIRCLE, A, 42).map((r) => r.bundleId)).toEqual([null, 7]);
   });
 
@@ -163,7 +163,7 @@ describe("SD-048 kolom bundle_id", () => {
     const first = new PendingStore(path, () => 1000);
     first.upsert(CIRCLE, v(A, B, 42, 1), SIG);
     first.close();
-    // simulasikan skema lama: buang kolom lalu buka lagi
+    // simulate the old schema: drop the column then open again
     const { DatabaseSync } = require("node:sqlite");
     const raw = new DatabaseSync(path);
     raw.exec("ALTER TABLE pending_vouchers DROP COLUMN bundle_id");

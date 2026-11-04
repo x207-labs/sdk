@@ -1,5 +1,5 @@
-// SD-052 di near-sandbox: verifyFunctionCallKey terhadap access key nyata. Kunci yang cocok valid; method tambahan, receiver_id lain, kunci akses penuh,
-// kunci tanpa batas method, dan kunci yang tidak ada ditolak. Pemasangan kunci memakai near-api-js, bukan kode produk.
+// SD-052 in near-sandbox: verifyFunctionCallKey against a real access key. A matching key is valid; extra methods, another receiver_id, a full-access key,
+// a key without a method limit, and a missing key are rejected. Installing the key uses near-api-js, not product code.
 import { afterAll, describe, expect, it } from "vitest";
 import { KeyPair } from "near-api-js";
 import { createViewAccessKeyFn, verifyFunctionCallKey, type AccessGrant } from "@x207/core";

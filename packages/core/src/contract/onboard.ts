@@ -1,4 +1,4 @@
-// `onboardMember` (SD-013): keypair voucher, join, stake lewat ft_transfer_call, tunggu `pending` jadi `active`.
+// `onboardMember` (SD-013): voucher keypair, join, stake via ft_transfer_call, wait for `pending` to become `active`.
 import { generateVoucherKeypair, voucherPublicKey } from "../voucher.js";
 import type { AccountId, U128String } from "../types.js";
 import { buildJoinCall, buildStakeTransferCall, getMember, type CircleViewFn } from "./client.js";
@@ -12,7 +12,7 @@ export class OnboardTimeoutError extends Error {
   }
 }
 
-/** `ft_transfer_call` mengembalikan jumlah yang dipakai kontrak; kurang dari `amount` berarti sebagian di-refund. */
+/** `ft_transfer_call` returns the amount the contract used; less than `amount` means partly refunded. */
 export class StakeRejectedError extends Error {
   constructor(readonly used: string, readonly amount: string) {
     super(`stake rejected by the contract: used ${used} of ${amount} (the rest is refunded; check the member status and msg)`);
@@ -21,12 +21,12 @@ export class StakeRejectedError extends Error {
 }
 
 export type OnboardDeps = {
-  /** Kirim transaksi dari akun anggota dan kembalikan nilai sukses receipt (JSON). Melempar bila transaksi gagal. */
+  /** Send a transaction from the member account and return the receipt success value (JSON). Throws if the transaction fails. */
   sendCall(call: ContractCall): Promise<unknown>;
   view: CircleViewFn;
-  /** Interval polling `member` (default 1000 ms). */
+  /** Polling interval of `member` (default 1000 ms). */
   pollIntervalMs?: number;
-  /** Batas menunggu `active` (default 60000 ms). */
+  /** Limit on waiting for `active` (default 60000 ms). */
   timeoutMs?: number;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
@@ -36,11 +36,11 @@ export type OnboardInput = {
   circleContract: AccountId;
   circleId: string;
   accountId: AccountId;
-  /** sha256 hex huruf kecil dari syarat lingkaran. */
+  /** lowercase sha256 hex of the circle terms. */
   termsHash: string;
-  /** Jumlah USDT (satuan terkecil) yang dikunci sebagai stake. */
+  /** Amount of USDT (smallest unit) locked as stake. */
   stakeAmount: U128String;
-  /** Kunci voucher yang sudah ada; bila kosong dibuat baru. */
+  /** An existing voucher key; if empty, a new one is created. */
   secretKey?: `ed25519:${string}`;
   usdtTokenId?: AccountId;
 };

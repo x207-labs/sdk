@@ -31,7 +31,7 @@ import {
   type Voucher,
 } from "@x207/core";
 
-// Contoh JSON disalin dari Model Data dan Spec Binding x402, `satisfies` adalah type-check-nya.
+// JSON samples copied from the Data Model and Spec Binding x402, `satisfies` is their type-check.
 const VOUCHER = {
   circle: "x207-circle.near",
   payer: "translator.x207-circle.near",
@@ -85,7 +85,7 @@ const SETTLE = {
   },
 } satisfies SettleResponse;
 
-// Assignable ke tipe `@x402/core` 2.28.0 (diperiksa `npm run typecheck`).
+// Assignable to the `@x402/core` 2.28.0 types (checked by `npm run typecheck`).
 const _x402Requirements: X402PaymentRequirements = REQ as PaymentRequirements;
 const _x402Payload: X402PaymentPayload = PAYLOAD as PaymentPayload;
 const _x402Settle: X402SettleResponse = SETTLE as SettleResponse;

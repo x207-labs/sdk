@@ -1,12 +1,12 @@
-// Bukti `grantee_ref` untuk sewa akses (SD-071, pipeline P2, ADR-47): penyewa membuktikan bahwa ia mengendalikan akun yang namanya dipakai sebagai `grantee_ref`, supaya grant
-// tidak bisa diarahkan ke akun yang hanya diketahui namanya dan tidak bisa dijual lagi ke orang lain. Tiga bentuk:
-//   - `near-gist`: penyewa menaruh tantangan yang ditandatangani kunci voucher-nya di sebuah gist publik; pemilik gist harus akun yang disebut `grantee_ref` (login GitHub);
-//   - `ssh-signature`: `grantee_ref` adalah kunci publik OpenSSH `ssh-ed25519 …`; penyewa menandatangani tantangan dengan kunci privat SSH-nya;
-//   - `oauth`: penyedia sendiri yang membuktikan lewat OAuth; SDK hanya membawa bentuknya dan memeriksa subjek yang dikembalikan penyedia terhadap `grantee_ref`.
-// Tantangan mengikat `circle`, `grant_id`, `grantee_ref`, dan nonce dari broker, jadi bukti satu grant tidak berlaku untuk grant lain. Modul ini tanpa node:crypto, jadi jalan di browser.
+// `grantee_ref` proof for access rental (SD-071, pipeline P2, ADR-47): the renter proves they control the account whose name is used as `grantee_ref`, so a grant
+// cannot be pointed at an account known only by name and cannot be resold to someone else. Three forms:
+//   - `near-gist`: the renter puts a challenge signed with their voucher key in a public gist; the gist owner must be the account named in `grantee_ref` (GitHub login);
+//   - `ssh-signature`: `grantee_ref` is an OpenSSH public key `ssh-ed25519 …`; the renter signs the challenge with their SSH private key;
+//   - `oauth`: the provider itself proves it via OAuth; the SDK only carries the shape and checks the subject the provider returns against `grantee_ref`.
+// The challenge binds `circle`, `grant_id`, `grantee_ref`, and a nonce from the broker, so proof for one grant is not valid for another grant. This module has no node:crypto, so it runs in the browser.
 //
-// Batas yang diakui: `ssh-signature` adalah tanda tangan ed25519 mentah atas teks tantangan, bukan format SSHSIG dari `ssh-keygen -Y sign`; kunci selain ed25519 belum didukung.
-// Bukti `near-gist` butuh jaringan (mengambil gist) dan dipercaya sejauh GitHub; pemeriksaannya disuntik lewat `GistFetcher`.
+// Acknowledged limits: `ssh-signature` is a raw ed25519 signature over the challenge text, not the SSHSIG format of `ssh-keygen -Y sign`; keys other than ed25519 are not yet supported.
+// A `near-gist` proof needs the network (fetching the gist) and is trusted as far as GitHub is; the check is injected via `GistFetcher`.
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { concatBytes } from "@noble/hashes/utils.js";
@@ -33,7 +33,7 @@ export type GranteeProof =
 
 export const MAX_PROOF_BYTES = 2048;
 
-/** Teks bukti yang dikirim ke broker (`proof` di `POST /grants/{id}/access`). */
+/** Proof text sent to the broker (`proof` in `POST /grants/{id}/access`). */
 export function encodeGranteeProof(proof: GranteeProof): string {
   const text = JSON.stringify(proof);
   if (utf8(text).length > MAX_PROOF_BYTES) fail("grantee_proof_bad_format", `proof is larger than ${MAX_PROOF_BYTES} bytes`);
@@ -57,7 +57,7 @@ export function parseGranteeProof(text: string): GranteeProof {
 }
 
 export type ChallengeInput = { circle: AccountId; grantId: number; granteeRef: string; nonce: string };
-/** Tantangan: teks tetap yang mengikat grant, referensi, dan nonce broker. */
+/** Challenge: a fixed text that binds the grant, the reference, and the broker nonce. */
 export function granteeChallenge(i: ChallengeInput): string {
   if (!Number.isSafeInteger(i.grantId) || i.grantId < 1 || !/^[A-Za-z0-9._-]{8,64}$/.test(i.nonce) || i.granteeRef.length < 1 || i.granteeRef.length > 600 || /[\n\r]/.test(i.granteeRef)) {
     fail("grantee_proof_wrong_challenge", "invalid grantId, nonce, or granteeRef");
@@ -82,7 +82,7 @@ function seedOf(secretKey: string): Uint8Array {
   return bytes.slice(0, 32);
 }
 
-/** Isi gist: JSON `{challenge, account, signature}`; `account` akun NEAR penyewa, tanda tangan dengan kunci voucher-nya (skema NEP-413 yang sama dengan notice). */
+/** Gist content: JSON `{challenge, account, signature}`; `account` is the renter's NEAR account, signed with their voucher key (the same NEP-413 scheme as the notice). */
 export function buildGistContent(challenge: ChallengeInput, account: AccountId, voucherSecretKey: string): string {
   const text = granteeChallenge(challenge);
   return JSON.stringify({ challenge: text, account, signature: `${ED}${base58Encode(ed25519.sign(signingHash(text, challenge.circle), seedOf(voucherSecretKey)))}` });
@@ -90,8 +90,8 @@ export function buildGistContent(challenge: ChallengeInput, account: AccountId, 
 
 export type GistFetcher = (gist: string) => Promise<{ owner: string; files: readonly string[] }>;
 /**
- * Memeriksa bukti `near-gist`: pemilik gist adalah `granteeRef`, salah satu berkas memuat tantangan grant ini, dan tanda tangannya sah untuk `voucherPublicKey` penyewa
- * (kunci voucher yang terdaftar di kontrak). Mengembalikan `true` atau melempar `GranteeProofError`.
+ * Checks a `near-gist` proof: the gist owner is `granteeRef`, one of the files contains this grant's challenge, and the signature is valid for the renter's `voucherPublicKey`
+ * (the voucher key registered in the contract). Returns `true` or throws `GranteeProofError`.
  */
 export async function verifyNearGistProof(args: { proof: GranteeProof; challenge: ChallengeInput; voucherPublicKey: string; fetchGist: GistFetcher }): Promise<true> {
   const { proof, challenge } = args;
@@ -128,7 +128,7 @@ export async function verifyNearGistProof(args: { proof: GranteeProof; challenge
 const b64 = (bytes: Uint8Array): string => btoa(String.fromCharCode(...bytes));
 const unb64 = (text: string): Uint8Array => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 
-/** Kunci publik ed25519 dari baris OpenSSH `ssh-ed25519 <base64> [komentar]`. */
+/** ed25519 public key from an OpenSSH line `ssh-ed25519 <base64> [comment]`. */
 export function parseSshEd25519(line: string): Uint8Array {
   const [type, blob] = line.trim().split(/\s+/);
   if (type !== "ssh-ed25519" || !blob || !/^[A-Za-z0-9+/=]+$/.test(blob)) return fail("grantee_proof_bad_format", "grantee_ref is not an OpenSSH ssh-ed25519 key");
@@ -140,17 +140,17 @@ export function parseSshEd25519(line: string): Uint8Array {
   }
   return bytes.slice(19);
 }
-/** Baris OpenSSH untuk kunci publik 32 byte (untuk pengujian dan untuk penyewa yang membangun `grantee_ref`). */
+/** OpenSSH line for a 32-byte public key (for tests and for renters building `grantee_ref`). */
 export function sshEd25519Line(publicKey: Uint8Array, comment = ""): string {
   const blob = concatBytes(Uint8Array.of(0, 0, 0, 11), utf8("ssh-ed25519"), Uint8Array.of(0, 0, 0, 32), publicKey);
   return `ssh-ed25519 ${b64(blob)}${comment ? ` ${comment}` : ""}`;
 }
-/** Tanda tangan tantangan dengan seed ed25519 kunci SSH (32 byte); hasilnya base64 dari 64 byte. */
+/** Signs the challenge with the ed25519 seed of the SSH key (32 bytes); the result is base64 of 64 bytes. */
 export function signSshChallenge(challenge: ChallengeInput, seed: Uint8Array): GranteeProof {
   if (seed.length !== 32) fail("grantee_proof_bad_format", "SSH key seed must be 32 bytes");
   return { kind: "ssh-signature", signature: b64(ed25519.sign(utf8(granteeChallenge(challenge)), seed)) };
 }
-/** Memeriksa bukti `ssh-signature` terhadap `granteeRef` (baris OpenSSH): benar atau melempar `GranteeProofError`. */
+/** Checks an `ssh-signature` proof against `granteeRef` (OpenSSH line): correct or throws `GranteeProofError`. */
 export function verifySshProof(proof: GranteeProof, challenge: ChallengeInput): true {
   if (proof.kind !== "ssh-signature") return fail("grantee_proof_bad_format", "not an ssh-signature proof");
   const key = parseSshEd25519(challenge.granteeRef);
@@ -166,7 +166,7 @@ export function verifySshProof(proof: GranteeProof, challenge: ChallengeInput): 
 // ---- oauth: the provider says who the token belongs to --------------------------------------------------------------------------------------------------------------------
 
 export type OAuthVerifier = (provider: string, token: string) => Promise<{ subject: string }>;
-/** Memeriksa bukti `oauth`: subjek yang dikembalikan penyedia harus `granteeRef`. Tokennya tidak disimpan di sini. */
+/** Checks an `oauth` proof: the subject returned by the provider must be `granteeRef`. The token is not stored here. */
 export async function verifyOAuthProof(proof: GranteeProof, granteeRef: string, verify: OAuthVerifier): Promise<true> {
   if (proof.kind !== "oauth") return fail("grantee_proof_bad_format", "not an oauth proof");
   let subject: string;

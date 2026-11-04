@@ -58,7 +58,7 @@ export type UpgradeView = { "code_hash": string; "eta": string };
 export type Verdict = "accused_guilty" | "complaint_false" | "no_fault";
 export type Voucher = { "circle": string; "cumulativeAmount": string; "epoch": number; "payee": string; "payer": string; "resource": string; "seq": number; "unit": string };
 
-/** View: `args` = argumen JSON, `result` = nilai kembalian. */
+/** View: `args` = JSON arguments, `result` = return value. */
 export type CircleViews = {
   "bond_locked": { args: { "account_id": string }; result: string };
   "get_asset_class": { args: { "asset_type": string }; result: AssetClassEntry | null };
@@ -99,7 +99,7 @@ export type CircleViews = {
   "solver_fee_balance": { args: { "account_id": string }; result: string };
 };
 
-/** Call: transaksi. `payable`, `init`, `private` dari modifier ABI. */
+/** Call: transaction. `payable`, `init`, `private` from the ABI modifier. */
 export type CircleCalls = {
   "accept_grant": { args: { "grant_id": number; "delivery_pubkey"?: string | null }; result: void };
   "admit_member": { args: { "account_id": string }; result: void };
@@ -152,7 +152,7 @@ export type CircleCalls = {
 export const CIRCLE_VIEW_METHODS = ["bond_locked","get_asset_class","get_asset_contracts","get_bundle","get_circle","get_clearing_proposal","get_deal","get_epoch","get_escrow","get_freeze","get_ft_escrow","get_grant","get_intent","get_mt_escrow","get_owner","get_params","get_pending_params","get_pool","get_proposal","get_upgrade","grants_of","headroom","intents_balance","interface_version","is_frozen","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
 export const CIRCLE_CALL_METHODS = ["accept_grant","admit_member","apply_freeze","apply_upgrade","cancel_escrow","cancel_freeze","claim","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","complete_escrow","confirm_deal","dispute_deal","finalize_epoch","ft_on_transfer","join","migrate","mt_on_transfer","new","nft_on_transfer","offer_grant","on_claim_resolved","on_escrow_resolved","on_intents_withdrawn","on_solver_fee_resolved","on_withdraw_resolved","post_intent","propose_freeze","propose_upgrade","prune_epoch","register_cumulative","register_in_bundle","register_voucher","remove_intent","request_exit","revoke_grant","rule_deal","set_asset_class","set_asset_contracts","set_params","settle_deal","submit_clearing","unfreeze_member","withdraw_intents_balance","withdraw_stake"] as const;
 
-/** Nama event NEP-297 dan urutan field `data`-nya. */
+/** NEP-297 event names and the order of their `data` fields. */
 export const CIRCLE_EVENTS = {
   "member_joined": ["account_id","pubkey_voucher","terms_hash","status","joined_at"],
   "stake_added": ["account_id","sender_id","amount","stake","limit","status"],

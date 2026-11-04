@@ -1,4 +1,4 @@
-// SD-058: la suite conformance lulus untuk implementasi referensi dan gagal keras untuk implementasi yang salah atau diam.
+// SD-058: the conformance suite passes for the reference implementation and fails hard for a wrong or silent implementation.
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -42,7 +42,7 @@ describe("SD-058 conformance suite", () => {
   });
 
   it("TC-SD-058-05 an adapter that is only partly right fails: one wrong case is enough", () => {
-    // Jawaban adapter referensi, kecuali satu kasus yang diubah
+    // Reference adapter answers, except for one case that is changed
     const dir = mkdtempSync(join(tmpdir(), "x207-conformance-"));
     const file = join(dir, "partial.mjs");
     const reference = fileURLToPath(new URL("../../../conformance/reference.mjs", import.meta.url));

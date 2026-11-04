@@ -1,4 +1,4 @@
-// Peran server binding x207 (SD-015, SD-016): harga, `extra` dari facilitator, dan requirements.
+// x207 binding server role (SD-015, SD-016): price, `extra` from the facilitator, and requirements.
 import type {
   AssetAmount,
   Network,
@@ -27,18 +27,18 @@ export const MAX_TIMEOUT_SECONDS = 60;
 export const EXACT_NEAR_NETWORK = "near:mainnet";
 
 export type X207SchemeServerOptions = {
-  /** Sumber `extra` (epoch dan akun kontrak) dari `GET /supported` facilitator. */
+  /** Source of `extra` (epoch and contract account) from the facilitator's `GET /supported`. */
   extra?: X207ExtraSource;
 };
 
 export class X207SchemeServer implements SchemeNetworkServer {
   readonly scheme = X207_SCHEME;
   readonly defaultAssetTransferMethod = "default";
-  /** Verify sebelum handler, settle sesudahnya; handler 5xx tidak ditagih (Spec Binding 5.3). */
+  /** Verify before the handler, settle after it; a 5xx handler response is not billed (Binding Spec 5.3). */
   readonly paymentFlows = {
     default: { supported: ["authorization"], default: "authorization" },
   } as const;
-  /** `epoch` berganti tiap epoch; x402 tidak membandingkannya antara requirements dan `accepted`. */
+  /** `epoch` changes every epoch; x402 does not compare it between requirements and `accepted`. */
   readonly dynamicExtraFields = ["epoch"];
 
   private readonly extra: X207ExtraSource | undefined;
@@ -82,18 +82,18 @@ export type BuildPaymentRequirementsOptions = {
   circleId: string;
   payTo: AccountId;
   price: string | number;
-  /** URL resource; dipakai middleware untuk `PaymentRequired.resource`, bukan bagian requirements. */
+  /** Resource URL; used by the middleware for `PaymentRequired.resource`, not part of the requirements. */
   resource?: string;
   extra: X207ExtraSource;
-  /** Jumlah yang sudah dihitung (SD-062, harga terukur): dipakai sebagai ganti `price`. */
+  /** Amount already computed (SD-062, metered price): used instead of `price`. */
   amount?: string;
-  /** Pengumuman harga terukur (SD-062): `extra.meter` di entri x207. */
+  /** Metered price announcement (SD-062): `extra.meter` in the x207 entry. */
   meter?: MeterAnnouncement;
-  /** Endpoint grant F8 (SD-053): `extra.grantId` di entri x207; `payTo` harus pemberi grant, bukan akun broker. */
+  /** F8 grant endpoint (SD-053): `extra.grantId` in the x207 entry; `payTo` must be the grant giver, not the broker account. */
   grantId?: number;
 };
 
-/** Entri `batch-settlement` `x207:<circleId>` lalu entri `exact` `near:mainnet` USDT (Spec Binding 5.3). */
+/** The `batch-settlement` entry `x207:<circleId>` then the `exact` `near:mainnet` USDT entry (Spec Binding 5.3). */
 export async function buildPaymentRequirements(
   options: BuildPaymentRequirementsOptions,
 ): Promise<PaymentRequirements[]> {

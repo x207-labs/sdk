@@ -1,11 +1,11 @@
-// Parser event NEP-297 kontrak `x207-circle` (SD-011, Spec Antarmuka Kontrak bagian 6).
+// NEP-297 event parser for the `x207-circle` contract (SD-011, Contract Interface Spec section 6).
 // Log: `EVENT_JSON:{"standard":"x207","version":"0.0.9","event":"<nama>","data":[{…}]}`.
 import type { Params } from "./contract/types.generated.js";
 import type { AccountId, U128String } from "./types.js";
 
 export const EVENT_PREFIX = "EVENT_JSON:";
 export const EVENT_STANDARD = "x207";
-/** Versi antarmuka event yang dikenal parser (Spec 1, butir 3). */
+/** Event interface version known to the parser (Spec 1, item 3). */
 export const KNOWN_EVENT_VERSION = "0.0.13";
 
 export class EventParseError extends Error {
@@ -15,7 +15,7 @@ export class EventParseError extends Error {
   }
 }
 
-type Ns = string; // timestamp nanodetik sebagai string
+type Ns = string; // timestamp in nanoseconds as a string
 type MemberStatusValue = "pending" | "active" | "suspended" | "exited";
 type AssetClassValue = "A" | "B" | "C" | "D" | "X";
 type EscrowStepValue = "complete" | "cancel";
@@ -120,10 +120,10 @@ export type X207EventMap = {
 export type X207EventName = keyof X207EventMap;
 export type X207Event = { [K in X207EventName]: { event: K } & X207EventMap[K] }[X207EventName];
 
-/** Event yang belum dikenal parser (patch berikutnya atau SD-054); datanya diteruskan apa adanya. */
+/** Event not yet known to the parser (next patch or SD-054); its data is passed on as is. */
 export type UnknownX207Event = { event: string; data: Record<string, unknown> };
 
-// --- skema field ---
+// --- field schema ---
 type Kind =
   | "str" | "int" | "bool" | "strnull" | "strarr" | "params" | "bundleid"
   | { enum: readonly (string | null)[] }
@@ -249,17 +249,17 @@ function readField(value: unknown, kind: Kind, path: string): unknown {
     case "bool": return typeof value === "boolean" ? value : fail("boolean");
     case "strnull": return value === null || typeof value === "string" ? value : fail("string or null");
     case "strarr": return Array.isArray(value) && value.every((v) => typeof v === "string") ? value : fail("array string");
-    case "params": return isRecord(value) ? value : fail("objek Params");
+    case "params": return isRecord(value) ? value : fail("Params object");
     case "bundleid": return typeof value === "string" || Number.isSafeInteger(value) ? value : fail("string or integer");
   }
 }
 
-/** Ambil hanya field yang dikenal; field tambahan diabaikan (Spec 1, butir 3). */
+/** Take only the known fields; extra fields are ignored (Spec 1, item 3). */
 function readObject(value: unknown, schema: Schema, path: string): Record<string, unknown> {
   if (!isRecord(value)) throw new EventParseError(`${path} must be an object`);
   const out: Record<string, unknown> = {};
   for (const [name, kind] of Object.entries(schema)) {
-    if (!(name in value)) throw new EventParseError(`field ${path}.${name} hilang`);
+    if (!(name in value)) throw new EventParseError(`field ${path}.${name} missing`);
     out[name] = readField(value[name], kind, `${path}.${name}`);
   }
   return out;
@@ -282,9 +282,9 @@ export const isKnownX207Event = (event: X207Event | UnknownX207Event): event is 
   isKnownName(event.event);
 
 /**
- * Parse satu baris log kontrak. `null` untuk log yang bukan `EVENT_JSON:` atau ber-`standard` selain `x207`;
- * `EventParseError` untuk JSON rusak, versi minor lebih tinggi, atau field wajib yang hilang (K-34).
- * Mengembalikan satu objek per elemen `data`.
+ * Parse one contract log line. `null` for a log that is not `EVENT_JSON:` or has a `standard` other than `x207`;
+ * `EventParseError` for broken JSON, a higher minor version, or a missing required field (K-34).
+ * Returns one object per `data` element.
  */
 export function parseEventLog(log: string): (X207Event | UnknownX207Event)[] | null {
   if (!log.startsWith(EVENT_PREFIX)) return null;
@@ -299,7 +299,7 @@ export function parseEventLog(log: string): (X207Event | UnknownX207Event)[] | n
   checkVersion(envelope.version);
   const version = envelope.version as string;
   const name = envelope.event;
-  if (typeof name !== "string") throw new EventParseError("field event hilang");
+  if (typeof name !== "string") throw new EventParseError("event field missing");
   if (!Array.isArray(envelope.data) || envelope.data.length === 0) {
     throw new EventParseError("data must be an array with at least one object");
   }

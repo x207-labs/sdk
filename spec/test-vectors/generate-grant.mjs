@@ -1,6 +1,6 @@
-// Membangkitkan spec/test-vectors/grant/voucher_grant.json (SD-053): voucher yang membayar grant F8. Jalankan setelah `npm run build`:
+// Generates spec/test-vectors/grant/voucher_grant.json (SD-053): a voucher that pays an F8 grant. Run after `npm run build`:
 //   node spec/test-vectors/generate-grant.mjs
-// Deterministik (kunci dari keys.json). `payTo` = pemberi grant (bukan akun broker), `extra.grantId` di requirements, `resource` voucher = `x207:grant:<grantId>`.
+// Deterministic (keys from keys.json). `payTo` = the grant giver (not the broker account), `extra.grantId` in the requirements, voucher `resource` = `x207:grant:<grantId>`.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,4 +45,4 @@ writeFileSync(out, `${JSON.stringify({
     },
   ],
 }, null, 2)}\n`);
-console.log("grant vector ditulis");
+console.log("grant vector written");

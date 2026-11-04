@@ -1,6 +1,6 @@
 {
   "name": "unbalanced_member",
-  "description": "summarizer menerima 60 credit tetapi hanya melepas 50: Σ masuk != Σ keluar (urutan cek anggota menaik menurut akun).",
+  "description": "summarizer receives 60 credit but releases only 50: sum in != sum out (members are checked in ascending account order).",
   "input": {
     "epoch": 42,
     "snapshot": { "obligations": [

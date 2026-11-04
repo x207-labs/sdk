@@ -1,7 +1,7 @@
-// Gas keys (NEP-611, ADR-11b) untuk relayer facilitator (SD-031): satu kunci punya banyak jalur nonce (0..1023), jadi beberapa transaksi
-// registrasi bisa dikirim paralel tanpa bentrok nonce. Transaksi memakai `Transaction::V1` (awalan 0x01, `GasKeyNonce { nonce, nonce_index }`,
-// `NonceMode::Monotonic`), dan gas dibayar dari saldo kunci. `@near-js/transactions` 2.5.1 belum bisa mengodekan V1, jadi byte ditulis di sini
-// dan dicocokkan dengan referensi near-api-js 7.4.0 di test.
+// Gas keys (NEP-611, ADR-11b) for the facilitator relayer (SD-031): one key has many nonce lanes (0..1023), so several registration
+// transactions can be sent in parallel without nonce clashes. Transactions use `Transaction::V1` (prefix 0x01, `GasKeyNonce { nonce, nonce_index }`,
+// `NonceMode::Monotonic`), and gas is paid from the key's balance. `@near-js/transactions` 2.5.1 cannot yet encode V1, so the bytes are written here
+// and checked against the near-api-js 7.4.0 reference in a test.
 import { createHash } from "node:crypto";
 import { KeyPair, type KeyPairString } from "@near-js/crypto";
 import { base58Decode, base58Encode } from "@x207/core";
@@ -65,7 +65,7 @@ export type GasKeyCall = {
   signerId: string;
   receiverId: string;
   nonce: bigint;
-  /** Jalur nonce 0..1023. */
+  /** Nonce lane 0..1023. */
   nonceIndex: number;
   blockHash: Uint8Array;
   methodName: string;
@@ -74,7 +74,7 @@ export type GasKeyCall = {
   deposit: bigint;
 };
 
-/** Byte borsh `Transaction::V1` dengan satu aksi FunctionCall. */
+/** Borsh bytes of `Transaction::V1` with one FunctionCall action. */
 export function encodeGasKeyTransaction(tx: GasKeyCall, publicKey: Uint8Array): Buffer {
   if (!Number.isInteger(tx.nonceIndex) || tx.nonceIndex < 0 || tx.nonceIndex >= MAX_GAS_KEY_LANES) throw new Error("nonceIndex must be an integer 0..1023");
   const w = new Writer();
@@ -111,8 +111,8 @@ export function signGasKeyTransaction(tx: GasKeyCall, privateKey: string): Signe
 }
 
 /**
- * Pembagi jalur nonce: tiap transaksi memegang satu jalur sampai selesai, jadi dua transaksi paralel tidak pernah memakai nonce yang sama.
- * Nonce tiap jalur dibaca dari chain pada pemakaian pertama dan setelah kegagalan jaringan, selebihnya dihitung lokal.
+ * Nonce lane divider: each transaction holds one lane until it finishes, so two parallel transactions never use the same nonce.
+ * Each lane's nonce is read from the chain on first use and after a network failure, and otherwise counted locally.
  */
 export class GasKeyLanes {
   readonly #busy: boolean[];
@@ -128,7 +128,7 @@ export class GasKeyLanes {
     this.#nonce = new Array<bigint | undefined>(count).fill(undefined);
   }
 
-  /** Jalankan `work(lane, nonceTerakhir)` di jalur bebas (menunggu bila semua sibuk). `work` mengembalikan nonce yang terpakai atau melempar. */
+  /** Run `work(lane, lastNonce)` on a free lane (waits if all are busy). `work` returns the nonce used or throws. */
   async run<T>(readNonce: (lane: number) => Promise<bigint>, work: (lane: number, nonce: bigint) => Promise<T>): Promise<T> {
     const lane = await this.#acquire();
     try {
@@ -139,7 +139,7 @@ export class GasKeyLanes {
         this.#nonce[lane] = last + 1n;
         return result;
       } catch (error) {
-        // transaksi mungkin tidak sampai ke blok: baca ulang nonce jalur ini dari chain pada pemakaian berikutnya
+        // the transaction may not have reached a block: re-read this lane's nonce from the chain on next use
         this.#nonce[lane] = undefined;
         throw error;
       }

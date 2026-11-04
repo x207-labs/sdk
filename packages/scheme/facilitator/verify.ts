@@ -1,5 +1,5 @@
-// Facilitator `verify`: 19 cek berurutan, stops at the first rejection, tanpa mengubah state
-// (Spec Binding x402 bagian 7, x402 v2 §7).
+// Facilitator `verify`: 19 sequential checks, stops at the first rejection, without changing state
+// (x402 Binding Spec section 7, x402 v2 §7).
 import type { PaymentPayload, PaymentRequirements, VerifyResponse } from "@x402/core/types";
 import {
   grantResource,
@@ -14,14 +14,14 @@ import {
 import { X207_SCHEME, type CircleConfig } from "../shared/circle.js";
 import { computeBase, computeHeadroom, type HeadroomSources } from "./headroom.js";
 
-/** Bacaan on-chain yang dibutuhkan `verify`; kegagalan RPC harus berupa error yang dilempar. */
+/** On-chain reads needed by `verify`; RPC failures must be thrown errors. */
 export interface VerifyChain extends HeadroomSources {
   member(account: AccountId): Promise<ContractAbi.MemberView | null>;
-  /** View `get_epoch` tanpa argumen: epoch berjalan. */
+  /** View `get_epoch` with no arguments: the current epoch. */
   getEpoch(): Promise<ContractAbi.EpochView | null>;
-  /** View `get_bundle(bundle_id)` (interface 0.0.4); dibutuhkan hanya untuk voucher leg bundle (SD-048). */
+  /** View `get_bundle(bundle_id)` (interface 0.0.4); needed only for bundle leg vouchers (SD-048). */
   bundle?(bundleId: number): Promise<ContractAbi.BundleView | null>;
-  /** View `is_frozen(account_id)` (interface 0.0.12, CT-095, SD-074); tanpa fungsi ini pembekuan tidak diperiksa (kontrak 0.0.11 atau lebih lama). */
+  /** View `is_frozen(account_id)` (interface 0.0.12, CT-095, SD-074); without this function freezing is not checked (contract 0.0.11 or older). */
   isFrozen?(account: AccountId): Promise<boolean>;
 }
 
@@ -29,12 +29,12 @@ export type VerifyOptions = {
   chain: VerifyChain;
   /** Unix ms. */
   now?: () => number;
-  /** Jendela sebelum `cutoff_at` saat voucher baru ditolak (default 120 detik). */
+  /** Window before `cutoff_at` when new vouchers are rejected (default 120 seconds). */
   flushLeadSeconds?: number;
 };
 
 export const DEFAULT_FLUSH_LEAD_SECONDS = 120;
-/** Registrasi gagal sebanyak ini atau lebih menahan voucher baru payer (ADR-23). */
+/** This many registration failures or more hold the payer's new vouchers (ADR-23). */
 export const REGISTRATION_RETRY_BLOCK_ATTEMPTS = 2;
 
 const POSITIVE_UINT = /^[1-9]\d*$/;
@@ -93,9 +93,9 @@ export async function verifyPayment(
   if (voucher.circle !== extra.circleContract || extra.circleContract !== circle.circleContract) {
     return reject("circle_mismatch", payer);
   }
-  // 6 (unit and resource ASCII sudah dijaga skema di cek 4)
+  // 6 (unit and resource ASCII already guarded by the schema in check 4)
   if (voucher.payee !== payTo) return reject("payee_mismatch", payer);
-  // endpoint grant F8 (SD-053): voucher membayar grant yang disebut requirements, bukan URL broker
+  // F8 grant endpoint (SD-053): the voucher pays the grant named in the requirements, not the broker URL
   if (extra.grantId !== undefined && voucher.resource !== grantResource(extra.grantId)) return reject("grant_resource_mismatch", payer);
   // 7
   if (voucher.payer === voucher.payee) return reject("self_payment", payer);
@@ -133,7 +133,7 @@ export async function verifyPayment(
   if (pending.some((row) => (row.attempts ?? 0) >= REGISTRATION_RETRY_BLOCK_ATTEMPTS)) {
     return reject("registration_retry_pending", payer);
   }
-  // SD-048: voucher leg bundle diperiksa terhadap batas leg D8, bukan headroom bebas
+  // SD-048: a bundle leg voucher is checked against the D8 leg limit, not free headroom
   let legMax: bigint | undefined;
   if (bundleId !== undefined) {
     if (!chain.bundle) throw new Error("VerifyChain.bundle is required for a bundle leg voucher");
@@ -152,7 +152,7 @@ export async function verifyPayment(
   if (increment < 0n) return reject("cumulative_decreased", payer);
   // 18
   if (increment !== BigInt(requirements.amount)) return reject("amount_mismatch", payer);
-  // 19 (voucher leg bundle memakai cadangan leg, sudah dicek di atas)
+  // 19 (a bundle leg voucher uses the leg reserve, already checked above)
   if (legMax === undefined && increment > BigInt(await computeHeadroom(payer, voucher.epoch, chain))) {
     return reject("insufficient_credit", payer);
   }

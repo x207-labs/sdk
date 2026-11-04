@@ -1,4 +1,4 @@
-// Konfigurasi facilitator dari environment. Semua variabel yang dibaca harus ada di .env.example (TC-SD-021-09).
+// Facilitator configuration from the environment. Every variable read must be in .env.example (TC-SD-021-09).
 import { RPC_URLS } from "@x207/core";
 import { defineCircleConfig, type CircleConfig } from "@x207/scheme";
 
@@ -11,19 +11,19 @@ export class ConfigError extends Error {
 
 export type FacilitatorConfig = {
   port: number;
-  /** Lingkaran yang dilayani: `x207:<circleId>` -> akun kontrak. */
+  /** Circles served: `x207:<circleId>` -> contract account. */
   circles: CircleConfig[];
   rpcUrls: string[];
-  /** Timeout panggilan RPC (ADR-25: 10 detik). */
+  /** RPC call timeout (ADR-25: 10 seconds). */
   rpcTimeoutMs: number;
   pendingDbPath: string;
-  /** Mode registrasi: `cumulative` (default, ADR-17) atau `per_request` (mode demo, SD-029). */
+  /** Registration mode: `cumulative` (default, ADR-17) or `per_request` (demo mode, SD-029). */
   registerMode: "cumulative" | "per_request";
-  /** Gas key relayer untuk registrasi paralel (NEP-611, SD-031); `lanes` jumlah jalur nonce yang dipakai. Tanpa ini registrasi berurutan. */
+  /** Relayer gas key for parallel registration (NEP-611, SD-031); `lanes` is the number of nonce lanes used. Without it registration is sequential. */
   gasKey?: { privateKey: string; lanes: number };
-  /** Batas tunggu `/settle` untuk registrasi `per_request` sebelum menjawab `settlement_pending` (ADR-25: 10 detik). */
+  /** How long `/settle` waits for `per_request` registration before answering `settlement_pending` (ADR-25: 10 seconds). */
   settleTimeoutMs: number;
-  /** Akun relayer untuk `register_cumulative`; dipakai SD-028. */
+  /** Relayer account for `register_cumulative`; used by SD-028. */
   relayer?: { accountId: string; privateKey: string };
 };
 

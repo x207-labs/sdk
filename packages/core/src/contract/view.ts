@@ -1,4 +1,4 @@
-// View kontrak lewat JSON-RPC NEAR dengan failover antar endpoint (RPC_URLS: FastNEAR lalu rpc.mainnet.near.org).
+// Contract views through NEAR JSON-RPC with failover between endpoints (RPC_URLS: FastNEAR then rpc.mainnet.near.org).
 import { RPC_URLS } from "../constants.js";
 import type { AccountId } from "../types.js";
 import type { CircleViewFn } from "./client.js";
@@ -11,7 +11,7 @@ export type CircleViewOptions = {
   timeoutMs?: number;
 };
 
-/** `CircleViewFn` untuk satu kontrak lingkaran. Melempar bila semua endpoint gagal atau kontrak panic. */
+/** `CircleViewFn` for one circle contract. Throws if all endpoints fail or the contract panics. */
 export function createCircleViewFn(options: CircleViewOptions): CircleViewFn {
   const urls = options.rpcUrls ?? RPC_URLS;
   const fetchFn = options.fetch ?? fetch;

@@ -1,5 +1,5 @@
-// Intent barter dan usulan bundle (SD-047, F5/F9): JSON kanonik, hash, dan tanda tangan ed25519 dengan kunci voucher.
-// Format byte dan alasannya: spec/barter-format.md. Kontrak Rust (commit_bundle, post_intent) membangun byte yang sama.
+// Barter intents and bundle proposals (SD-047, F5/F9): canonical JSON, hash, and ed25519 signature with the voucher key.
+// Byte format and rationale: spec/barter-format.md. The Rust contract (commit_bundle, post_intent) builds the same bytes.
 import { createHash } from "node:crypto";
 import { base58Encode } from "./base58.js";
 import { MAX_BUNDLE_LEGS } from "./constants.js";
@@ -26,26 +26,26 @@ const isPositiveInt = (value: unknown): value is number => Number.isSafeInteger(
 const isAmount = (value: unknown): value is U128String =>
   typeof value === "string" && AMOUNT.test(value) && BigInt(value) <= U128_MAX;
 
-/** Satu sisi intent: jasa, jumlah panggilan, dan nilai total dalam credit (satuan terkecil, 6 desimal). */
+/** One side of an intent: the service, number of calls, and total value in credit (smallest unit, 6 decimals). */
 export type BarterSide = { service: string; calls: number; value: U128String };
 
-/** Intent barter: akun menawarkan `offer` dan membutuhkan `need`, berlaku sampai `expiresAt` (detik unix). */
+/** Barter intent: the account offers `offer` and needs `need`, valid until `expiresAt` (unix seconds). */
 export type BarterIntent = {
   circle: AccountId;
   account: AccountId;
   offer: BarterSide;
   need: BarterSide;
   expiresAt: number;
-  /** Pembeda antar intent dengan isi sama dari akun yang sama. */
+  /** Distinguishes intents with identical content from the same account. */
   nonce: string;
 };
 
-/** Leg pencari F9 (interface 0.0.5): pasangan (payer, payee) yang merupakan salah satu leg bundle; kontrak membatasinya dengan `max_search_share_bps`. */
+/** F9 searcher leg (interface 0.0.5): a (payer, payee) pair that is one of the bundle legs; the contract limits it with `max_search_share_bps`. */
 export type SearchLeg = { payer: AccountId; payee: AccountId };
 
 /**
- * Syarat bundle yang disetujui semua pihak: `terms_hash` dihitung dari bentuk kanoniknya. `search_leg` opsional (SD-047, interface 0.0.5):
- * bila ada, kuncinya terakhir di JSON kanonik; bila tidak ada (atau `null`), bytes dan `terms_hash` sama dengan format sebelum 0.0.5.
+ * Bundle terms approved by all parties: `terms_hash` is computed from its canonical form. `search_leg` is optional (SD-047, interface 0.0.5):
+ * if present, its key comes last in the canonical JSON; if absent (or `null`), the bytes and `terms_hash` equal the format before 0.0.5.
  */
 export type BundleTerms = {
   circle: AccountId; epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg | null;
@@ -104,7 +104,7 @@ export function validateBundleTerms(terms: BundleTerms): void {
 
 const HASH64 = /^[0-9a-f]{64}$/;
 const U64_MAX = 18446744073709551615n;
-/** Syarat jaminan CT-094: `arbiter` dan `confirm_by` datang bersama, `agreement_hash` butuh keduanya, hanya untuk dua peserta, dan arbiter bukan peserta. */
+/** CT-094 guarantee terms: `arbiter` and `confirm_by` come together, `agreement_hash` needs both, only for two participants, and the arbiter is not a participant. */
 function validateDealTerms(terms: BundleTerms): void {
   const arbiter = terms.arbiter ?? null;
   const agreement = terms.agreement_hash ?? null;
@@ -119,7 +119,7 @@ function validateDealTerms(terms: BundleTerms): void {
   if (participants.has(arbiter)) throw new BarterFormatError("arbiter must not be a swap participant (ERR_ARBITER_INVALID)");
 }
 
-/** JSON kanonik intent: key `circle, account, offer{service,calls,value}, need{...}, expiresAt, nonce`, tanpa spasi. */
+/** Canonical intent JSON: keys `circle, account, offer{service,calls,value}, need{...}, expiresAt, nonce`, no whitespace. */
 export function serializeIntent(intent: BarterIntent): string {
   validateIntent(intent);
   const side = (s: BarterSide) => ({ service: s.service, calls: s.calls, value: s.value });
@@ -129,7 +129,7 @@ export function serializeIntent(intent: BarterIntent): string {
   });
 }
 
-/** JSON kanonik syarat bundle: `circle, epoch, legs[{payer,payee,max_amount}]` lalu `search_leg{payer,payee}` bila diisi, lalu `arbiter`, `agreement_hash` (bila ada), `confirm_by` bila ada arbiter; leg diurutkan menurut (payer, payee). */
+/** Canonical bundle terms JSON: `circle, epoch, legs[{payer,payee,max_amount}]` then `search_leg{payer,payee}` if set, then `arbiter`, `agreement_hash` (if present), `confirm_by` if there is an arbiter; legs sorted by (payer, payee). */
 export function serializeBundleTerms(terms: BundleTerms): string {
   validateBundleTerms(terms);
   const legs = [...terms.legs]
@@ -146,16 +146,16 @@ export function serializeBundleTerms(terms: BundleTerms): string {
 const sha256 = (text: string): Uint8Array => createHash("sha256").update(text, "utf8").digest();
 const hex = (bytes: Uint8Array): string => Buffer.from(bytes).toString("hex");
 
-/** `sha256(JSON kanonik intent)`: 32 byte. */
+/** `sha256(canonical intent JSON)`: 32 bytes. */
 export const intentHashBytes = (intent: BarterIntent): Uint8Array => sha256(serializeIntent(intent));
-/** Heks huruf kecil 64 karakter. */
+/** 64-character lowercase hex. */
 export const intentHash = (intent: BarterIntent): string => hex(intentHashBytes(intent));
-/** `Base58CryptoHash` untuk argumen `post_intent(intent_hash)`. */
+/** `Base58CryptoHash` for the `post_intent(intent_hash)` argument. */
 export const intentHashBase58 = (intent: BarterIntent): string => base58Encode(intentHashBytes(intent));
 
 /**
- * Argumen `bundle` untuk `commit_bundle` dari syarat yang ditandatangani: `{epoch, legs}` dan `search_leg` bila ada. Kontrak menghitung
- * `terms_hash` dari argumen ini, jadi `search_leg` yang ikut ditandatangani wajib ikut dikirim (interface 0.0.5).
+ * `bundle` argument for `commit_bundle` from the signed terms: `{epoch, legs}` and `search_leg` if present. The contract computes
+ * `terms_hash` from this argument, so a signed `search_leg` must be sent too (interface 0.0.5).
  */
 export const bundleInput = (terms: BundleTerms): { epoch: number; legs: BundleLeg[]; search_leg?: SearchLeg; arbiter?: AccountId; agreement_hash?: string; confirm_by?: string } => ({
   epoch: terms.epoch,
@@ -164,14 +164,14 @@ export const bundleInput = (terms: BundleTerms): { epoch: number; legs: BundleLe
   ...(terms.arbiter ? { arbiter: terms.arbiter, ...(terms.agreement_hash ? { agreement_hash: terms.agreement_hash } : {}), confirm_by: terms.confirm_by! } : {}),
 });
 
-/** `sha256(JSON kanonik syarat bundle)`: 32 byte. */
+/** `sha256(canonical bundle terms JSON)`: 32 bytes. */
 export const termsHashBytes = (terms: BundleTerms): Uint8Array => sha256(serializeBundleTerms(terms));
-/** `terms_hash` heks huruf kecil 64 karakter, ditandatangani semua peserta. */
+/** `terms_hash` as 64 lowercase hex characters, signed by all participants. */
 export const termsHash = (terms: BundleTerms): string => hex(termsHashBytes(terms));
 
 /**
- * Yang ditandatangani: `sha256` payload NEP-413 dengan `message` = JSON kanonik, `nonce` = hash pesan itu, dan
- * `recipient` = akun kontrak lingkaran. Sama dengan voucher, jadi kontrak memakai pembangun byte yang sama.
+ * What is signed: the `sha256` of the NEP-413 payload with `message` = the canonical JSON, `nonce` = the hash of that message, and
+ * `recipient` = the circle contract account. Same as the voucher, so the contract uses the same byte builder.
  */
 export const bundleSigningHash = (terms: BundleTerms): Uint8Array =>
   nep413SigningHash(serializeBundleTerms(terms), termsHashBytes(terms), terms.circle);
@@ -203,13 +203,13 @@ export function verifyIntentSignature(intent: BarterIntent, signature: string, p
   }
 }
 
-/** Peserta bundle: semua akun yang muncul sebagai payer atau payee, urut. Semuanya wajib menandatangani. */
+/** Bundle participants: all accounts that appear as payer or payee, sorted. All of them must sign. */
 export function bundleParticipants(terms: BundleTerms): AccountId[] {
   validateBundleTerms(terms);
   return [...new Set(terms.legs.flatMap((l) => [l.payer, l.payee]))].sort(byBytes);
 }
 
-/** `true` bila semua peserta punya tanda tangan sah dari pubkey voucher masing-masing (`pubkeys`: akun -> pubkey). */
+/** `true` if all participants have a valid signature from their voucher pubkey (`pubkeys`: account -> pubkey). */
 export function bundleFullySigned(terms: BundleTerms, signatures: readonly BundleSignature[], pubkeys: Readonly<Record<string, string>>): boolean {
   return bundleParticipants(terms).every((account) => {
     const pubkey = pubkeys[account];

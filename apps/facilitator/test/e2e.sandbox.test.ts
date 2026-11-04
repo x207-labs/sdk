@@ -1,6 +1,6 @@
-// E2E near-sandbox: pembeli (examples/buyer) -> penjual (examples/seller) -> facilitator -> kontrak nyata.
-// Mencakup TC-SD-035-01, TC-SD-027-02, TC-SD-016-10, dan registrasi on-chain satu pasangan.
-// Dilewati kecuali `npm run test:sandbox` (lihat test-support/sandbox.ts).
+// E2E near-sandbox: buyer (examples/buyer) -> seller (examples/seller) -> facilitator -> real contract.
+// Covers TC-SD-035-01, TC-SD-027-02, TC-SD-016-10, and on-chain registration of one pair.
+// Skipped unless `npm run test:sandbox` (see test-support/sandbox.ts).
 import { serve } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -59,7 +59,7 @@ describe.skipIf(!sandboxAvailable)("E2E buyer, seller, facilitator, contract on 
     );
     servers.push(seller.server);
 
-    // TC-SD-016-10 (bagian tanpa lompat epoch): extra.epoch dari /supported = contract epoch.
+    // TC-SD-016-10 (part without epoch jump): extra.epoch from /supported = contract epoch.
     const epoch = await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", {});
     const supported = (await (await fetch(`${facilitator.url}/supported`)).json()) as { kinds: Array<{ network: string; extra?: { epoch: number } }> };
     expect(supported.kinds.find((k) => k.network === "x207:agents-main")?.extra?.epoch).toBe(epoch.epoch);
@@ -83,7 +83,7 @@ describe.skipIf(!sandboxAvailable)("E2E buyer, seller, facilitator, contract on 
     });
     expect(obligation).toMatchObject({ cumulative: "20000", last_seq: 1 });
 
-    // TC-SD-054-14: payer request_exit lalu voucher baru ditolak member_exiting; event exit_requested ter-parse.
+    // TC-SD-054-14: the payer calls request_exit and then a new voucher is rejected member_exiting; the exit_requested event is parsed.
     const exit = await payer.account.call(buildRequestExitCall(fx.circle.accountId));
     expect(exit.failures).toEqual([]);
     expect(exit.logs.flatMap((log) => parseEventLog(log) ?? [])).toContainEqual(
@@ -101,7 +101,7 @@ describe.skipIf(!sandboxAvailable)("E2E buyer, seller, facilitator, contract on 
     ).catch(() => undefined);
     expect(challenges).toContain("member_exiting");
 
-    // TC-SD-016-10: close_epoch memajukan epoch; /supported ikut setelah cache 60 detik habis.
+    // TC-SD-016-10: close_epoch advances the epoch; /supported follows after the 60-second cache expires.
     await fx.sandbox.advanceTo(Number(BigInt(epoch.cutoff_at) / 1_000_000n) + 1_000);
     await new Promise((r) => setTimeout(r, 3_000));
     const closed = await fx.sandbox.accountFrom(relayer.accountId, relayer.secretKey).call({ receiverId: fx.circle.accountId, methodName: "close_epoch", args: { epoch: epoch.epoch }, deposit: 0n }, "EXECUTED_OPTIMISTIC");
@@ -109,7 +109,7 @@ describe.skipIf(!sandboxAvailable)("E2E buyer, seller, facilitator, contract on 
     const cutoffEvent = closed.logs.flatMap((log) => parseEventLog(log) ?? []).find((e) => e.event === "epoch_cutoff");
     expect(cutoffEvent).toMatchObject({ epoch: epoch.epoch, next_epoch: epoch.epoch + 1 });
     clock.offsetMs += 61_000;
-    // close_epoch dijawab saat EXECUTED_OPTIMISTIC; tunggu head final menyusul sebelum view `final` dipakai /supported.
+    // close_epoch is answered at EXECUTED_OPTIMISTIC; wait for the final head to catch up before the `final` view is used by /supported.
     let next = await fx.sandbox.view<ContractAbi.EpochView>(fx.circle.accountId, "get_epoch", {});
     for (let i = 0; i < 40 && next.epoch !== epoch.epoch + 1; i++) {
       await new Promise((r) => setTimeout(r, 500));

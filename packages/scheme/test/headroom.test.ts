@@ -14,7 +14,7 @@ type Fixture = {
   lastSeq?: Record<string, number>;
 };
 
-/** Sumber data tiruan: pending store D3 (difilter per epoch seperti `listByPayer`) dan view kontrak. */
+/** Mock data source: the D3 pending store (filtered per epoch like `listByPayer`) and the contract view. */
 function sources(fixture: Fixture): HeadroomSources {
   return {
     headroom: async () => fixture.onchainHeadroom,
@@ -49,7 +49,7 @@ describe("SD-023 computeHeadroom", () => {
     expect(await computeHeadroom(A, 42, s)).toBe("40000");
   });
 
-  it("TC-SD-023-04 pending ke beberapa payee", async () => {
+  it("TC-SD-023-04 pending to several payees", async () => {
     const s = sources({ onchainHeadroom: "100000", pending: [pending(B, "30000"), pending(C, "50000")] });
     expect(await computeHeadroom(A, 42, s)).toBe("20000");
   });

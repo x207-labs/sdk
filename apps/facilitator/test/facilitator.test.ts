@@ -66,7 +66,7 @@ describe("SD-021 scaffold apps/facilitator", () => {
     }
   });
 
-  it("TC-SD-021-02 rute tak dikenal 404 not_found", async () => {
+  it("TC-SD-021-02 unknown route 404 not_found", async () => {
     const res = await createApp(okService).request("/foo");
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "not_found" });
@@ -148,8 +148,8 @@ describe("SD-021 scaffold apps/facilitator", () => {
         .filter((e) => /from\s+["']near-api-js/.test(readFileSync(`${e.parentPath}/${e.name}`, "utf8")));
     expect(importsNearApi(`${root}apps/facilitator/src`)).toEqual([]);
     expect(importsNearApi(`${root}packages/scheme`).filter((e) => !e.parentPath.includes("node_modules") && !e.parentPath.includes("dist"))).toEqual([]);
-    // Entry root @x207/core tidak boleh menarik near-api-js 7 (client kontrak ada di subpath terpisah).
-    // Satu-satunya berkas core yang boleh mengimpor near-api-js adalah entry terpisah `signer.ts`, yang tidak diekspor dari root.
+    // The @x207/core root entry must not pull in near-api-js 7 (the contract client is in a separate subpath).
+    // The only core file allowed to import near-api-js is the separate entry `signer.ts`, which is not exported from the root.
     expect(importsNearApi(`${root}packages/core/src`).map((e) => e.name)).toEqual(["signer.ts"]);
     expect(readFileSync(`${root}packages/core/src/index.ts`, "utf8")).not.toMatch(/signer/);
   });

@@ -1,4 +1,4 @@
-// Memakai hanya ekspor publik @x207/core, seperti developer luar.
+// Uses only the public exports of @x207/core, like an outside developer.
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -16,7 +16,7 @@ const SEEKER = "scraper.x207-circle.near";
 const listing = vector.listing as Listing;
 const NOW = 1793000000;
 
-describe("SD-056 helper marketplace", () => {
+describe("SD-056 marketplace helpers", () => {
   it("postListing signs and verifySignedListing rejects a changed listing", () => {
     const signed = postListing(listing, seed("kA"));
     expect(signed.signature).toBe(vector.signature);
@@ -102,7 +102,7 @@ describe("SD-056 helper marketplace", () => {
     expect(() => planOffer({ listing, offer: second.offer, epoch: 42 })).toThrow(/the counterparty must not be the same as the listing poster/);
     const viaSecond = planOffer({ listing, offer: second.offer, epoch: 42, counterparty: COUNTERPARTY });
     if (viaSecond.kind !== "bundle") throw new Error("must be a bundle");
-    // pemasang menawar balik 95: lawan membayar 95 ke Andi, Andi membayar 100 + cashback 9,5 ke lawan
+    // the poster counter-offers 95: the counterparty pays 95 to Andi, Andi pays 100 + 9.5 cashback to the counterparty
     const byKey = <T extends { payer: string; payee: string }>(legs: T[]) => [...legs].sort((a, b) => (a.payer + a.payee < b.payer + b.payee ? -1 : 1));
     expect(byKey(viaSecond.terms.legs)).toEqual(byKey([
       { payer: ANDI, payee: COUNTERPARTY, max_amount: "109500000" },
@@ -115,7 +115,7 @@ describe("SD-056 helper marketplace", () => {
     const barter = planOffer({ listing, offer: first.offer, epoch: 42, searcher: SEEKER, searcherShareBps: 300 });
     if (barter.kind !== "bundle") throw new Error("must be a bundle");
     const amount = (payer: string, payee: string) => barter.terms.legs.find((l) => l.payer === payer && l.payee === payee)?.max_amount;
-    // diskon 10% dari 90 = 9, jatah 3% dari 90 = 2,7, cashback 6,3; lawan membayar 90 ke Andi
+    // 10% discount on 90 = 9, 3% share of 90 = 2.7, cashback 6.3; the counterparty pays 90 to Andi
     expect(amount(COUNTERPARTY, ANDI)).toBe("90000000");
     expect(amount(ANDI, COUNTERPARTY)).toBe("106300000");
     expect(amount(ANDI, SEEKER)).toBe("2700000");
@@ -131,13 +131,13 @@ describe("SD-056 helper marketplace", () => {
     expect(withSeeker.terms.search_leg).toEqual({ payer: ANDI, payee: SEEKER });
     expect(withSeeker.terms_hash).toBe(termsHash(withSeeker.terms));
     expect(Object.keys(JSON.parse(serializeBundleTerms(withSeeker.terms)))).toEqual(["circle", "epoch", "legs", "search_leg"]);
-    // acceptOffer menandatangani syarat yang sama, dengan search_leg
+    // acceptOffer signs the same terms, with search_leg
     const accepted = acceptOffer({ listing, offer, epoch: 42, searcher: SEEKER, searcherShareBps: 300, account: ANDI }, seed("kA"));
     if (accepted.kind !== "bundle") throw new Error("must be a bundle");
     expect(accepted.terms_hash).toBe(withSeeker.terms_hash);
     expect(accepted.terms.search_leg).toEqual({ payer: ANDI, payee: SEEKER });
 
-    // tanpa pencari, atau jatah 0 (tidak ada leg): tidak ada search_leg dan hash sama dengan hash legs saja
+    // without a searcher, or a share of 0 (no leg): there is no search_leg and the hash equals the hash of legs alone
     const noSeeker = planOffer({ listing, offer, epoch: 42 });
     const zeroShare = planOffer({ listing, offer, epoch: 42, searcher: SEEKER, searcherShareBps: 0 });
     for (const plan of [noSeeker, zeroShare]) {

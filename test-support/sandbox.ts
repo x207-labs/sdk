@@ -1,6 +1,6 @@
-// Harness near-sandbox untuk test integrasi sdk (TC-SD-011-17, TC-SD-012-07/08, TC-SD-013-01/02, TC-SD-028-19).
-// Dijalankan lewat `npm run test:sandbox`. Mencari binary near-sandbox di X207_SANDBOX_BIN atau di build `contracts` (near-workspaces mengunduhnya
-// saat `cargo test` pertama), dan wasm kontrak di `../contracts/target/near` (hasil `cargo near build`).
+// near-sandbox harness for sdk integration tests (TC-SD-011-17, TC-SD-012-07/08, TC-SD-013-01/02, TC-SD-028-19).
+// Run through `npm run test:sandbox`. Looks for the near-sandbox binary in X207_SANDBOX_BIN or in the `contracts` build (near-workspaces downloads it
+// on the first `cargo test`), and the contract wasm in `../contracts/target/near` (output of `cargo near build`).
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, parseNearAmount } from "near-api-js";
 import type { ContractCall } from "@x207/core";
 
-// Tanpa `new URL(..., import.meta.url)`: Vite menulis ulang pola itu menjadi URL http saat test frontend (jsdom) memuat harness ini.
+// No `new URL(..., import.meta.url)`: Vite rewrites that pattern to an http URL when the frontend test (jsdom) loads this harness.
 const contractsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../contracts");
 export const CIRCLE_WASM = join(contractsDir, "target/near/x207_circle.wasm");
 export const MOCK_INTENTS_WASM = join(contractsDir, "target/near/mock_intents/mock_intents.wasm");
@@ -35,8 +35,8 @@ export function findSandboxBinary(): string | null {
 }
 
 /**
- * Test sandbox hanya jalan bila diminta (`npm run test:sandbox`, env X207_SANDBOX=1) dan binary serta kedua wasm
- * ada. Satu test butuh puluhan detik dan jauh lebih lama saat mesin sibuk, jadi tidak ikut `npm test`.
+ * Sandbox tests run only when requested (`npm run test:sandbox`, env X207_SANDBOX=1) and the binary and both wasm files
+ * exist. One test takes tens of seconds and much longer when the machine is busy, so it is not part of `npm test`.
  */
 export const sandboxAvailable =
   process.env.X207_SANDBOX === "1" && findSandboxBinary() !== null && existsSync(CIRCLE_WASM) && existsSync(MOCK_FT_WASM);
@@ -70,7 +70,7 @@ async function waitForRpc(rpcUrl: string, exited: () => boolean, timeoutMs: numb
       const status = await rpcCall<{ sync_info: { latest_block_height: number } }>(rpcUrl, "status", []);
       if (status.sync_info.latest_block_height > 0) return;
     } catch {
-      // belum listening
+      // not listening yet
     }
     await new Promise((r) => setTimeout(r, 300));
   }
@@ -78,13 +78,13 @@ async function waitForRpc(rpcUrl: string, exited: () => boolean, timeoutMs: numb
 }
 
 export type TxResult = {
-  /** Hash transaksi. */
+  /** Transaction hash. */
   hash: string;
-  /** Nilai sukses akhir (JSON), atau `undefined` bila kosong. */
+  /** Final success value (JSON), or `undefined` if empty. */
   value: unknown;
-  /** Semua baris log dari seluruh receipt, berurutan. */
+  /** All log lines from all receipts, in order. */
   logs: string[];
-  /** Pesan kegagalan semua receipt yang gagal (kosong bila sukses). */
+  /** Failure messages of all failed receipts (empty on success). */
   failures: string[];
 };
 
@@ -110,7 +110,7 @@ export class SandboxAccount {
   readonly account: Account;
   readonly secretKey: string;
 
-  // Tanpa parameter property: agents mengimpor berkas ini dan memakai erasableSyntaxOnly.
+  // No parameter properties: agents import this file and use erasableSyntaxOnly.
   constructor(sandbox: Sandbox, accountId: string, account: Account, secretKey: string) {
     this.sandbox = sandbox;
     this.accountId = accountId;
@@ -118,7 +118,7 @@ export class SandboxAccount {
     this.secretKey = secretKey;
   }
 
-  /** Akun yang sama dengan function call key baru (ADR-11b): hanya boleh memanggil `contractId`, tanpa deposit. */
+  /** The same account with a new function call key (ADR-11b): may only call `contractId`, no deposit. */
   async withFunctionCallKey(contractId: string): Promise<SandboxAccount> {
     const keyPair = KeyPair.fromRandom("ed25519");
     await this.account.addFunctionCallAccessKey({
@@ -128,7 +128,7 @@ export class SandboxAccount {
     return new SandboxAccount(this.sandbox, this.accountId, restricted, keyPair.toString());
   }
 
-  /** Kirim function call dan tunggu final; kegagalan dikembalikan di `failures`, tidak dilempar. */
+  /** Send a function call and wait for final; failures are returned in `failures`, not thrown. */
   async call(
     call: Pick<ContractCall, "receiverId" | "methodName" | "args" | "deposit" | "gas">,
     waitUntil: "FINAL" | "EXECUTED_OPTIMISTIC" = "FINAL",
@@ -144,7 +144,7 @@ export class SandboxAccount {
         waitUntil,
       })) as unknown as RawResult;
     } catch (error) {
-      // near-api-js melempar bila transaksi gagal di akhir; log receipt hilang, pesan panic tetap ada.
+      // near-api-js throws when the transaction fails at the end; the receipt logs are lost, the panic message remains.
       return { hash: "", value: undefined, logs: [], failures: [error instanceof Error ? error.message : String(error)] };
     }
     return summarize(raw);
@@ -170,7 +170,7 @@ export class Sandbox {
     return new SandboxAccount(this, this.rootAccountId, new Account(this.rootAccountId, this.provider, KeyPairSigner.fromSecretKey(this.#rootSecretKey as never)), this.#rootSecretKey);
   }
 
-  /** Buat `<name>.<root>` dengan saldo NEAR dan kunci baru. */
+  /** Create `<name>.<root>` with a NEAR balance and a new key. */
   async createAccount(name: string, nearBalance = "20"): Promise<SandboxAccount> {
     const keyPair = KeyPair.fromRandom("ed25519");
     const accountId = `${name}.${this.rootAccountId}`;
@@ -182,7 +182,7 @@ export class Sandbox {
     return new SandboxAccount(this, accountId, new Account(accountId, this.provider, KeyPairSigner.fromSecretKey(keyPair.toString() as never)), keyPair.toString());
   }
 
-  /** Objek akun baru dari kunci yang ada; dipakai setelah `fastForward` karena Account menyimpan block hash lama. */
+  /** New account object from an existing key; used after `fastForward` because Account keeps the old block hash. */
   accountFrom(accountId: string, secretKey: string): SandboxAccount {
     return new SandboxAccount(this, accountId, new Account(accountId, this.provider, KeyPairSigner.fromSecretKey(secretKey as never)), secretKey);
   }
@@ -191,7 +191,7 @@ export class Sandbox {
     await account.account.deployContract(readFileSync(wasmPath));
   }
 
-  /** View function; hasil JSON. */
+  /** View function; JSON result. */
   async view<T>(contractId: string, methodName: string, args: object = {}): Promise<T> {
     const result = await rpcCall<{ result: number[] }>(this.rpcUrl, "query", {
       request_type: "call_function", finality: "optimistic", account_id: contractId, method_name: methodName,
@@ -205,12 +205,12 @@ export class Sandbox {
     return Number(BigInt(block.header.timestamp_nanosec) / 1_000_000n);
   }
 
-  /** Maju `blocks` blok sekaligus (`sandbox_fast_forward`); waktu blok ikut maju. */
+  /** Advance `blocks` blocks at once (`sandbox_fast_forward`); block time advances too. */
   async fastForward(blocks: number): Promise<void> {
     await rpcCall(this.rpcUrl, "sandbox_fast_forward", { delta_height: blocks });
   }
 
-  /** Maju sampai waktu blok mencapai `targetMs` (unix ms). */
+  /** Advance until the block time reaches `targetMs` (unix ms). */
   async advanceTo(targetMs: number): Promise<void> {
     while ((await this.blockTimestampMs()) < targetMs) {
       const missingSeconds = Math.ceil((targetMs - (await this.blockTimestampMs())) / 1000);

@@ -1,6 +1,6 @@
 {
   "name": "pending_partly_registered",
-  "description": "Terdaftar 20000 sudah ada di headroom on-chain 80000; hanya selisih 40000 dikurangkan (TC-SD-023-03).",
+  "description": "Registered 20000 is already in the on-chain headroom of 80000; only the difference of 40000 is subtracted (TC-SD-023-03).",
   "input": {
     "epoch": 42,
     "payer": "a.x207-circle.near",

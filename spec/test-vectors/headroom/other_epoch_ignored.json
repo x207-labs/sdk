@@ -1,6 +1,6 @@
 {
   "name": "other_epoch_ignored",
-  "description": "Pending epoch lain tidak mengurangi (TC-SD-023-08).",
+  "description": "Pending of another epoch does not subtract (TC-SD-023-08).",
   "input": {
     "epoch": 42,
     "payer": "a.x207-circle.near",

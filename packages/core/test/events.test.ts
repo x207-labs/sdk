@@ -22,7 +22,7 @@ const PARAMS = {
   limit_cap: "1000000000", limit_decay: 0, fees: { clearing_fee_bps: 0, solver_fee_bps: 0 }, admission: "open",
 };
 
-// Satu contoh log per event, field persis seperti Spec Antarmuka Kontrak bagian 6 dan abi.json 0.0.1.
+// One sample log per event, fields exactly as in Contract Interface Spec section 6 and abi.json 0.0.1.
 const SAMPLES: Record<string, unknown> = {
   member_joined: { account_id: A, pubkey_voucher: "ed25519:AKnL4NNf3DGWZJS6cPknBuEGnVsV4A4m5tgebLHaRSZ9", terms_hash: "a".repeat(64), status: "pending", joined_at: "1793500000000000000" },
   stake_added: { account_id: A, sender_id: A, amount: "50000000", stake: "50000000", limit: "40000000", status: "active" },
@@ -65,7 +65,7 @@ const SAMPLES: Record<string, unknown> = {
   deal_ruled: { bundle_id: 1, arbiter: "arbiter.near", verdict: "accused_guilty" },
   bond_slashed: { bundle_id: 1, from: B, to: A, amount: "20000000", from_stake: "80000000", to_stake: "120000000" },
   bond_released: { bundle_id: 1, account_id: A, amount: "20000000", reason: "ruling" },
-  // event P0 lain di abi 0.0.1 dan member_admitted (spec)
+  // other P0 events in abi 0.0.1 and member_admitted (spec)
   member_admitted: { account_id: A, status: "active" },
   clearing_submitted: { epoch: 42, solver: B, cleared_total: "180000000", edge_count: 3, replaced_solver: null, replaced_cleared_total: null },
   epoch_committed: { epoch: 42, committed_at: "1", payment_deadline: "2", total_due: "45000000", total_claimable: "45000000", positions: [{ account_id: A, net: "-35000000", role: "debtor", status: "due", amount: "35000000", outstanding_debt: "35000000" }, { account_id: B, net: "0", role: "none", status: null, amount: "0", outstanding_debt: "0" }], chunk: 0, chunks: 1 },
@@ -92,7 +92,7 @@ describe("SD-011 parseEventLog", () => {
     ["another abi event", "residual_claimed"],
     ["another abi event", "residual_claim_failed"],
     ["TC-SD-011-05", "clearing_applied"],
-  ])("%s %s menjadi objek bertipe", (_id, name) => {
+  ])("%s %s becomes a typed object", (_id, name) => {
     const event = one(log(name, SAMPLES[name]));
     expect(event).toEqual({ event: name, ...(SAMPLES[name] as object) });
     expect(isKnownX207Event(event)).toBe(true);

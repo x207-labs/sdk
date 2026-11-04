@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Adapter referensi conformance (SD-058): menjawab protokol NDJSON dengan @x207/core. Implementasi lain menulis adapter yang sama
-// dalam bahasanya. Baca satu JSON per baris `{id, op, input}`, tulis satu JSON per baris `{id, output}` atau `{id, error}`.
+// Conformance reference adapter (SD-058): answers the NDJSON protocol with @x207/core. Another implementation writes the same adapter
+// in its own language. Read one JSON per line `{id, op, input}`, write one JSON per line `{id, output}` or `{id, error}`.
 import { createInterface } from "node:readline";
 import * as core from "@x207/core";
 

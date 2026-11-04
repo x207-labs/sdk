@@ -1,34 +1,34 @@
-// Headroom termasuk voucher pending dan basis voucher per pasangan (Spec Binding x402 6.1, ADR-17).
+// Headroom includes pending vouchers and the per-pair voucher base (x402 Binding Spec 6.1, ADR-17).
 import type { AccountId, ContractAbi, PairState, U128String } from "@x207/core";
 
 export type PendingVoucherRef = {
   payee: AccountId;
   seq: number;
   cumulativeAmount: U128String;
-  /** Percobaan registrasi gagal (ADR-23); tidak ada berarti 0. */
+  /** Failed registration attempts (ADR-23); absent means 0. */
   attempts?: number;
-  /** Voucher leg bundle (SD-048): memakai cadangan leg, jadi tidak mengurangi headroom bebas. */
+  /** Bundle leg voucher (SD-048): uses the leg reserve, so it does not reduce free headroom. */
   bundleId?: number | null;
 };
 
-/** Pembacaan on-chain dan pending store D3 yang dibutuhkan facilitator. */
+/** On-chain reads and the D3 pending store needed by the facilitator. */
 export interface HeadroomSources {
-  /** View `headroom(account_id)`: `max(0, limit - outstanding_debt)`, `"0"` bila tidak `active`. */
+  /** View `headroom(account_id)`: `max(0, limit - outstanding_debt)`, `"0"` if not `active`. */
   headroom(account: AccountId): Promise<U128String>;
-  /** View `obligation(epoch, debtor, creditor)`; `null` bila belum ada. */
+  /** View `obligation(epoch, debtor, creditor)`; `null` if none yet. */
   obligation(
     epoch: number,
     debtor: AccountId,
     creditor: AccountId,
   ): Promise<Pick<ContractAbi.ObligationView, "cumulative" | "last_seq"> | null>;
-  /** Baris pending payer di `epoch` (satu per payee). */
+  /** Pending rows of the payer in `epoch` (one per payee). */
   pendingByPayer(payer: AccountId, epoch: number): Promise<readonly PendingVoucherRef[]>;
 }
 
 export type VoucherBase = Pick<PairState, "source"> & { seq: number; cumulativeAmount: U128String };
 
 /**
- * `base(p, q)`: baris pending bila ada, selain itu kumulatif terdaftar di `obligation`, selain itu `seq 0`.
+ * `base(p, q)`: the pending row if there is one, otherwise the cumulative registered in `obligation`, otherwise `seq 0`.
  */
 export async function computeBase(
   payer: AccountId,
@@ -45,8 +45,8 @@ export async function computeBase(
 
 /**
  * `computeHeadroom(p) = max(0, headroom(p) - sum_q max(0, pending(p, q, e) - registered(p, q, e)))`.
- * Hanya kenaikan pending di atas kumulatif terdaftar yang dikurangkan, karena kumulatif terdaftar
- * sudah ada di `outstanding_debt` (ADR-32 K-27). Hasil never negative.
+ * Only the pending increase above the registered cumulative is subtracted, because the registered cumulative
+ * is already in `outstanding_debt` (ADR-32 K-27). The result is never negative.
  */
 export async function computeHeadroom(
   payer: AccountId,

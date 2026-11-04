@@ -1,7 +1,7 @@
-// SD-050 di near-sandbox (interface 0.0.7, CT-075): log nyata `escrow_held` dan `escrow_failed` dari kontrak ter-parse oleh parser, dan tipe
-// `EscrowView` cocok dengan view `get_escrow`. Dengan X207_UPDATE_FIXTURES=1 log disimpan ke spec/test-vectors/events/sandbox/.
-// Alur: pemberi menawarkan grant kelas A (`escrow_nft`), menyetor NFT lewat `nft_transfer_call` (`escrow_held`); pembeli yang tidak bisa
-// menerima NFT memanggil `complete_escrow` dan transfer gagal (`escrow_failed`, pembayaran dibatalkan); pembeli lain menyelesaikannya.
+// SD-050 in near-sandbox (interface 0.0.7, CT-075): real `escrow_held` and `escrow_failed` logs from the contract are parsed by the parser, and the
+// `EscrowView` type matches the `get_escrow` view. With X207_UPDATE_FIXTURES=1 the logs are saved to spec/test-vectors/events/sandbox/.
+// Flow: the giver offers a class A grant (`escrow_nft`), deposits the NFT through `nft_transfer_call` (`escrow_held`); a buyer who cannot
+// receive the NFT calls `complete_escrow` and the transfer fails (`escrow_failed`, payment cancelled); another buyer completes it.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
@@ -80,9 +80,9 @@ describe.skipIf(!sandboxAvailable)("SD-050 class A escrow on near-sandbox", () =
       );
       return { grant_id: 1, voucher, signature };
     };
-    // Penerima yang diblok NFT: transfer gagal, pembayaran dibatalkan, escrow kembali `held`, grant tetap `offered`.
+    // Recipient blocked by the NFT: the transfer fails, payment is cancelled, the escrow returns to `held`, the grant stays `offered`.
     await ok(await nft.call({ receiverId: nft.accountId, methodName: "block_receiver", args: { account_id: blocked.account.accountId }, deposit: 0n }), "block_receiver");
-    // Panic NFT di receipt `nft_transfer` ikut terlapor di `failures`; transaksi lingkaran sendiri sukses (callback memulihkan).
+    // The NFT panic in the `nft_transfer` receipt is also reported in `failures`; the circle's own transaction succeeds (the callback recovers).
     const tried = await blocked.account.call({ receiverId: fx.circle.accountId, methodName: "complete_escrow", args: pay(blocked), deposit: 0n, gas: 200_000_000_000_000n });
     expect(tried.failures.join(" ")).toContain("The receiver cannot receive tokens");
     collect(tried.logs);
@@ -91,7 +91,7 @@ describe.skipIf(!sandboxAvailable)("SD-050 class A escrow on near-sandbox", () =
     expect(await fx.sandbox.view<EscrowView | null>(fx.circle.accountId, "get_escrow", { grant_id: 1 })).toMatchObject({ state: "held" });
     expect(await fx.sandbox.view<AccessGrant | null>(fx.circle.accountId, "get_grant", { grant_id: 1 })).toMatchObject({ status: "offered" });
 
-    // Pembeli lain menyelesaikannya.
+    // Another buyer completes it.
     await ok(await buyer.account.call({ receiverId: fx.circle.accountId, methodName: "complete_escrow", args: pay(buyer), deposit: 0n, gas: 200_000_000_000_000n }), "complete_escrow");
     expect(await fx.sandbox.view<EscrowView | null>(fx.circle.accountId, "get_escrow", { grant_id: 1 })).toMatchObject({ state: "delivered", buyer: buyer.account.accountId });
     expect(await fx.sandbox.view<AccessGrant | null>(fx.circle.accountId, "get_grant", { grant_id: 1 })).toMatchObject({ status: "active", grantee: buyer.account.accountId });
