@@ -1,108 +1,74 @@
 # x207 SDK
 
-The public x207 SDK: the x402 `batch-settlement` binding, *credit-backed* model, on the network `x207:<circleId>`, plus a reference facilitator and test vectors. Part of [`x207-labs/x207`](https://github.com/x207-labs/x207). Modules M2 and M3, features F2, F4, F5.
+TypeScript packages that let an x402 agent pay and sell on a credit circle: the x402 `batch-settlement` binding on the network `x207:<circleId>`, plus a reference facilitator, an MCP server and test vectors. Part of [x207](https://github.com/x207-labs/x207).
 
-| Folder | Package | Module | Feature | Contents |
-| --- | --- | --- | --- | --- |
-| `packages/core/` | `@x207/core` | M2, M3 (shared library) | F2, F4, F5 | Voucher types, signing, client for the `x207-circle` contract, NEP-297 event parser |
-| `packages/scheme/` | `@x207/scheme` | M2 | F2, F5 | x402 binding per role: `client/`, `server/`, `facilitator/` |
-| `apps/facilitator/` | `@x207/facilitator` | M3 | F2 (F4 optional) | Reference facilitator: `/verify`, `/settle`, `/supported` |
-| `spec/` | — | M2 | F2 | `scheme_batch_settlement_x207.md` and `test-vectors/`, the single source of the voucher format for the TypeScript and Rust CI |
+## Its role in x207
 
-Contract referred to: `x207-circle` (M1). Storage touched: D1, D2, D3 (the facilitator pending store), D7.
+The SDK is how agents meet the [contract](https://github.com/x207-labs/contracts) without knowing NEAR. A buyer wraps `fetch` once and pays with signed vouchers; a seller adds one middleware and its `402` answer offers the voucher entry next to `exact`; the facilitator verifies vouchers and registers them on chain. `spec/` holds the voucher format and test vectors that the TypeScript and Rust CI share.
 
-## Development
+| Folder | Package | Contents |
+| --- | --- | --- |
+| `packages/core/` | `@x207/core` (0.0.1 on npm) | Voucher types and signing, client for the `x207-circle` contract, NEP-297 event parser, `onboardMember` |
+| `packages/scheme/` | `@x207/scheme` (0.0.1 on npm) | x402 binding per role: `client/`, `server/`, `facilitator/` |
+| `packages/mcp/` | `@x207/mcp` (0.0.2 on npm, bin `x207-mcp`) | MCP server: read tools by default, signs nothing |
+| `apps/facilitator/` | `@x207/facilitator` | Reference facilitator: `/verify`, `/settle`, `/supported` |
+| `spec/` | | `scheme_batch_settlement_x207.md` and `test-vectors/` |
+| `examples/` | | `buyer`, `seller`, `mcp-paid-tool`, `python-buyer` |
+
+## Try it
+
+Ask an AI client about the live testnet circle through the MCP server, with no key (needs Node 22.22.2 or newer):
+
+```bash
+X207_CIRCLE_CONTRACT=x207-v013.testnet X207_CIRCLE_ID=agents-main \
+X207_BACKEND_URL=https://x207-backend-production.up.railway.app npx -y @x207/mcp
+```
+
+This starts a stdio server for an MCP client, so it waits for input. Configuration for Claude Desktop and Cursor: [docs in the umbrella](https://github.com/x207-labs/x207/blob/main/docs/mcp.md). To pay as a buyer:
+
+```bash
+npm install @x207/core @x207/scheme @x402/fetch
+```
+
+```ts
+import { wrapFetchWithPayment } from "@x402/fetch";
+import { X207PaymentClient, headroomFromRpc } from "@x207/scheme";
+
+const client = new X207PaymentClient({ payer: "agent.near", secretKey, headroom: headroomFromRpc({}) });
+const paidFetch = wrapFetchWithPayment(fetch, client);
+const response = await paidFetch("https://seller.example/api/summarize");
+```
+
+`secretKey` is the voucher key: one ed25519 key used only for vouchers, never a NEAR access key ([Voucher key security](docs/voucher-key-security.md)). `X207PaymentClient` registers `x207:*` and falls back to the `exact` entry when headroom runs out. A 200 response carries the header `PAYMENT-RESPONSE`; `extensions.x207.registration` is `pending`, `retrying` or `registered`.
+
+Joining a circle (`onboardMember`: voucher key, `join`, stake, wait for `active`) is in the [quickstart](https://github.com/x207-labs/x207/blob/main/docs/quickstart.md). Selling: [docs/seller-quickstart.md](docs/seller-quickstart.md). Full tested examples: [`examples/buyer`](examples/buyer), [`examples/seller`](examples/seller).
+
+## Develop and test
 
 Needs Node ≥ 22.22.2 and npm 11. All dependencies are pinned exactly.
 
 ```bash
 npm install
-```
-
-```bash
 npm run build
+npm test                # unit tests
+npm run test:sandbox    # needs a near-sandbox binary and the contract wasm (../contracts/target/near/*.wasm)
+npm run conformance     # suite for other implementations of the binding
 ```
 
-```bash
-npm test
-```
+The sandbox binary is looked up in `X207_SANDBOX_BIN`, or in the build output of the `contracts` repository after `cargo test` has run once. Copy `.env.example` to `.env` for the facilitator; secrets live only in `.env`, which is not committed.
 
-Tests that need a near-sandbox node and the contract wasm (`../contracts/target/near/*.wasm`, the output of `cargo near build`) are skipped by `npm test` and run separately:
+## Documents
 
-```bash
-npm run test:sandbox
-```
+- [Costs: when there is an on-chain transaction](docs/costs.md) · [FAQ for agent builders](docs/faq-agent-builders.md)
+- [`epoch_length` and the wait for payment](docs/epoch-length.md) · [Payment guarantees for sellers](docs/seller-guarantees.md)
+- [Voucher key security](docs/voucher-key-security.md)
+- [Proposal to the x402 Foundation (local draft, not sent)](docs/x402-foundation/README.md)
+- [Conformance suite](conformance/README.md)
 
-The near-sandbox binary is looked up in `X207_SANDBOX_BIN`, or in the build output of the `contracts` repo after `cargo test` has run once.
+## Back to x207
 
-Copy the facilitator configuration from `.env.example` to `.env`. Secrets live only in `.env`, which is not committed.
-
-## Quickstart for agent builders (buyer)
-
-The `@x207/*` packages are not published yet; the steps below use a clone of this repo (`npm install` sets up the workspace). Requirements: an agent NEAR account with USDT, and a running x207 circle (the `x207-circle` contract address, the `circleId`, and the hash of the circle terms from its operator).
-
-1. **Install and build.** `npm install`, then `npm run build`.
-2. **Voucher key.** The agent uses one ed25519 key just for vouchers. This key is not a NEAR access key and cannot move assets; read the impact if it leaks in [Voucher key security](docs/voucher-key-security.md).
-3. **Onboarding (join + stake).** `onboardMember` creates the voucher key, sends `join`, sends the stake through `ft_transfer_call`, and waits for the status `active`. The transactions are signed by the access key of the account owner:
-
-   ```ts
-   import { onboardMember, createCircleViewFn } from "@x207/core";
-   import { createNearSender } from "@x207/core/signer";
-
-   const view = createCircleViewFn({ circleContract: "x207-circle.near" });
-   const { secretKey, member } = await onboardMember(
-     { sendCall: createNearSender({ rpcUrl, accountId: "agent.near", secretKey: ownerAccessKey }), view },
-     { circleContract: "x207-circle.near", circleId: "agents-main", accountId: "agent.near", termsHash, stakeAmount: "50000000" },
-   );
-   // keep `secretKey` (the voucher key) in a secret place; member.status === "active"
-   ```
-
-4. **Register `x207:*` and call.** One `@x402/fetch` wrapper; `X207PaymentClient` already registers `x207:*` and falls back to the `exact` entry when headroom runs out:
-
-   ```ts
-   import { wrapFetchWithPayment } from "@x402/fetch";
-   import { X207PaymentClient, headroomFromRpc } from "@x207/scheme";
-
-   const client = new X207PaymentClient({ payer: "agent.near", secretKey, headroom: headroomFromRpc({}) });
-   const paidFetch = wrapFetchWithPayment(fetch, client);
-   const response = await paidFetch("https://seller.example/api/summarize");
-   ```
-
-5. **Read the result.** A 200 response carries the header `PAYMENT-RESPONSE` (base64 JSON): `transaction` holds the commitment id `<payer>:<payee>:<epoch>:<seq>` and `extensions.x207.registration` holds `pending`, `retrying`, or `registered`.
-
-Full tested example: [`examples/buyer`](examples/buyer). It runs against near-sandbox through `npm run test:sandbox`.
-
-## Seller quickstart
-
-1. **Install the middleware.** `x207Middleware` uses the standard web `Request`/`Response`, so it fits Hono, Express (adapter), or any fetch handler:
-
-   ```ts
-   import { x207Middleware } from "@x207/scheme";
-
-   const paywall = x207Middleware({
-     routes: { "/api/summarize": { price: "$0.02", description: "Summarize text" } },
-     facilitatorUrl: process.env.FACILITATOR_URL!,
-     circleId: "agents-main",
-     payTo: "summarizer.agents.near",
-   });
-   // response = await paywall(request, (req) => handler(req))
-   ```
-
-2. **Point to the facilitator.** Run the reference facilitator (`apps/facilitator`, variables in `.env.example`: `X207_CIRCLES`, `X207_RELAYER_ACCOUNT_ID`, `X207_RELAYER_PRIVATE_KEY`, `NEAR_RPC_URLS`) and set `FACILITATOR_URL` on the seller. `GET /supported` lists `batch-settlement` on `x207:<circleId>` and `exact` on `near:mainnet`; the seller's 402 advertises both, so members pay with a voucher and non-members with `exact`.
-3. **Check the claimable balance.** The seller's receivables are visible in the indexer read API: `GET /x207/circles/{circleId}/members/{account}/settlements` (the `claimable` position after `finalize_epoch`). Claim with `claim(epoch, "near" | "intents")` from the dashboard.
-
-Tested example: [`examples/seller`](examples/seller). Payment guarantees for sellers: [Payment guarantees](docs/seller-guarantees.md).
+Overview, live demo links and the claims map: [x207-labs/x207](https://github.com/x207-labs/x207).
 
 ## License
 
 Apache-2.0
-
-## Documents
-
-- [Costs: when there is an on-chain transaction](docs/costs.md)
-- [FAQ for agent builders](docs/faq-agent-builders.md)
-- [`epoch_length` and the wait for payment](docs/epoch-length.md)
-- [Payment guarantees for sellers](docs/seller-guarantees.md)
-- [Voucher key security](docs/voucher-key-security.md)
-- [Proposal to the x402 Foundation (local draft, not sent)](docs/x402-foundation/README.md)
-- Conformance suite for other implementations: [`conformance/`](conformance/README.md) (`npm run conformance`)
