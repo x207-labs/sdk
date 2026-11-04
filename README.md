@@ -46,22 +46,25 @@ This starts a stdio server for an MCP client, so it waits for input. Configurati
 npm install @x207/core @x207/scheme @x402/fetch
 ```
 
+The snippet is ESM (top-level `await`): put `"type": "module"` in your `package.json`, or save it as a `.mts` file.
+
 ```ts
 import { wrapFetchWithPayment } from "@x402/fetch";
 import { X207PaymentClient, headroomFromRpc } from "@x207/scheme";
 
+const secretKey = process.env.X207_VOUCHER_KEY as `ed25519:${string}`; // the voucher key, see below
 const client = new X207PaymentClient({ payer: "agent.near", secretKey, headroom: headroomFromRpc({}) });
 const paidFetch = wrapFetchWithPayment(fetch, client);
 const response = await paidFetch("https://seller.example/api/summarize");
 ```
 
-`secretKey` is the voucher key: one ed25519 key used only for vouchers, never a NEAR access key ([Voucher key security](docs/voucher-key-security.md)). `X207PaymentClient` registers `x207:*` and falls back to the `exact` entry when headroom runs out. A 200 response carries the header `PAYMENT-RESPONSE`; `extensions.x207.registration` is `pending`, `retrying` or `registered`.
+`secretKey` is the voucher key: one ed25519 key used only for vouchers, never a NEAR access key ([Voucher key security](docs/voucher-key-security.md)). `X207PaymentClient` registers `x207:*` and falls back to the other entry of the `402` answer (normally `exact`) when headroom runs out. A 200 response carries the header `PAYMENT-RESPONSE`; `extensions.x207.registration` is `pending`, `retrying` or `registered`.
 
 Joining a circle (`onboardMember`: voucher key, `join`, stake, wait for `active`) is in the [quickstart](https://github.com/x207-labs/x207/blob/main/docs/quickstart.md). Selling: [docs/seller-quickstart.md](docs/seller-quickstart.md). Full tested examples: [`examples/buyer`](examples/buyer), [`examples/seller`](examples/seller).
 
 ## Develop and test
 
-Needs Node ≥ 22.22.2 and npm 11. All dependencies are pinned exactly.
+Needs Node ≥ 22.22.2 and npm 11 (the lockfiles are made with it; `package.json` enforces only the Node version). All dependencies are pinned exactly.
 
 ```bash
 npm install
