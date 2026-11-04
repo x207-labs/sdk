@@ -3,7 +3,7 @@
 
 export const X207_CIRCLE_ABI_VERSION = "0.0.13";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "38afea5fedffaf6b4ec3da0c41be322e8f1c1e469f489d678efabcc1cf72fc2e";
+export const X207_CIRCLE_ABI_SHA256 = "c94a2955deab7b082d2e9f1ab396dae14b0323a4c12266fa09f43f1ca0a3bb53";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };
@@ -40,7 +40,7 @@ export type MemberStatus = "pending" | "active" | "suspended" | "exited";
 export type MemberView = { "account_id": string; "admitted": boolean; "exit_requested_epoch"?: number | null; "joined_at": string; "last_active_epoch": number; "limit": string; "pubkey_voucher": string; "settled_history": string; "stake": string; "status": MemberStatus; "terms_hash": string };
 export type MtEscrowView = { "amount": string; "buyer"?: string | null; "grant_id": number; "mt_contract": string; "state": EscrowState; "token_id": string };
 export type ObligationView = { "cleared": string; "creditor": string; "cumulative": string; "debtor": string; "epoch": number; "last_seq": number; "obligation": string };
-export type Params = { "admission": Admission; "base_limit_ratio": number; "bond_bps"?: number; "bond_threshold"?: string; "epoch_length": number; "fees": Fees; "limit_cap": string; "limit_decay": number; "limit_growth": number; "max_search_share_bps"?: number; "payment_window": number; "proposal_window": number };
+export type Params = { "admission": Admission; "base_limit_ratio": number; "bond_bps"?: number; "bond_threshold"?: string; "epoch_length": number; "fees": Fees; "limit_cap": string; "limit_decay": number; "limit_growth": number; "max_search_share_bps"?: number; "payment_window": number; "proposal_window": number; "prune_delay_epochs"?: number };
 export type PendingParams = { "effective_epoch": number; "params": Params };
 export type PoolView = { "accounted": string; "epoch_pools": string; "in_flight": string; "reserve": string; "solver_fees": string; "total_stake": string };
 export type PositionRole = "debtor" | "creditor";
@@ -50,7 +50,7 @@ export type Promise = unknown;
 export type PromiseOrValueArray_of_String = string[];
 export type PromiseOrValueBoolean = boolean;
 export type PromiseOrValueString = string;
-export type ProposalView = { "cleared_total": string; "committed": boolean; "edge_count": number; "edges": ClearingEdge[]; "epoch": number; "solver": string };
+export type ProposalView = { "cleared_total": string; "committed": boolean; "edge_count": number; "edges": ClearingEdge[]; "epoch": number; "proposal_hash": string; "solver": string };
 export type RevokeReason = "grantor" | "grantee" | "operator" | "expired" | "defaulted";
 export type SearchLeg = { "payee": string; "payer": string };
 export type SimulationResult = { "better_than_current": boolean; "cleared_total": string; "edge_count": number; "reason"?: string | null; "valid": boolean };

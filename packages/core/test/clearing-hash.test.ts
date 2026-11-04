@@ -112,7 +112,7 @@ describe("SD-080 get_proposal in pages", () => {
     calls.push(args as Record<string, unknown>);
     if (store === null) return null;
     const { from_index, limit } = args as { from_index: number; limit: number };
-    return { epoch: 42, committed: false, solver: B, cleared_total: "28", edge_count: store.length, edges: store.slice(from_index, from_index + limit) } satisfies ProposalPage;
+    return { epoch: 42, committed: false, proposal_hash: "c".repeat(64), solver: B, cleared_total: "28", edge_count: store.length, edges: store.slice(from_index, from_index + limit) } satisfies ProposalPage;
   };
 
   it("TC-SD-080-10 getProposalPage sends epoch, from_index and limit; readProposal reads every page and the edges hash to the edges_hash of the event", async () => {
@@ -131,7 +131,7 @@ describe("SD-080 get_proposal in pages", () => {
     const tampered = store.map((e, i) => (i === 3 ? { ...e, cleared: "999" } : e));
     await expect(readProposal(viewOf(tampered), 42, { pageLimit: 3, expectedEdgesHash: edgesHash(edges) })).rejects.toThrow(/do not hash/);
     const short = async (_m: string, args: object): Promise<unknown> =>
-      (args as { from_index: number }).from_index === 0 ? { epoch: 42, committed: false, solver: B, cleared_total: "1", edge_count: 7, edges: store.slice(0, 3) } : { epoch: 42, committed: false, solver: B, cleared_total: "1", edge_count: 7, edges: [] };
+      (args as { from_index: number }).from_index === 0 ? { epoch: 42, committed: false, proposal_hash: "c".repeat(64), solver: B, cleared_total: "1", edge_count: 7, edges: store.slice(0, 3) } : { epoch: 42, committed: false, proposal_hash: "c".repeat(64), solver: B, cleared_total: "1", edge_count: 7, edges: [] };
     await expect(readProposal(short, 42, { pageLimit: 3 })).rejects.toThrow(/ended at 3 of 7/);
     expect(await readProposal(viewOf(null), 42)).toBeNull();
   });
