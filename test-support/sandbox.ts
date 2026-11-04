@@ -12,12 +12,13 @@ import type { ContractCall } from "@x207/core";
 
 // No `new URL(..., import.meta.url)`: Vite rewrites that pattern to an http URL when the frontend test (jsdom) loads this harness.
 const contractsDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../contracts");
-export const CIRCLE_WASM = join(contractsDir, "target/near/x207_circle.wasm");
+// UM-107: X207_CIRCLE_WASM and X207_MOCK_FT_WASM point to files that were not built here (the quick demo downloads the release wasm of the circle and uses the prebuilt mock token).
+export const CIRCLE_WASM = process.env.X207_CIRCLE_WASM ?? join(contractsDir, "target/near/x207_circle.wasm");
 export const MOCK_INTENTS_WASM = join(contractsDir, "target/near/mock_intents/mock_intents.wasm");
 export const MOCK_NFT_WASM = join(contractsDir, "target/near/mock_nft/mock_nft.wasm");
 export const MOCK_MT_WASM = join(contractsDir, "target/near/mock_mt/mock_mt.wasm");
 export const MOCK_RWA_WASM = join(contractsDir, "target/near/mock_rwa/mock_rwa.wasm");
-export const MOCK_FT_WASM = join(contractsDir, "target/near/mock_ft/mock_ft.wasm");
+export const MOCK_FT_WASM = process.env.X207_MOCK_FT_WASM ?? join(contractsDir, "target/near/mock_ft/mock_ft.wasm");
 
 export function findSandboxBinary(): string | null {
   if (process.env.X207_SANDBOX_BIN) return process.env.X207_SANDBOX_BIN;
