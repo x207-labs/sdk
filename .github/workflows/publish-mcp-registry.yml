@@ -1,0 +1,29 @@
+name: Publish to the MCP Registry
+
+# Publishes packages/mcp/server.json to registry.modelcontextprotocol.io under
+# the io.github.x207-labs namespace. Run by hand after the npm version in
+# server.json is on npm. GitHub OIDC proves the repository belongs to the org;
+# no token or secret is stored.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - name: Install mcp-publisher 1.8.7
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.8.7/mcp-publisher_linux_amd64.tar.gz
+          tar -xzf mcp-publisher.tar.gz mcp-publisher
+          ./mcp-publisher --help > /dev/null
+      - name: Log in with GitHub OIDC
+        run: ./mcp-publisher login github-oidc
+      - name: Publish
+        working-directory: packages/mcp
+        run: ../../mcp-publisher publish
