@@ -7,7 +7,7 @@ import { startHttpServer } from "./http.js";
 import { createX207McpServer } from "./server.js";
 import { writeConfigFromEnv } from "./write-config.js";
 
-const USAGE = "usage: x207-mcp [--http [--port <n>] [--host <address>]]   (environment: X207_CIRCLE_CONTRACT, X207_CIRCLE_ID, X207_RPC_URL, X207_BACKEND_URL, X207_TIMEOUT_MS)";
+const USAGE = "usage: x207-mcp [--http [--port <n>] [--host <address>]]   (environment: X207_CIRCLE_CONTRACT, X207_CIRCLE_ID, X207_RPC_URL, X207_BACKEND_URL, X207_TIMEOUT_MS, X207_ALLOWED_HOSTS)";
 
 async function main(argv: string[]): Promise<void> {
   const args = new Map<string, string | true>();
@@ -29,7 +29,8 @@ async function main(argv: string[]): Promise<void> {
     if (process.env.X207_MCP_WRITE === "1") console.error("x207-mcp: X207_MCP_WRITE is ignored on HTTP: the HTTP server only has the read tools");
     const port = args.has("port") ? Number(args.get("port")) : 3207;
     if (!Number.isInteger(port) || port < 0 || port > 65535) throw new ConfigError("--port must be an integer from 0 to 65535");
-    const { url } = await startHttpServer(config, { port, host: (args.get("host") as string | undefined) ?? "127.0.0.1" });
+    const allowedHosts = (process.env.X207_ALLOWED_HOSTS ?? "").split(",").map((h) => h.trim()).filter((h) => h !== "");
+    const { url } = await startHttpServer(config, { port, host: (args.get("host") as string | undefined) ?? "127.0.0.1", ...(allowedHosts.length > 0 ? { allowedHosts } : {}) });
     console.error(`x207-mcp: Streamable HTTP (read tools only) on ${url}`);
     return;
   }

@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -53,6 +53,45 @@ describe("SD-081: Streamable HTTP transport (read tools only)", () => {
     const http = await startHttpServer(mock().config, { port: 0 });
     closers.push(http.close);
     expect(http.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/mcp$/);
+  });
+});
+
+describe("SD-081 fix (security review batch 8): the Host header of the HTTP server", () => {
+  const withHost = (url: string, host: string | undefined): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const u = new URL(url);
+      const req = httpRequest({ host: u.hostname, port: u.port, path: u.pathname, method: "GET", headers: host === undefined ? {} : { host } }, (res) => {
+        res.resume();
+        res.on("end", () => resolve(res.statusCode ?? 0));
+      });
+      req.on("error", reject);
+      req.end();
+    });
+
+  it("TC-SD-081-19 on a loopback address only the names of the loopback are served: a name of another site (DNS rebinding) is 403", async () => {
+    const http = await startHttpServer(mock().config, { port: 0 });
+    const health = http.url.replace(/\/mcp$/, "/healthz");
+    const port = new URL(http.url).port;
+    try {
+      expect(await withHost(health, `127.0.0.1:${port}`)).toBe(200);
+      expect(await withHost(health, `localhost:${port}`)).toBe(200);
+      expect(await withHost(health, `evil.example:${port}`)).toBe(403);
+      expect(await withHost(health, "evil.example")).toBe(403);
+      expect(await withHost(health, `127.0.0.1.evil.example:${port}`)).toBe(403);
+    } finally {
+      await http.close();
+    }
+  });
+
+  it("TC-SD-081-20 allowedHosts replaces the default: the names of the operator are served, the others are not", async () => {
+    const http = await startHttpServer(mock().config, { port: 0, allowedHosts: ["mcp.example.org"] });
+    const health = http.url.replace(/\/mcp$/, "/healthz");
+    try {
+      expect(await withHost(health, "mcp.example.org")).toBe(200);
+      expect(await withHost(health, "localhost")).toBe(403);
+    } finally {
+      await http.close();
+    }
   });
 });
 

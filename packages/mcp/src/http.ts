@@ -10,6 +10,8 @@ export interface HttpOptions {
   port?: number;
   /** Largest request body in bytes; default 1 MiB. */
   maxBodyBytes?: number;
+  /** Values of the `Host` header that are served, e.g. `["mcp.example.org"]`. On a loopback address the default is `127.0.0.1`, `localhost` and `[::1]` (with the port). */
+  allowedHosts?: readonly string[];
 }
 
 const json = (res: ServerResponse, status: number, body: unknown, extra: Record<string, string> = {}) => {
@@ -35,8 +37,21 @@ async function readBody(req: IncomingMessage, max: number): Promise<unknown> {
 /** Starts the server; resolves when it listens. `GET /healthz` answers 200, `POST /mcp` is the MCP endpoint, everything else is refused. */
 export function startHttpServer(config: McpConfig, options: HttpOptions = {}): Promise<{ server: Server; url: string; close: () => Promise<void> }> {
   const maxBody = options.maxBodyBytes ?? 1_048_576;
+  const bind = options.host ?? "127.0.0.1";
+  const loopback = bind === "127.0.0.1" || bind === "localhost" || bind === "::1";
+  // DNS rebinding (security review batch 8, SD-081 fix): a web page can make a browser send a request to 127.0.0.1 under the name of an attacker's site. The browser puts that name in `Host`,
+  // so on a loopback address only the names of the loopback are served. A server that the operator binds to another address serves what `allowedHosts` says, or every host when there is no list.
+  const hostAllowed = (header: string | undefined, port: number): boolean => {
+    if (header === undefined) return !loopback && options.allowedHosts === undefined;
+    const name = header.toLowerCase();
+    if (options.allowedHosts !== undefined) return options.allowedHosts.map((h) => h.toLowerCase()).includes(name);
+    if (!loopback) return true;
+    return [`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`, "127.0.0.1", "localhost", "[::1]"].includes(name);
+  };
   const server = createServer(async (req, res) => {
     try {
+      const port = (req.socket.localPort ?? options.port ?? 0) as number;
+      if (!hostAllowed(req.headers.host, port)) return json(res, 403, { error: "host_not_allowed", message: "the Host header is not one that this server serves" });
       const path = (req.url ?? "").split("?")[0];
       if (path === "/healthz" && req.method === "GET") return json(res, 200, { ok: true, name: "x207-mcp" });
       if (path !== "/mcp") return json(res, 404, { error: "not_found" });

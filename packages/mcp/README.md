@@ -127,7 +127,7 @@ Keep the keys out of any file you commit. Then ask for example: "List a translat
 X207_CIRCLE_CONTRACT=x207-v013.testnet X207_BACKEND_URL=http://127.0.0.1:8080 x207-mcp --http --port 3207
 ```
 
-The endpoint is `POST http://127.0.0.1:3207/mcp`. It is stateless (no session) and serves **only the read tools**, so it can be shown to anybody who can already read the contract and the read API. `GET /healthz` answers 200. It listens on `127.0.0.1` unless `--host` says otherwise; put a reverse proxy with TLS and a rate limit in front of it before you expose it.
+The endpoint is `POST http://127.0.0.1:3207/mcp`. It is stateless (no session) and serves **only the read tools**, so it can be shown to anybody who can already read the contract and the read API. `GET /healthz` answers 200. It listens on `127.0.0.1` unless `--host` says otherwise; put a reverse proxy with TLS and a rate limit in front of it before you expose it. On a loopback address it serves only the `Host` names of the loopback (`127.0.0.1`, `localhost`, `[::1]`), so a web page cannot reach it through DNS rebinding; behind a proxy set `X207_ALLOWED_HOSTS=mcp.example.org` (comma separated) to serve exactly those names.
 
 To try it with the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
