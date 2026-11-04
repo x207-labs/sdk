@@ -175,4 +175,13 @@ describe("SD-081: the six read tools of @x207/mcp, mock RPC and read API", () =>
     expect(text).toMatch(/… cut at 100000 characters/);
     void BACKEND;
   });
+
+  it("TC-SD-081-21 (security review batch 8) a read API that answers more than the limit is a tool error, not a read of the whole answer", async () => {
+    const m = mock();
+    const huge = { items: Array.from({ length: 200_000 }, (_, i) => ({ account: `member${i}.x207-v013.testnet`, pad: "x".repeat(20) })) };
+    m.backendAnswers["/listings?limit=20"] = huge;
+    const r = await (await connect(m)).call("x207_search_listings");
+    expect(r.isError).toBe(true);
+    expect(r.text).toMatch(/answered more than 4194304 bytes/);
+  });
 });

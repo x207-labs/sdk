@@ -1,3 +1,8 @@
+import { readCapped } from "./net-guard.js";
+
+/** The most of one read API answer that the server reads (security review batch 8): a broken or hostile backend cannot fill the memory of the server. */
+export const MAX_BACKEND_BYTES = 4_194_304;
+
 // A GET against the x207 read API. Only GET exists here: the read tools cannot change anything at the backend.
 export type BackendGet = (path: string, query?: Record<string, string | number | boolean | undefined>) => Promise<unknown>;
 
@@ -21,7 +26,9 @@ export function createBackendGet(options: { baseUrl: string; circleId: string; t
     } catch (error) {
       throw new BackendError(0, `read API unreachable (${path.split("?")[0]}): ${(error as Error).message}`);
     }
-    const text = await response.text();
+    const capped = await readCapped(response, MAX_BACKEND_BYTES);
+    if (capped.cut) throw new BackendError(response.status, `read API ${path.split("?")[0]} answered more than ${MAX_BACKEND_BYTES} bytes`);
+    const text = capped.text;
     if (!response.ok) {
       let detail = text.replace(/\s+/g, " ").slice(0, 200);
       try {
@@ -57,7 +64,9 @@ export function createBackendPost(options: { baseUrl: string; circleId: string; 
     } catch (error) {
       throw new BackendError(0, `read API unreachable (POST ${path}): ${(error as Error).message}`);
     }
-    const text = await response.text();
+    const capped = await readCapped(response, MAX_BACKEND_BYTES);
+    if (capped.cut) throw new BackendError(response.status, `read API POST ${path} answered more than ${MAX_BACKEND_BYTES} bytes`);
+    const text = capped.text;
     let parsed: unknown = null;
     try {
       parsed = JSON.parse(text);
