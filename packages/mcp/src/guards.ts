@@ -19,11 +19,13 @@ export class Guards {
 
   /** Guard 2: the price of ONE payment, offer or milestone. */
   price(amount: bigint, what: string): void {
+    if (amount < 0n) throw new ToolError(`refused: ${what} is negative`); // cross review UM-112, F4
     if (amount > this.cfg.maxPricePerCall) throw new ToolError(`refused: ${what} of ${amount} is above X207_MAX_PRICE_PER_CALL (${this.cfg.maxPricePerCall}); the price the seller names is not trusted`);
   }
 
   /** Guard 1: the budget of the session. Adds `amount` when it fits; call it right before the commitment is signed. */
   spend(amount: bigint, what: string): void {
+    if (amount < 0n) throw new ToolError(`refused: ${what} is negative`);
     if (this.#spent + amount > this.cfg.maxSpendSession) {
       throw new ToolError(`refused: ${what} of ${amount} would take this session to ${this.#spent + amount}, above X207_MAX_SPEND_SESSION (${this.cfg.maxSpendSession}); ${this.remaining} left`);
     }
@@ -32,6 +34,7 @@ export class Guards {
 
   /** Gives back what `spend` took when the commitment was not made after all. */
   release(amount: bigint): void {
+    if (amount < 0n) return;
     this.#spent = this.#spent >= amount ? this.#spent - amount : 0n;
   }
 

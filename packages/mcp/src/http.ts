@@ -1,8 +1,10 @@
 // Streamable HTTP transport (SD-081): stateless, one server per request, read tools only. Binds to 127.0.0.1 unless told otherwise; the server has no key and signs nothing, so what it
 // shows is what the contract and the read API already show to anybody.
+import { isIP } from "node:net";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { McpConfig } from "./config.js";
+import { ipv6Bytes } from "./net-guard.js";
 import { createX207McpServer } from "./server.js";
 
 export interface HttpOptions {
@@ -35,10 +37,19 @@ async function readBody(req: IncomingMessage, max: number): Promise<unknown> {
 }
 
 /** Starts the server; resolves when it listens. `GET /healthz` answers 200, `POST /mcp` is the MCP endpoint, everything else is refused. */
+/** A loopback bind: `localhost`, any 127.x.x.x, `::1` or the mapped form of a 127.x address (cross review UM-112, F7: `127.0.0.2` is loopback too, and must not serve every Host). */
+export function isLoopbackBind(bind: string): boolean {
+  const host = bind.replace(/^\[|\]$/g, "").toLowerCase();
+  if (host === "localhost" || host === "::1") return true;
+  if (isIP(host) === 4) return host.startsWith("127.");
+  const bytes = ipv6Bytes(host);
+  return bytes !== null && bytes.slice(0, 10).every((x) => x === 0) && bytes[10] === 0xff && bytes[11] === 0xff && bytes[12] === 127;
+}
+
 export function startHttpServer(config: McpConfig, options: HttpOptions = {}): Promise<{ server: Server; url: string; close: () => Promise<void> }> {
   const maxBody = options.maxBodyBytes ?? 1_048_576;
   const bind = options.host ?? "127.0.0.1";
-  const loopback = bind === "127.0.0.1" || bind === "localhost" || bind === "::1";
+  const loopback = isLoopbackBind(bind);
   // DNS rebinding (security review batch 8, SD-081 fix): a web page can make a browser send a request to 127.0.0.1 under the name of an attacker's site. The browser puts that name in `Host`,
   // so on a loopback address only the names of the loopback are served. A server that the operator binds to another address serves what `allowedHosts` says, or every host when there is no list.
   const hostAllowed = (header: string | undefined, port: number): boolean => {
@@ -46,7 +57,7 @@ export function startHttpServer(config: McpConfig, options: HttpOptions = {}): P
     const name = header.toLowerCase();
     if (options.allowedHosts !== undefined) return options.allowedHosts.map((h) => h.toLowerCase()).includes(name);
     if (!loopback) return true;
-    return [`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`, "127.0.0.1", "localhost", "[::1]"].includes(name);
+    return [`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`, "127.0.0.1", "localhost", "[::1]", bind.toLowerCase(), `${bind.toLowerCase()}:${port}`, `[${bind.toLowerCase()}]:${port}`].includes(name);
   };
   const server = createServer(async (req, res) => {
     try {

@@ -50,6 +50,21 @@ const needPost = (rt: WriteRuntime, tool: string): BackendPost => {
   if (rt.post === null) throw new ToolError(`${tool} needs the x207 read API and marketplace book: set X207_BACKEND_URL`);
   return rt.post;
 };
+/**
+ * After a commitment failed: the amount goes back to the budget only when it is certain that nothing was committed (a refusal of ours, a 4xx answer of the book, a contract that said no). A timeout, a 5xx
+ * or an unknown error may have committed it, so the amount stays counted and the model is told that the outcome is unknown (cross review UM-112, F3).
+ */
+export function keepIfUnknown(rt: { guards: Guards }, amount: bigint, error: unknown): unknown {
+  const status = (error as { status?: unknown }).status;
+  const certain = error instanceof ToolError || (error instanceof Error && error.name === "BackendError" && typeof status === "number" && status >= 400 && status < 500)
+    || (error instanceof Error && error.name === "ContractCallError" && (error as { code?: unknown }).code !== null && (error as { code?: unknown }).code !== undefined);
+  if (certain) {
+    rt.guards.release(amount);
+    return error;
+  }
+  return new ToolError(`the outcome is unknown (${error instanceof Error ? error.message : String(error)}); the amount of ${amount} stays counted in this session until the state is looked at`);
+}
+
 const needVoucher = (rt: WriteRuntime, tool: string): `ed25519:${string}` => {
   if (rt.cfg.voucherKey === null) throw new ToolError(`${tool} signs with the voucher key: set X207_AGENT_VOUCHER_KEY`);
   return rt.cfg.voucherKey;
@@ -209,7 +224,9 @@ export const WRITE_TOOLS: ToolDef[] = [
         previous = offerOf(prev, hash, ctx.circleContract);
         other = prev.proposer === rt.cfg.account ? prev.counterparty : prev.proposer;
       }
-      await rt.guards.counterparty(other);
+      // the lister too, not only the party of the offer that is answered: an offer on the listing of somebody outside the list is a proposal to that somebody (cross review UM-112, F5)
+      await rt.guards.counterparty(listing.account);
+      if (other !== listing.account) await rt.guards.counterparty(other);
       rt.guards.price(BigInt(a.value as string), "the value of the offer");
       const signed = counterOffer(
         { listing, proposer: rt.cfg.account, mode: a.mode as "pay" | "barter", value: a.value as string, quantity: a.quantity as number, deliver_by: Math.floor(rt.now() / 1000) + (a.deliver_in_hours as number) * 3600, ...(previous ? { previous } : {}), now: Math.floor(rt.now() / 1000) },
@@ -255,8 +272,7 @@ export const WRITE_TOOLS: ToolDef[] = [
         const result = await post(`${base}/accept`, { account: rt.cfg.account, epoch: preview.epoch, ...(signature ? { signature } : {}) });
         return { kind: preview.kind, outgoing: outgoing.toString(), result, session: { spent: rt.guards.spent.toString(), remaining: rt.guards.remaining.toString() } };
       } catch (error) {
-        rt.guards.release(outgoing);
-        throw error;
+        throw keepIfUnknown(rt, outgoing, error);
       }
     },
   },
@@ -296,8 +312,7 @@ export const WRITE_TOOLS: ToolDef[] = [
         const result = await post(`/orders/${hash}/milestones/${a.index}`, { notice, signature: signNotice(ctx.circleContract, notice, key) });
         return { action: a.action, committed: amount.toString(), order: result, session: { spent: rt.guards.spent.toString(), remaining: rt.guards.remaining.toString() } };
       } catch (error) {
-        rt.guards.release(amount);
-        throw error;
+        throw keepIfUnknown(rt, amount, error);
       }
     },
   },
@@ -323,8 +338,7 @@ export const WRITE_TOOLS: ToolDef[] = [
         );
         return { account: rt.cfg.account, voucherPublicKey: result.publicKey, member: result.member, session: { spent: rt.guards.spent.toString(), remaining: rt.guards.remaining.toString() } };
       } catch (error) {
-        rt.guards.release(stake);
-        throw error;
+        throw keepIfUnknown(rt, stake, error);
       }
     },
   },
@@ -350,8 +364,7 @@ export const WRITE_TOOLS: ToolDef[] = [
         const result = await rt.send(buildSettleTransferCall({ circleContract: ctx.circleContract, amount: amount.toString(), epoch: a.epoch as number, usdtTokenId: circle.usdt_token_id }));
         return { epoch: a.epoch, paid: amount.toString(), due: due.toString(), result: result ?? null, session: { spent: rt.guards.spent.toString(), remaining: rt.guards.remaining.toString() } };
       } catch (error) {
-        rt.guards.release(amount);
-        throw error;
+        throw keepIfUnknown(rt, amount, error);
       }
     },
   },
