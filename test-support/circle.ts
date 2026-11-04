@@ -12,6 +12,9 @@ export const SHORT_PARAMS = {
 /** Methods of `probes/mock_intents` that the tests call; a wasm without one of them is a stale build (security review 3, F1). */
 export const MOCK_INTENTS_METHODS = ["new", "set_mode", "mt_transfer_call", "mt_resolve", "balance_of", "ft_withdraw", "withdraw_resolve", "last_msg", "received"];
 
+// Node has `WebAssembly` at run time; the "ES2023" lib of this project has no DOM types for it, so only what is used below is declared.
+declare const WebAssembly: { Module: { new (bytes: Uint8Array): unknown; exports(module: unknown): Array<{ name: string }> } };
+
 /** Fails with a clear message when the built `mock_intents` wasm lacks an export, instead of a "method not found" that looks like a bug of the circle. */
 export function assertMockIntentsWasm(path: string = MOCK_INTENTS_WASM): void {
   let exported: string[];
