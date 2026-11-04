@@ -68,7 +68,7 @@ function setup(headroom: string | null | Error, options: { now?: () => number } 
 
 afterEach(() => vi.restoreAllMocks());
 
-describe("SD-019 pemilihan entri", () => {
+describe("SD-019 entry selection", () => {
   it("TC-SD-019-01 enough headroom picks x207", async () => {
     const { client, exact } = setup("40000000");
     const payload = await client.createPaymentPayload(required([REQ, EXACT]));

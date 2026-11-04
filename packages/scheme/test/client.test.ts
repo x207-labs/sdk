@@ -59,8 +59,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("SD-018 klien createPaymentPayload", () => {
-  it("TC-SD-018-01 voucher pertama epoch", async () => {
+describe("SD-018 client createPaymentPayload", () => {
+  it("TC-SD-018-01 first voucher of the epoch", async () => {
     const { pay } = setup();
     const payload = await pay();
     expect(voucherOf(payload)).toEqual({
@@ -122,7 +122,7 @@ describe("SD-018 klien createPaymentPayload", () => {
     expect(await store.get(key(42, PAYEE_B))).toEqual({ seq: 3, cumulativeAmount: "60000" });
   });
 
-  it("TC-SD-018-06 tanda tangan sah", async () => {
+  it("TC-SD-018-06 valid signature", async () => {
     const { pay } = setup();
     const payload = await pay();
     const { voucher, signature } = payload.payload as unknown as X207Payload;

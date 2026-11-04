@@ -38,7 +38,7 @@ const PAYLOAD: PaymentPayload = {
 };
 
 describe("SD-015 assertCircleId", () => {
-  it("TC-SD-015-01 network sah", () => {
+  it("TC-SD-015-01 valid network", () => {
     expect(() => assertCircleId("x207:agents-main")).not.toThrow();
   });
 
@@ -63,7 +63,7 @@ describe("SD-015 assertCircleId", () => {
 });
 
 describe("SD-015 register x402 2.29.0", () => {
-  it("TC-SD-015-05 register tiga peran", async () => {
+  it("TC-SD-015-05 register three roles", async () => {
     class ClientImpl extends X207SchemeClient {
       override async createPaymentPayload() {
         return { x402Version: 2, payload: { marker: "client-impl" } };
@@ -107,14 +107,14 @@ describe("SD-015 register x402 2.29.0", () => {
     });
   });
 
-  it("TC-SD-015-07 versi dipin exact", () => {
+  it("TC-SD-015-07 exact pinned version", () => {
     const manifest = JSON.parse(
       readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
     ) as { dependencies: Record<string, string> };
     expect(manifest.dependencies["@x402/core"]).toBe("2.29.0");
   });
 
-  it("TC-SD-015-08 kerangka tiga peran", () => {
+  it("TC-SD-015-08 three-role scaffold", () => {
     const facilitator = new X207SchemeFacilitator({
       network: NETWORK,
       circleContract: CIRCLE_CONTRACT,

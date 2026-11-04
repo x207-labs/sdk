@@ -41,24 +41,24 @@ const MODEL_DATA_REQ: PaymentRequirements = {
 };
 
 describe("SD-016 parsePrice and buildPaymentRequirements", () => {
-  it("TC-SD-016-01 harga string", async () => {
+  it("TC-SD-016-01 string price", async () => {
     const { extra } = source();
     const result = await new X207SchemeServer({ extra }).parsePrice("$0.02", NETWORK);
     expect(result).toEqual({ amount: "20000", asset: "USD", extra: MODEL_DATA_REQ.extra });
   });
 
-  it("TC-SD-016-02 harga number", async () => {
+  it("TC-SD-016-02 number price", async () => {
     expect((await new X207SchemeServer().parsePrice(0.02, NETWORK)).amount).toBe("20000");
   });
 
-  it("TC-SD-016-03 presisi float", () => {
+  it("TC-SD-016-03 float precision", () => {
     expect(priceToAmount(0.29)).toBe("290000");
     expect(priceToAmount("$0.29")).toBe("290000");
     expect(priceToAmount(1.1)).toBe("1100000");
     expect(priceToAmount("$12")).toBe("12000000");
   });
 
-  it("TC-SD-016-04 pembulatan ke bawah", () => {
+  it("TC-SD-016-04 rounding down", () => {
     expect(priceToAmount(0.0000019)).toBe("1");
     expect(priceToAmount("0.0000019")).toBe("1");
   });
@@ -106,7 +106,7 @@ describe("SD-016 parsePrice and buildPaymentRequirements", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("TC-SD-016-09 lolos validasi skema @x402/core 2.28.0", async () => {
+  it("TC-SD-016-09 passes @x402/core schema validation 2.28.0", async () => {
     const { extra } = source();
     for (const requirements of await buildPaymentRequirements({ circleId: "agents-main", payTo: B, price: "$0.02", extra })) {
       expect(() => parsePaymentRequirements(requirements)).not.toThrow();

@@ -15,7 +15,7 @@ function metered(price: PriceFn, options: { maxQuantity?: number | string } = {}
 }
 const perGb: PriceFn = (request) => ({ unit: "GB", quantity: new URL(request.url).searchParams.get("gb") ?? "1", unitPrice: "$0.02" });
 
-describe("SD-062 harga terukur per request", () => {
+describe("SD-062 metered price per request", () => {
   it("TC-SD-062-01 the amount is unitPrice x quantity and the 402 announces unit, quantity, unit price in extra.meter; the static price still works", async () => {
     const { run, handler } = metered(perGb);
     const response = await run("?gb=2.5");

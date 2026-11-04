@@ -17,7 +17,7 @@ describe("SD-017 server middleware", () => {
     expect(response.headers.get("PAYMENT-RESPONSE")).toBeNull(); // TC-SD-027-05
   });
 
-  it("TC-SD-017-02 voucher sah: verify, handler, settle, 200", async () => {
+  it("TC-SD-017-02 valid voucher: verify, handler, settle, 200", async () => {
     const { run, handler, calls } = setup();
     const response = await run(sign(payloadOf()));
     expect(response.status).toBe(200);
@@ -28,7 +28,7 @@ describe("SD-017 server middleware", () => {
     expect(calls.map((c) => c.path).filter((p) => p !== "/supported")).toEqual(["/verify", "/settle"]);
   });
 
-  it("TC-SD-017-03 pembayaran exact sah: 200", async () => {
+  it("TC-SD-017-03 valid exact payment: 200", async () => {
     const { run, handler, calls } = setup();
     const response = await run(sign(payloadOf(REQ_EXACT)));
     expect(response.status).toBe(200);

@@ -189,7 +189,7 @@ describe("SD-025 verify negative test suite", () => {
     expect(await facilitator.verify(pay({}, { accepted: toC }), toC as any)).toMatchObject({ invalidReason: "payee_mismatch" });
   });
 
-  it("TC-SD-025-14 epoch masa depan", async () => {
+  it("TC-SD-025-14 future epoch", async () => {
     const result = await setup().facilitator.verify(pay({ epoch: 43 }), requirements({}, 43) as any);
     expect(result).toMatchObject({ isValid: false, invalidReason: "epoch_mismatch" });
   });
