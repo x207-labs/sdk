@@ -6,7 +6,7 @@ This follows the frame of `specs/scheme_template.md` of x402 (`Summary`, `Use Ca
 
 ## Summary
 
-x207 is a mutual credit settlement layer for x402 agent payments on NEAR. The members of a *circle* owe each other through signed vouchers instead of paying each call on chain. At the end of an epoch, debt cycles are cleared and only the net positions are paid. This scheme states x207 as an x402 v2 binding of `batch-settlement` with a *credit-backed* model (Commit, Accumulate, Redeem) on the network `x207:<circleId>`.
+x207 is a mutual credit settlement layer for x402 agent payments on NEAR. The members of a *circle* owe each other through signed vouchers instead of paying each call on chain. At the end of an epoch, debt cycles are cleared and only the net positions are paid. This scheme states x207 as an x402 v2 binding of `batch-settlement` (Commit, Accumulate, Redeem) whose trust anchor is a stake each member locks in a shared pool (`limit <= stake` in the MVP); in the terms of the generic scheme this is nearest to *capital-backed*, pooled across a circle rather than escrowed per seller, and not *credit-backed* in the sense of an intermediary that underwrites the buyer on the network `x207:<circleId>`.
 
 A seller uses this binding together with an `exact` `near:mainnet` entry (USDT NEP-141) in one 402 response. A buyer that is a member of the circle pays with a voucher; a buyer outside the circle can still pay through `exact`.
 
