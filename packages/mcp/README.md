@@ -2,7 +2,7 @@
 
 An [MCP](https://modelcontextprotocol.io) server for x207, the mutual-credit settlement layer for x402 agent payments on NEAR. It lets a model such as Claude read a circle: its rules and members, one member's position and limit, the result of an epoch, a clearing proposal checked by the contract, the marketplace, and one order.
 
-Status: version 0.0.1, pre-release, **read tools only**. Nothing here signs or sends a transaction, and the server holds no key. Node 22.22.2 or newer.
+Status: version 0.0.1, pre-release. By default the server has **read tools only**: it signs nothing, sends nothing and holds no key. The eight **write tools** exist only on stdio, only when you turn them on, and only behind the guards below. Node 22.22.2 or newer.
 
 ## The six read tools
 
@@ -52,6 +52,68 @@ npm install -g @x207/mcp
 ```
 
 From a checkout of the repository, build once with `npm run build` and point `command` at `node` with `"args": ["/path/to/sdk/packages/mcp/dist/cli.js"]`. Restart Claude Desktop, then ask for example: "Give me the overview of the x207 circle", "Inspect the member alice.x207-v013.testnet", or "Report epoch 1".
+
+## Write tools (stdio only, off by default)
+
+Set `X207_MCP_WRITE=1` and give the agent's account and keys in the environment. The HTTP server never has these tools, whatever the environment says.
+
+| Tool | What it does | Signs with | Off unless |
+| --- | --- | --- | --- |
+| `x207_pay_request` | Fetches a URL; on an x207 402 it signs a credit voucher and repeats the request. The facilitator of the seller registers the voucher; this tool sends nothing to the chain. | voucher key | a voucher key |
+| `x207_list_offer` | Signs a listing (what the agent offers, what it seeks) and posts it to the marketplace book. | voucher key | a voucher key and `X207_BACKEND_URL` |
+| `x207_make_offer` | Signs an offer or a counter-offer (`in_reply_to`) on a listing and posts it. | voucher key | a voucher key and `X207_BACKEND_URL` |
+| `x207_accept_offer` | Previews the acceptance at the backend, checks what the agent would pay, signs the bundle and posts the acceptance. | voucher key | a voucher key and `X207_BACKEND_URL` |
+| `x207_confirm_milestone` | Signs a notice for a milestone of an order (`confirmed`, `disputed`, `delivered`, `cancelled`) and posts it. | voucher key | a voucher key and `X207_BACKEND_URL` |
+| `x207_join` | Joins the circle and stakes USDT: `join` with the 0.35 NEAR storage deposit, then `ft_transfer_call`. | NEAR key | `X207_ALLOW_OUTFLOWS=1` and `X207_ALLOW_FULL_ACCESS_KEY=1` |
+| `x207_settle` | Pays the residual the agent owes for an epoch (at most the amount due): `ft_transfer_call` with the `settle` message. | NEAR key | `X207_ALLOW_OUTFLOWS=1` and `X207_ALLOW_FULL_ACCESS_KEY=1` |
+| `x207_claim` | Claims what the agent is owed for an epoch, to its own account or its Intents balance: `claim` with 1 yoctoNEAR. | NEAR key | `X207_ALLOW_FULL_ACCESS_KEY=1` |
+
+A tool whose key or switch is missing is not listed at all. The **voucher key** is an off-chain ed25519 key of the agent (`ed25519:<base58>`); it is not a NEAR access key. The **NEAR key** is an access key of the agent's account.
+
+| Variable | Meaning |
+| --- | --- |
+| `X207_MCP_WRITE` | `1` turns the write tools on. Default: off. |
+| `X207_AGENT_ACCOUNT` | The NEAR account of the agent, a member of the circle. Required with `X207_MCP_WRITE=1`. |
+| `X207_AGENT_VOUCHER_KEY` | Voucher secret key. Signs vouchers, listings, offers, acceptances and notices. |
+| `X207_AGENT_NEAR_KEY` | NEAR secret key of the agent account. Signs the transactions of `x207_join`, `x207_settle` and `x207_claim` only. |
+| `X207_MAX_SPEND_SESSION` | Most the agent may commit in one run of the server, in credit units (6 decimals). Default `1000000` (1 credit). |
+| `X207_MAX_PRICE_PER_CALL` | Most one payment, offer or milestone may be. Default `100000` (0.1 credit). |
+| `X207_ALLOWED_COUNTERPARTIES` | Comma separated accounts the agent may deal with. Empty: any active member of the circle. |
+| `X207_ALLOW_OUTFLOWS` | `1` allows `x207_join` and `x207_settle`, which move USDT from the agent into the circle. Default off. |
+| `X207_ALLOW_FULL_ACCESS_KEY` | `1` allows the NEAR key to be a full-access key. Default off. |
+
+### The guards
+
+1. **Budget of the session.** Every voucher signed, every payment an acceptance would make, every milestone confirmed and every stake or residual paid counts against `X207_MAX_SPEND_SESSION`. A commitment that does not fit is refused before it is signed; one that fails afterwards is given back.
+2. **Price per call.** An amount above `X207_MAX_PRICE_PER_CALL` is refused. The price in a 402 comes from the seller, so the server does not trust it: the check runs on the requirement before the voucher is signed.
+3. **Risky tools are off.** `x207_join` and `x207_settle` stay off until the operator sets `X207_ALLOW_OUTFLOWS=1`.
+4. **Counterparties.** The other party of a payment, offer, acceptance or milestone must be an **active member** of the circle (a contract view), must be in `X207_ALLOWED_COUNTERPARTIES` when that list is set, and is never the agent itself.
+5. **Keys.** Keys come from the environment only. No result, error or log line contains a key: every text that leaves the server is scrubbed of the configured keys and of anything shaped like an ed25519 secret key. Before a tool sends a transaction the server reads the permission of the NEAR key (`view_access_key`). **A function-call key cannot attach a deposit, and join, stake, settle and claim all attach one** (NEAR protocol rule), so with a function-call key those tools refuse and send nothing. With a full-access key they run only if `X207_ALLOW_FULL_ACCESS_KEY=1`; use a dedicated agent account with a small balance. The tools that sign with the voucher key send no transaction, so they do not need a NEAR key at all.
+
+Also: the backend returns the terms of a bundle together with their hash, and `x207_accept_offer` refuses when the hash does not match the terms; `x207_make_offer` refuses when the listing the book returns does not hash to the hash that was asked for.
+
+### Claude Desktop with the write tools
+
+```json
+{
+  "mcpServers": {
+    "x207-agent": {
+      "command": "x207-mcp",
+      "env": {
+        "X207_CIRCLE_CONTRACT": "x207-v013.testnet",
+        "X207_BACKEND_URL": "http://127.0.0.1:8080",
+        "X207_MCP_WRITE": "1",
+        "X207_AGENT_ACCOUNT": "agent.x207-v013.testnet",
+        "X207_AGENT_VOUCHER_KEY": "ed25519:…",
+        "X207_MAX_SPEND_SESSION": "500000",
+        "X207_MAX_PRICE_PER_CALL": "50000"
+      }
+    }
+  }
+}
+```
+
+Keep the keys out of any file you commit. Then ask for example: "List a translation service for 0.05 credit", "Pay https://seller.example/api/summarize", or "Confirm milestone 1 of order …".
 
 ## Use over Streamable HTTP
 
@@ -172,7 +234,7 @@ Without a read API the same server still answers `x207_circle_overview`, `x207_m
 
 ## Safety
 
-- The tools call contract views and `GET` requests only; there is no code path that signs, sends or changes anything.
+- The read tools call contract views and `GET` requests only; there is no code path in them that signs, sends or changes anything. The write tools are described above and are off by default.
 - Inputs are checked before any call: account ids, hashes, amounts as integer strings, at most 300 edges for a simulation, at most 200 items per page.
 - Path segments are encoded, so an input cannot reach another endpoint of the read API.
 - A circle on testnet reads from a testnet endpoint by default.

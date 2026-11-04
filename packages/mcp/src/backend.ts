@@ -43,3 +43,31 @@ export function createBackendGet(options: { baseUrl: string; circleId: string; t
 
 /** One path segment, encoded. */
 export const seg = (value: string | number): string => encodeURIComponent(String(value));
+
+/** A POST with a JSON body against the read API / marketplace book. Used only by the write tools (SD-082), which sign the body first. */
+export type BackendPost = (path: string, body: unknown) => Promise<unknown>;
+
+export function createBackendPost(options: { baseUrl: string; circleId: string; timeoutMs: number; fetch?: typeof fetch }): BackendPost {
+  const fetchFn = options.fetch ?? fetch;
+  return async (path, body) => {
+    const url = `${options.baseUrl}/x207/circles/${encodeURIComponent(options.circleId)}${path}`;
+    let response: Response;
+    try {
+      response = await fetchFn(url, { method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(options.timeoutMs) });
+    } catch (error) {
+      throw new BackendError(0, `read API unreachable (POST ${path}): ${(error as Error).message}`);
+    }
+    const text = await response.text();
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // not JSON
+    }
+    if (!response.ok) {
+      const e = (parsed as { error?: { code?: string; message?: string } } | null)?.error;
+      throw new BackendError(response.status, `POST ${path} answered ${response.status}: ${[e?.code, e?.message].filter(Boolean).join(": ") || text.replace(/\s+/g, " ").slice(0, 200)}`);
+    }
+    return parsed;
+  };
+}

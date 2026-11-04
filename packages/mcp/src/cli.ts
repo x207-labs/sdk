@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ConfigError, configFromEnv } from "./config.js";
 import { startHttpServer } from "./http.js";
 import { createX207McpServer } from "./server.js";
+import { writeConfigFromEnv } from "./write-config.js";
 
 const USAGE = "usage: x207-mcp [--http [--port <n>] [--host <address>]]   (environment: X207_CIRCLE_CONTRACT, X207_CIRCLE_ID, X207_RPC_URL, X207_BACKEND_URL, X207_TIMEOUT_MS)";
 
@@ -25,6 +26,7 @@ async function main(argv: string[]): Promise<void> {
   }
   const config = configFromEnv();
   if (args.has("http")) {
+    if (process.env.X207_MCP_WRITE === "1") console.error("x207-mcp: X207_MCP_WRITE is ignored on HTTP: the HTTP server only has the read tools");
     const port = args.has("port") ? Number(args.get("port")) : 3207;
     if (!Number.isInteger(port) || port < 0 || port > 65535) throw new ConfigError("--port must be an integer from 0 to 65535");
     const { url } = await startHttpServer(config, { port, host: (args.get("host") as string | undefined) ?? "127.0.0.1" });
@@ -32,8 +34,9 @@ async function main(argv: string[]): Promise<void> {
     return;
   }
   // stdout belongs to the protocol: every message of ours goes to stderr
-  await createX207McpServer(config, "stdio").connect(new StdioServerTransport());
-  console.error(`x207-mcp: stdio, circle ${config.circleContract}, read API ${config.backendUrl ?? "not configured (contract views only)"}`);
+  const write = writeConfigFromEnv();
+  await createX207McpServer(config, "stdio", { write }).connect(new StdioServerTransport());
+  console.error(`x207-mcp: stdio, circle ${config.circleContract}, read API ${config.backendUrl ?? "not configured (contract views only)"}, ${write ? `WRITE tools on for ${write.account}` : "read tools only"}`);
 }
 
 main(process.argv.slice(2)).catch((error) => {

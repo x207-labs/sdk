@@ -1,8 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createCircleViewFn } from "@x207/core";
-import { createBackendGet } from "./backend.js";
+import { createBackendGet, createBackendPost } from "./backend.js";
 import type { McpConfig } from "./config.js";
 import { READ_TOOLS, ToolError, type ToolContext, type ToolDef } from "./tools.js";
+import { availableWriteTools, createWriteRuntime } from "./write-tools.js";
+import { scrub, type WriteConfig } from "./write-config.js";
+import type { ContractCall } from "@x207/core";
 
 export type Transport = "stdio" | "http";
 
@@ -23,21 +26,37 @@ export function contextFrom(config: McpConfig): ToolContext {
   return { view, backend, circleContract: config.circleContract, circleId: config.circleId };
 }
 
-/** One MCP server with the tools of `transport`. Every tool is read-only: it reads views of the contract and the read API and sends nothing. */
-export function createX207McpServer(config: McpConfig, transport: Transport, version = "0.0.1"): McpServer {
-  const server = new McpServer({ name: "x207", version });
+export interface ServerOptions {
+  version?: string;
+  /** The write configuration (SD-082). Honoured on stdio only: on HTTP it is ignored and the server stays read-only. */
+  write?: WriteConfig | null;
+  /** Replaces the NEAR sender of the write tools (tests). */
+  send?: (call: ContractCall) => Promise<unknown>;
+  now?: () => number;
+}
+
+/** One MCP server with the tools of `transport`. The read tools read views of the contract and the read API and send nothing. The write tools exist only on stdio with a write configuration. */
+export function createX207McpServer(config: McpConfig, transport: Transport, options: ServerOptions = {}): McpServer {
+  const server = new McpServer({ name: "x207", version: options.version ?? "0.0.1" });
   const ctx = contextFrom(config);
-  for (const tool of toolsFor(transport)) {
+  const writeCfg = transport === "stdio" ? (options.write ?? null) : null;
+  let tools: ToolDef[] = toolsFor(transport);
+  if (writeCfg !== null) {
+    const post = config.backendUrl === null ? null : createBackendPost({ baseUrl: config.backendUrl, circleId: config.circleId, timeoutMs: config.timeoutMs, ...(config.fetch ? { fetch: config.fetch } : {}) });
+    ctx.write = createWriteRuntime(config, writeCfg, ctx.view, { post, ...(options.send ? { send: options.send } : {}), ...(options.now ? { now: options.now } : {}) });
+    tools = [...tools, ...availableWriteTools(ctx.write, ctx.backend !== null)];
+  }
+  for (const tool of tools) {
     server.registerTool(
       tool.name,
-      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: { readOnlyHint: tool.access === "read", destructiveHint: false, idempotentHint: true, openWorldHint: true } },
+      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: { readOnlyHint: tool.access === "read", destructiveHint: tool.access === "write", idempotentHint: tool.access === "read", openWorldHint: true } },
       (async (args: Record<string, unknown>) => {
         try {
-          return { content: [{ type: "text" as const, text: text(await tool.handler(args as never, ctx)) }] };
+          return { content: [{ type: "text" as const, text: scrub(text(await tool.handler(args as never, ctx)), writeCfg) }] };
         } catch (error) {
-          // a tool error is an answer for the model, not a crash of the server
+          // a tool error is an answer for the model, not a crash of the server; no key can be in it
           const message = error instanceof ToolError ? error.message : `${tool.name} failed: ${(error as Error).message}`;
-          return { isError: true, content: [{ type: "text" as const, text: message }] };
+          return { isError: true, content: [{ type: "text" as const, text: scrub(message, writeCfg) }] };
         }
       }) as never,
     );

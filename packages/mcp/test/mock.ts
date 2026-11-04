@@ -15,11 +15,17 @@ export interface Mock {
   viewAnswers: Record<string, unknown>;
   /** Read API answers by `path` (with the query); a number is an HTTP status for an empty error body. */
   backendAnswers: Record<string, unknown>;
+  /** POSTs to the read API / book: `{ path, body }`, in order. */
+  posts: Array<{ path: string; body: any }>;
+  /** Answers of POSTs by path; a function gets the body; an `Error` makes it a 400. */
+  postAnswers: Record<string, unknown>;
+  /** Any other URL (a paid seller, say). */
+  other?: (url: string, init?: RequestInit) => Response | Promise<Response> | undefined;
 }
 
 export function mock(over: Partial<McpConfig> = {}): Mock {
   const m: Mock = {
-    views: [], requests: [],
+    views: [], requests: [], posts: [], postAnswers: {},
     viewAnswers: {
       get_circle: { circle_id: "agents-main", owner: "x207v8.sputnikv2.testnet", member_count: 3 },
       get_params: { epoch_length: 600, payment_window: 900, proposal_window: 60 },
@@ -33,8 +39,13 @@ export function mock(over: Partial<McpConfig> = {}): Mock {
     backendAnswers: {},
     config: {
       circleContract: CONTRACT, circleId: "agents-main", rpcUrls: [RPC], backendUrl: BACKEND, timeoutMs: 2000,
-      fetch: (async (input: string | URL, init?: RequestInit) => {
-        const url = String(input);
+      fetch: (async (input: string | URL | Request, initIn?: RequestInit) => {
+        // @x402/fetch calls with a Request: read it back into a url and an init
+        const isRequest = typeof input === "object" && "url" in input && "headers" in input;
+        const url = isRequest ? (input as Request).url : String(input);
+        const init: RequestInit | undefined = isRequest
+          ? { method: (input as Request).method, headers: (input as Request).headers, ...(await (input as Request).clone().text() ? { body: await (input as Request).clone().text() } : {}) }
+          : initIn;
         if (url.startsWith(RPC)) {
           const body = JSON.parse(String(init?.body));
           const method = body.params.method_name as string;
@@ -48,12 +59,22 @@ export function mock(over: Partial<McpConfig> = {}): Mock {
         if (url.startsWith(BACKEND)) {
           const u = new URL(url);
           const key = `${u.pathname.replace("/x207/circles/agents-main", "")}${u.search}`;
+          if (init?.method === "POST") {
+            const body = JSON.parse(String(init.body));
+            m.posts.push({ path: key, body });
+            let a = m.postAnswers[key];
+            if (typeof a === "function") a = (a as (b: unknown) => unknown)(body);
+            if (a instanceof Error) return Response.json({ error: { code: "refused", message: a.message } }, { status: 400 });
+            return a === undefined ? Response.json({ error: { code: "not_found", message: `no POST ${key}` } }, { status: 404 }) : Response.json(a, { status: 201 });
+          }
           m.requests.push(`${init?.method ?? "GET"} ${key}`);
           const a = m.backendAnswers[key];
           if (a === undefined) return Response.json({ error: { code: "not_found", message: `no ${key}` } }, { status: 404 });
           if (typeof a === "number") return Response.json({ error: { code: "boom", message: "failed" } }, { status: a });
           return Response.json(a);
         }
+        const other = await m.other?.(url, init);
+        if (other) return other;
         throw new Error(`unexpected fetch ${url}`);
       }) as typeof fetch,
       ...over,

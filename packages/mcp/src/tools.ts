@@ -9,6 +9,7 @@
 import type { CircleViewFn } from "@x207/core";
 import { z } from "zod";
 import { BackendError, seg, type BackendGet } from "./backend.js";
+import type { WriteRuntime } from "./write-tools.js";
 
 export interface ToolContext {
   view: CircleViewFn;
@@ -16,6 +17,8 @@ export interface ToolContext {
   backend: BackendGet | null;
   circleContract: string;
   circleId: string;
+  /** Present only on stdio with X207_MCP_WRITE=1 (SD-082). */
+  write?: WriteRuntime;
 }
 
 export interface ToolDef<Shape extends z.ZodRawShape = z.ZodRawShape> {
