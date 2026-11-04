@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createCircleViewFn } from "@x207/core";
 import { createBackendGet, createBackendPost } from "./backend.js";
@@ -8,6 +9,9 @@ import { scrub, type WriteConfig } from "./write-config.js";
 import type { ContractCall } from "@x207/core";
 
 export type Transport = "stdio" | "http";
+
+/** The version of the package, read from its package.json (one place, so the server info cannot say another version than the one that was published). `../package.json` is the package root from `src/` and from `dist/`. */
+const PACKAGE_VERSION = (JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
 /** Longest text of one tool result. A longer answer is cut and says so, so one call cannot fill the context of a model. */
 export const MAX_RESULT_CHARS = 100_000;
@@ -39,7 +43,7 @@ export interface ServerOptions {
 
 /** One MCP server with the tools of `transport`. The read tools read views of the contract and the read API and send nothing. The write tools exist only on stdio with a write configuration. */
 export function createX207McpServer(config: McpConfig, transport: Transport, options: ServerOptions = {}): McpServer {
-  const server = new McpServer({ name: "x207", version: options.version ?? "0.0.2" });
+  const server = new McpServer({ name: "x207", version: options.version ?? PACKAGE_VERSION });
   const ctx = contextFrom(config);
   const writeCfg = transport === "stdio" ? (options.write ?? null) : null;
   let tools: ToolDef[] = toolsFor(transport);

@@ -121,7 +121,10 @@ export function sellTxt(listingHash: string): string {
   if (!HASH.test(listingHash)) return fail("transfer_bad_hash", "the listing hash must be 64 lowercase hex characters");
   return `x207-sell=${listingHash}`;
 }
-/** The text that the buyer sets after the transfer: `x207-own=<purchase_id>` (the id of the transfer purchase of the backend). */
+/**
+ * The text `x207-own=<id>`. Since UM-096 the backend binds the text of a domain transfer to the voucher of the buyer: it is `x207-own=<transfer id>-<token>` and the answer of the purchase
+ * gives it whole (`instructions.setTxtAfterTransfer`), so the buyer sets that value; pass `<transfer id>-<token>` here to build the same text.
+ */
 export function ownTxt(purchaseId: number | string): string {
   const id = String(purchaseId);
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return fail("transfer_bad_txt", "the purchase id must be 1 to 64 characters [A-Za-z0-9_-]");

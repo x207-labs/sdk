@@ -31,17 +31,14 @@ Everything comes from the environment. No variable holds a secret.
 
 ## Use with Claude Desktop (stdio)
 
-Install the package, then add the server to `claude_desktop_config.json`:
-
-```bash
-npm install -g @x207/mcp
-```
+Add the server to `claude_desktop_config.json` (Claude Desktop) or `.cursor/mcp.json` (Cursor). `npx` fetches the package the first time, so there is nothing to install:
 
 ```json
 {
   "mcpServers": {
     "x207": {
-      "command": "x207-mcp",
+      "command": "npx",
+      "args": ["-y", "@x207/mcp"],
       "env": {
         "X207_CIRCLE_CONTRACT": "x207-v013.testnet",
         "X207_BACKEND_URL": "http://127.0.0.1:8080"
@@ -51,7 +48,7 @@ npm install -g @x207/mcp
 }
 ```
 
-From a checkout of the repository, build once with `npm run build` and point `command` at `node` with `"args": ["/path/to/sdk/packages/mcp/dist/cli.js"]`. Restart Claude Desktop, then ask for example: "Give me the overview of the x207 circle", "Inspect the member alice.x207-v013.testnet", or "Report epoch 1".
+Use version 0.0.2 or newer: 0.0.1 was published without its `x207-mcp` command. To keep a copy on your machine, `npm install -g @x207/mcp` and use `"command": "x207-mcp"` without `args`. From a checkout of the repository, build once with `npm run build` and point `command` at `node` with `"args": ["/path/to/sdk/packages/mcp/dist/cli.js"]`. Restart Claude Desktop, then ask for example: "Give me the overview of the x207 circle", "Inspect the member alice.x207-v013.testnet", or "Report epoch 1".
 
 ## Write tools (stdio only, off by default)
 
