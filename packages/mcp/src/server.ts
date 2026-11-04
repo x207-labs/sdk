@@ -47,9 +47,11 @@ export function createX207McpServer(config: McpConfig, transport: Transport, opt
     tools = [...tools, ...availableWriteTools(ctx.write, ctx.backend !== null)];
   }
   for (const tool of tools) {
+    // `as never` on inputSchema: this package builds its schemas with zod 4, and which copy of zod the MCP SDK resolves depends on the install (the sdk repo alone hoists zod 4, the umbrella
+    // workspace hoists zod 3.25 to the root and the SDK resolves that one), so the two declarations of the schema type differ for tsc while the SDK reads either at run time (SD-084).
     server.registerTool(
       tool.name,
-      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema, annotations: { readOnlyHint: tool.access === "read", destructiveHint: tool.access === "write", idempotentHint: tool.access === "read", openWorldHint: true } },
+      { title: tool.title, description: tool.description, inputSchema: tool.inputSchema as never, annotations: { readOnlyHint: tool.access === "read", destructiveHint: tool.access === "write", idempotentHint: tool.access === "read", openWorldHint: true } },
       (async (args: Record<string, unknown>) => {
         try {
           return { content: [{ type: "text" as const, text: scrub(text(await tool.handler(args as never, ctx)), writeCfg) }] };
