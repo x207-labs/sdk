@@ -52,7 +52,7 @@ describe.skipIf(!sandboxAvailable)("SD-074 a frozen member in near-sandbox", () 
       return verify({ paymentPayload: { x402Version: 2, resource: { url: "https://summarizer.example/api" }, accepted: requirements, payload: { voucher, signature } }, paymentRequirements: requirements } as never);
     };
     // a fresh account object for every call: after the clock jumps 24 hours the block hash that an old one holds is too old (`Transaction expired`)
-    const call = async (method: string, args: object) => {
+    const call = async (method: string, args: Record<string, unknown>) => {
       const r = await fx.sandbox.accountFrom(dao.accountId, dao.secretKey).call({ receiverId: contract, methodName: method, args, deposit: 0n }, "FINAL");
       expect(r.failures, method).toEqual([]);
     };
