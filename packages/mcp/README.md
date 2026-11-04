@@ -77,6 +77,99 @@ const server = createX207McpServer(configFromEnv(), "stdio"); // "http" gives th
 await server.connect(new StdioServerTransport());
 ```
 
+## Example output (real data)
+
+Run against the circle `x207-v013.testnet` (contract views from the testnet RPC) and a local read API (`backend`) that served the read model of that circle with its three demo accounts. The tool results below are real; long fields (signatures, hashes of the order spec) are left out and marked by the keys that remain.
+
+`x207_member_inspect` with `{"account": "x207-demo-seller.testnet"}`:
+
+```json
+{
+  "account": "x207-demo-seller.testnet",
+  "member": {
+    "account": "x207-demo-seller.testnet",
+    "status": "active",
+    "stake": "100000000",
+    "limit": "80000000",
+    "outstandingDebt": "0",
+    "headroom": "80000000",
+    "joinedAt": "2026-11-04T04:25:29Z"
+  },
+  "limits": {
+    "items": [
+      {
+        "epoch": null,
+        "oldLimit": "0",
+        "newLimit": "80000000",
+        "status": "active",
+        "reason": "stake",
+        "blockHeight": 276145725
+      }
+    ]
+  },
+  "source": "read API",
+  "warnings": []
+}
+```
+
+`x207_search_listings` with `{"account": "x207-demo-seller.testnet", "limit": 1}`:
+
+```json
+{
+  "items": [
+    {
+      "listingHash": "6eb11d3068ba7e5f84503d9d454242e891fedd676ffd1e03324d4889a304fa41",
+      "account": "x207-demo-seller.testnet",
+      "offer": {
+        "assetType": "near-rpc:access",
+        "assetClass": "B",
+        "quantity": 1,
+        "value": "2000000"
+      },
+      "want": {
+        "assetType": "usdc",
+        "assetClass": "A",
+        "quantity": 1,
+        "value": "2000000"
+      },
+      "expiresAt": "2026-12-31T00:00:00Z",
+      "status": "open"
+    }
+  ],
+  "nextCursor": "eyJhIjoxfQ"
+}
+```
+
+`x207_order_status` with the `hash` of the order of `x207-demo-buyer.testnet`:
+
+```json
+{
+  "orderHash": "332b9bddcc9e17578ba2e55b1fd7d8c0323f7a8225f4ebc03a83b7c0668840a3",
+  "buyer": "x207-demo-buyer.testnet",
+  "seller": "x207-demo-seller.testnet",
+  "status": "open",
+  "budget": "30000000",
+  "unit": "credit",
+  "decimals": 6,
+  "milestones": [
+    {
+      "index": 1,
+      "amount": "10000000",
+      "dueAt": 1796947200,
+      "status": "open"
+    },
+    {
+      "index": 2,
+      "amount": "20000000",
+      "dueAt": 1797811200,
+      "status": "open"
+    }
+  ]
+}
+```
+
+Without a read API the same server still answers `x207_circle_overview`, `x207_member_inspect`, `x207_epoch_report` and `x207_simulate_clearing` from the contract alone: on `x207-v013.testnet` `x207_circle_overview` returns `member_count` 24 and the rules (`epoch_length` 600, fees 10 and 5 bps, `prune_delay_epochs` 2), and `x207_epoch_report` for epoch 1 shows the phase `finalized` with 210 edges and 15 participants.
+
 ## Safety
 
 - The tools call contract views and `GET` requests only; there is no code path that signs, sends or changes anything.
