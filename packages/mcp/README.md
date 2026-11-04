@@ -92,6 +92,10 @@ A tool whose key or switch is missing is not listed at all. The **voucher key** 
 
 Also: the backend returns the terms of a bundle together with their hash, and `x207_accept_offer` refuses when the hash does not match the terms; `x207_make_offer` refuses when the listing the book returns does not hash to the hash that was asked for.
 
+### Security limit: the balance of the agent account is the largest possible loss
+
+A NEAR deposit cannot be attached by a function-call key, so the tools that send one (`x207_join`, `x207_settle`, `x207_claim`) need a **full-access key** of the agent account. A full-access key can do anything the account can do, and none of the guards above limits what a stolen or misused key does outside this server. So use a **dedicated agent account** that holds only what the agent may lose: whatever NEAR and USDT sit on that account is the most that can be lost. The session budget and the price cap protect against a model that misbehaves; they do not protect against someone who has the key. Leave `X207_ALLOW_FULL_ACCESS_KEY` unset, and the three tools off, if the agent only needs to pay, list, offer, accept and confirm: those tools sign with the voucher key and never need a NEAR key.
+
 ### Claude Desktop with the write tools
 
 ```json
