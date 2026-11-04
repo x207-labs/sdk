@@ -28,7 +28,7 @@ export interface ToolDef<Shape extends z.ZodRawShape = z.ZodRawShape> {
   /** `read` tools run on every transport; a `write` tool would run on stdio only (SD-082). */
   access: "read" | "write";
   inputSchema: Shape;
-  handler: (args: z.objectOutputType<Shape, z.ZodTypeAny>, ctx: ToolContext) => Promise<unknown>;
+  handler: (args: z.infer<z.ZodObject<Shape>>, ctx: ToolContext) => Promise<unknown>;
 }
 
 /** What a tool says when it cannot do its job: shown to the model as the text of an error result. */

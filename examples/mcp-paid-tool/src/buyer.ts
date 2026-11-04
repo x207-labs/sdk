@@ -16,7 +16,7 @@ export function createPayingMcpClient(options: PayingMcpClientOptions) {
   return createx402MCPClient({
     name: "x207-paying-agent",
     version: "0.0.1",
-    schemes: [{ network: `x207:${options.circleId}`, client: new X207SchemeClient({ payer: options.accountId, secretKey: options.secretKey }) as never }],
+    schemes: [{ network: `x207:${options.circleId}`, client: new X207SchemeClient({ payer: options.accountId, secretKey: options.secretKey }) }],
     autoPayment: true,
     onPaymentRequested: async ({ paymentRequired }) => {
       const first = paymentRequired.accepts[0];

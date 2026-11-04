@@ -29,7 +29,7 @@ In a clean folder: `npm pack` in each package, then `npm install x207-core-0.0.1
 - Every entry loads: `@x207/scheme`, `/client`, `/server`, `/facilitator`, `@x207/core`, `@x207/core/signer`. `npm ls --all` shows no missing or invalid dependency.
 
 ## Open points (for the owner)
-1. **`npm audit --omit=dev` says 4 high:** `zod < 4.6.6` (memory use on oversized constrained collections, GHSA-mrhx-c7xc-m3w5) through `@x402/core` 2.0.0 to 2.28.0, which both packages depend on at the exact version 2.28.0. No fixed version exists at the time of writing. We do not parse untrusted collections with zod ourselves, but the facilitator and the seller middleware use `@x402/core` types and clients on request bodies, so the issue is in the path. Say it in the release notes, or move to a fixed `@x402/core` when there is one.
+1. **`npm audit --omit=dev`:** after SD-084 (`@x402/core`, `@x402/fetch` and `@x402/near` at 2.29.0, which use `zod` 4.6.7) it shows no high or moderate advisory for the SDK, only 8 low ones in `@near-js` packages that `@x402/near` depends on. Run it again before a release.
 2. **Name and scope:** the packages are named `@x207/*`. The scope `@x207` must exist on npm and the owner must be a member; this was not checked (it needs a login).
 3. **Provenance:** publishing with `--provenance` from the CI of the repository gives a signed link from the package to the commit; it needs the repository to be public. Not set up.
 4. **Version:** 0.0.1 is the version of every package of the repository; the contract is at 0.0.12 and the interface of `@x207/core` follows it (`ContractAbi`). Decide whether the first release is 0.0.1 or 0.1.0 before publishing.

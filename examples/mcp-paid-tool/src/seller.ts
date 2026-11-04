@@ -24,7 +24,7 @@ export async function createPaidToolServer(options: PaidToolServerOptions): Prom
   const network = `x207:${options.circleId}` as `${string}:${string}`;
   const resourceServer = new x402ResourceServer(new HTTPFacilitatorClient({ url: options.facilitatorUrl }));
   // X207SchemeServer is built on @x402/core 2.28 (the pin of the SDK), the resource server on 2.29 (the peer of @x402/mcp): the interface is the same, the classes are two copies
-  resourceServer.register(network, new X207SchemeServer() as never);
+  resourceServer.register(network, new X207SchemeServer());
   await resourceServer.initialize();
   const accepts = await resourceServer.buildPaymentRequirements({ scheme: X207_SCHEME, network, payTo: options.payTo, price: options.price ?? "$0.02" });
   const paid = createPaymentWrapper(resourceServer, { accepts });

@@ -130,14 +130,14 @@ describe("SD-021 scaffold apps/facilitator", () => {
     await expect(new NearRpc({ urls: [erroring, spare], timeoutMs: 200 }).call("query", {})).rejects.toThrow(/RPC query error/);
   });
 
-  it("TC-SD-021-08 dependencies: @x402/near 2.28.0, @near-js 2.5.1, no near-api-js", () => {
+  it("TC-SD-021-08 dependencies: @x402/near 2.29.0, @near-js 2.5.1, no near-api-js", () => {
     const root = fileURLToPath(new URL("../../../", import.meta.url));
     const readJson = (path: string) => JSON.parse(readFileSync(`${root}${path}`, "utf8"));
     const pkg = readJson("apps/facilitator/package.json");
-    expect(pkg.dependencies["@x402/near"]).toBe("2.28.0");
+    expect(pkg.dependencies["@x402/near"]).toBe("2.29.0");
     expect(pkg.dependencies["near-api-js"]).toBeUndefined();
     const lock = readJson("package-lock.json").packages as Record<string, { version?: string }>;
-    expect(lock["node_modules/@x402/near"]?.version).toBe("2.28.0");
+    expect(lock["node_modules/@x402/near"]?.version).toBe("2.29.0");
     const nearJs = Object.entries(lock).filter(([name]) => /^node_modules\/@near-js\/[^/]+$/.test(name));
     expect(nearJs.length).toBeGreaterThan(0);
     for (const [name, entry] of nearJs) expect(entry.version, name).toBe("2.5.1");

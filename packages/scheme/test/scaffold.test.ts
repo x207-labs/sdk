@@ -62,7 +62,7 @@ describe("SD-015 assertCircleId", () => {
   });
 });
 
-describe("SD-015 register x402 2.28.0", () => {
+describe("SD-015 register x402 2.29.0", () => {
   it("TC-SD-015-05 register tiga peran", async () => {
     class ClientImpl extends X207SchemeClient {
       override async createPaymentPayload() {
@@ -111,7 +111,7 @@ describe("SD-015 register x402 2.28.0", () => {
     const manifest = JSON.parse(
       readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
     ) as { dependencies: Record<string, string> };
-    expect(manifest.dependencies["@x402/core"]).toBe("2.28.0");
+    expect(manifest.dependencies["@x402/core"]).toBe("2.29.0");
   });
 
   it("TC-SD-015-08 kerangka tiga peran", () => {
