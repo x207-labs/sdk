@@ -17,5 +17,9 @@
     "@hono/node-server": "2.1.5",
     "@x207/scheme": "0.0.1",
     "hono": "4.13.16"
+  },
+  "devDependencies": {
+    "@x402/evm": "2.29.0",
+    "viem": "2.57.14"
   }
 }

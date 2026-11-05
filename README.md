@@ -92,7 +92,7 @@ client.register("eip155:*", new ExactEvmScheme(account)); // optional fallback i
 // the same as x402Client.register(`x207:${circleId}`, …) for a client built by hand
 ```
 
-Run the seller with `BASE_SEPOLIA_PAY_TO=0x… npm run start -w @x207/example-seller`. The test `examples/seller/test/seller.base-sepolia.test.ts` runs both buyers locally with a mock facilitator and no keys.
+Run the seller with `BASE_SEPOLIA_PAY_TO=0x… npm run start -w @x207/example-seller`. The test `examples/seller/test/seller.base-sepolia.test.ts` runs both buyers locally with a mock facilitator and no keys. `seller.x402-evm.test.ts` (SD-096) does the same with the real `ExactEvmScheme` of `@x402/evm` 2.29.0 as buyer and the real `ExactEvmScheme` facilitator as verifier (a fresh key per run, chain reads stubbed): the payload passes structure, EIP-712 signature and time checks, and a payload changed after signing is refused with `invalid_exact_evm_signature`. The same check passes with `@x402/evm` 2.30.0.
 
 Joining a circle (`onboardMember`: voucher key, `join`, stake, wait for `active`) is in the [quickstart](https://github.com/x207-labs/x207/blob/main/docs/quickstart.md). Selling: [docs/seller-quickstart.md](docs/seller-quickstart.md). Full tested examples: [`examples/buyer`](examples/buyer), [`examples/seller`](examples/seller).
 
