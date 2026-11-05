@@ -14,6 +14,9 @@
       "path": "examples/buyer"
     },
     {
+      "path": "examples/evm-agent"
+    },
+    {
       "path": "examples/seller"
     },
     {

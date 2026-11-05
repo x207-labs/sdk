@@ -1,0 +1,19 @@
+{
+  "name": "@x207/example-evm-agent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "x207 agent with only an EVM key: joins through the relayer, pays x402 endpoints with EIP-712 vouchers, claims",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/agent.js",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "dependencies": {
+    "viem": "2.57.14"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/main.js"
+  }
+}

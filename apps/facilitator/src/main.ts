@@ -81,6 +81,7 @@ const evm = evmAccount && evmKey
   ? new EvmRelay({
       circleContract: evmCircle.circleContract,
       caller: new NearContractCaller({ rpc, circleContract: evmCircle.circleContract, account: { accountId: evmAccount, privateKey: evmKey }, onHash: (hash) => console.log(JSON.stringify({ evmRelayTx: hash })) }),
+      ...(process.env.X207_EVM_STAKE_TOKEN && process.env.X207_EVM_STAKE_AMOUNT ? { stake: { tokenId: process.env.X207_EVM_STAKE_TOKEN, amount: process.env.X207_EVM_STAKE_AMOUNT } } : {}),
       ...(process.env.X207_EVM_MAX_JOINS_PER_HOUR ? { maxJoinsPerHour: Number(process.env.X207_EVM_MAX_JOINS_PER_HOUR) } : {}),
     })
   : undefined;

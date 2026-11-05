@@ -109,6 +109,20 @@ describe("SD-089 EVM relayer", () => {
     expect((await post("/evm/join", joinBody())).status).toBe(200);
   });
 
+  it("TC-SD-089-09 with a stake option the relayer also stakes for the new member; a failing stake is reported", async () => {
+    const calls: Array<{ method: string; args: Record<string, unknown>; deposit: bigint; receiverId: string | undefined }> = [];
+    const caller: EvmCaller = { async call(method, args, deposit, receiverId) { calls.push({ method, args, deposit, receiverId }); return { hash: `h${calls.length}` }; } };
+    const make = (c: EvmCaller) => createApp({ verify: async () => ({}), settle: async () => ({}), supported: async () => ({}) } as unknown as FacilitatorService, {
+      rateLimit: false, evm: new EvmRelay({ circleContract: fixture.circle, caller: c, now: () => NOW, stake: { tokenId: "usdt.testnet", amount: "50000000" } }),
+    });
+    const res = await make(caller).request("/evm/join", { method: "POST", body: JSON.stringify(joinBody()) });
+    expect(await res.json()).toMatchObject({ ok: true, txHash: "h1", stakeTxHash: "h2" });
+    expect(calls[1]).toEqual({ method: "ft_transfer_call", receiverId: "usdt.testnet", deposit: 1n, args: { receiver_id: fixture.circle, amount: "50000000", msg: JSON.stringify({ action: "stake", member_id: fixture.address }) } });
+    const failing: EvmCaller = { async call(method) { if (method === "ft_transfer_call") throw new Error("not enough balance"); return { hash: "h" }; } };
+    const bad = await make(failing).request("/evm/join", { method: "POST", body: JSON.stringify(joinBody()) });
+    expect([bad.status, (await bad.json() as any).error]).toEqual([502, "stake_failed"]);
+  });
+
   it("TC-SD-089-08 without an EVM relay the routes do not exist", async () => {
     const service = { verify: async () => ({}), settle: async () => ({}), supported: async () => ({}) } as unknown as FacilitatorService;
     const res = await createApp(service, { rateLimit: false }).request("/evm/join", { method: "POST", body: "{}" });

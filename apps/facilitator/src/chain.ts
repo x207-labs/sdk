@@ -1,6 +1,6 @@
 // Adapter for on-chain reads and the D3 pending store for `verify` (SD-024).
 import type { PaymentRequirements, SettleRequest, SettleResponse, VerifyRequest, VerifyResponse } from "@x402/core/types";
-import type { AccountId, ContractAbi, Ed25519Signature, UnsignedVoucher } from "@x207/core";
+import type { AccountId, ContractAbi, Signature, UnsignedVoucher } from "@x207/core";
 import {
   X207SchemeFacilitator,
   type CircleConfig,
@@ -97,7 +97,7 @@ export class NearChain implements VerifyChain {
 export class PendingStoreWriter implements PendingWriter {
   constructor(private readonly circle: CircleConfig, private readonly pending: PendingStore) {}
 
-  save(voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean {
+  save(voucher: UnsignedVoucher, signature: Signature, bundleId?: number): boolean {
     return this.pending.upsert(this.circle.circleContract, voucher, signature, bundleId);
   }
 

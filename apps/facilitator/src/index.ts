@@ -25,7 +25,8 @@ export {
   type TickResult,
 } from "./scheduler.js";
 export { GAS_KEY_LANE_TIMEOUT_MS, GasKeyLanes, MAX_GAS_KEY_LANES, encodeGasKeyTransaction, signGasKeyTransaction, type GasKeyCall } from "./gas-key.js";
-export { NearRegistrationChain, REGISTER_GAS, transactionFailure, type NearRelayOptions } from "./relay.js";
+export { NearContractCaller, NearRegistrationChain, REGISTER_GAS, transactionFailure, type NearRelayOptions } from "./relay.js";
+export { EVM_JOIN_DEPOSIT, EvmRelay, EvmRelayError, type EvmCaller, type EvmRelayOptions, type EvmRelayResult } from "./evm-relay.js";
 export { EXACT_NEAR_NETWORK, createFacilitatorService, type ExactNearNetwork, type FacilitatorServiceOptions } from "./service.js";
 export { CHAIN_CACHE_DEFAULTS, CachedVerifyChain, type ChainCacheOptions, type ChainCacheStats } from "./chain-cache.js";
 export {

@@ -15,7 +15,8 @@ export const EVM_RELAY_GAS = 100_000_000_000_000n;
 
 /** Sends one transaction from the relayer account and waits for final. Throws an `Error` whose message holds the contract `ERR_*` text on failure. */
 export interface EvmCaller {
-  call(method: string, args: Record<string, unknown>, deposit: bigint): Promise<{ hash: string }>;
+  /** `receiverId` defaults to the circle contract; the stake goes to the token contract. */
+  call(method: string, args: Record<string, unknown>, deposit: bigint, receiverId?: string): Promise<{ hash: string }>;
 }
 
 export type EvmRelayOptions = {
@@ -26,6 +27,11 @@ export type EvmRelayOptions = {
   perAddress?: { max: number; windowMs?: number };
   /** Most joins the relayer sponsors in one hour (default 20). */
   maxJoinsPerHour?: number;
+  /**
+   * Testnet and sandbox: after `join_evm` the relayer stakes `amount` of `tokenId` (a mock USDT it holds) for the new member (`ft_transfer_call` with `member_id`), so the member is `active`
+   * in the same request. On mainnet the stake comes through Intents instead (design note, "Rute dana dari EVM"), so this is off by default.
+   */
+  stake?: { tokenId: AccountId; amount: string };
 };
 
 export class EvmRelayError extends Error {
@@ -35,7 +41,7 @@ export class EvmRelayError extends Error {
   }
 }
 
-export type EvmRelayResult = { ok: true; method: string; txHash: string };
+export type EvmRelayResult = { ok: true; method: string; txHash: string; stakeTxHash?: string };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const TERMS_HASH = /^[0-9a-f]{64}$/;
@@ -115,7 +121,14 @@ export class EvmRelay {
     if (this.#joins.length >= (this.#o.maxJoinsPerHour ?? 20)) throw new EvmRelayError(503, "join_budget_used", "this relayer has sponsored its joins for this hour; try later", 600);
     const result = await this.#send(who, "join", { member: who, epoch: 0, receiver: "", termsHash, nonce: 0, deadline }, deadline, sig, "join_evm", { address: who, terms_hash: termsHash, deadline, signature: sig }, EVM_JOIN_DEPOSIT);
     this.#joins.push(now);
-    return result;
+    const stake = this.#o.stake;
+    if (stake === undefined) return result;
+    try {
+      const staked = await this.#o.caller.call("ft_transfer_call", { receiver_id: this.#o.circleContract, amount: stake.amount, msg: JSON.stringify({ action: "stake", member_id: who }) }, 1n, stake.tokenId);
+      return { ...result, stakeTxHash: staked.hash };
+    } catch (error) {
+      throw new EvmRelayError(502, "stake_failed", `joined, but the stake transfer failed: ${(error as Error).message}`.slice(0, 300));
+    }
   }
 
   /** Body: `{ member, epoch, receiver, nonce, deadline, signature }`. */

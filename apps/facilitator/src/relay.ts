@@ -3,7 +3,7 @@
 import { KeyPair, PublicKey, type KeyPairString } from "@near-js/crypto";
 import { KeyPairSigner } from "@near-js/signers";
 import { actionCreators, createTransaction, encodeTransaction } from "@near-js/transactions";
-import { base58Decode, type AccountId, type ContractAbi, type Ed25519Signature, type UnsignedVoucher } from "@x207/core";
+import { base58Decode, type AccountId, type ContractAbi, type Signature, type UnsignedVoucher } from "@x207/core";
 import { GasKeyLanes, signGasKeyTransaction } from "./gas-key.js";
 import type { NearRpc } from "./rpc.js";
 import type { RegisterMode, RegistrationChain } from "./scheduler.js";
@@ -64,7 +64,7 @@ export class NearRegistrationChain implements RegistrationChain {
   }
 
   /** Send one transaction and wait for final; throws an `Error` with the contract's panic message on failure. */
-  async register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode, bundleId?: number): Promise<void> {
+  async register(voucher: UnsignedVoucher, signature: Signature, mode: RegisterMode, bundleId?: number): Promise<void> {
     const { rpc, circleContract, relayer } = this.options;
     const method = bundleId !== undefined ? "register_in_bundle" : mode === "cumulative" ? "register_cumulative" : "register_voucher";
     const args = bundleId !== undefined ? { bundle_id: bundleId, voucher, signature } : { voucher, signature };
@@ -136,21 +136,21 @@ export class NearContractCaller {
     this.#publicKey = key.getPublicKey();
   }
 
-  call(method: string, args: Record<string, unknown>, deposit: bigint, gas = 100_000_000_000_000n): Promise<{ hash: string }> {
-    const run = this.#tail.then(() => this.#once(method, args, deposit, gas).catch((error) => {
-      if (/InvalidNonce/.test(String(error instanceof Error ? error.message : error))) return this.#once(method, args, deposit, gas);
+  call(method: string, args: Record<string, unknown>, deposit: bigint, receiverId?: string, gas = 100_000_000_000_000n): Promise<{ hash: string }> {
+    const run = this.#tail.then(() => this.#once(method, args, deposit, gas, receiverId).catch((error) => {
+      if (/InvalidNonce/.test(String(error instanceof Error ? error.message : error))) return this.#once(method, args, deposit, gas, receiverId);
       throw error;
     }));
     this.#tail = run.catch(() => undefined);
     return run;
   }
 
-  async #once(method: string, args: Record<string, unknown>, deposit: bigint, gas: bigint): Promise<{ hash: string }> {
+  async #once(method: string, args: Record<string, unknown>, deposit: bigint, gas: bigint, receiverId?: string): Promise<{ hash: string }> {
     const { rpc, circleContract, account } = this.options;
     const key = await rpc.call<{ nonce: number }>("query", { request_type: "view_access_key", finality: "optimistic", account_id: account.accountId, public_key: this.#publicKey.toString() });
     const block = await rpc.call<{ header: { hash: string } }>("block", { finality: "final" });
     const transaction = createTransaction(
-      account.accountId, this.#publicKey, circleContract, BigInt(key.nonce) + 1n,
+      account.accountId, this.#publicKey, receiverId ?? circleContract, BigInt(key.nonce) + 1n,
       [actionCreators.functionCall(method, args, gas, deposit)], base58Decode(block.header.hash),
     );
     const [, signed] = await this.#signer.signTransaction(transaction);
