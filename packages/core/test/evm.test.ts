@@ -8,7 +8,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { signVoucher, validateX207Payload, verifyVoucher, voucherPublicKey, type UnsignedVoucher, type Voucher } from "../src/index.js";
 import { ed25519Signer } from "../src/voucher-signer.js";
 import {
-  EVM_ACTIONS, EVM_DEFAULT_DEADLINE_TTL_MS, actionTypedData, evmActionDigest, evmBundleDigest, evmDomain, evmDomainSalt, evmSigner, evmVoucherDigest, isEvmMemberId, voucherTypedData,
+  EVM_ACTIONS, EVM_DEFAULT_DEADLINE_TTL_MS, actionTypedData, expectedRelayerFee, evmActionDigest, evmBundleDigest, evmDomain, evmDomainSalt, evmSigner, evmVoucherDigest, isEvmMemberId, voucherTypedData,
   verifyEvmAction, verifyEvmBundle, verifyEvmVoucher, type EvmActionMessage,
 } from "../src/evm.js";
 
@@ -92,6 +92,16 @@ describe("SD-088 EVM EIP-712", () => {
     expect(() => evmActionDigest({ ...claim, maxFee: -1n })).toThrow(/non-negative/);
     expect(() => evmActionDigest({ ...claim, maxFee: "1.5" })).toThrow(/non-negative/);
     expect(() => evmActionDigest({ ...claim, maxFee: 0.5 })).toThrow(/non-negative/);
+  });
+
+  it("TC-SD-100-08 expectedRelayerFee is min(relayerFee, maxFee, base / 2) and refuses negative or non-integer input", () => {
+    expect(expectedRelayerFee({ base: 1_000_000n, relayerFee: 250_000, maxFee: "300000" })).toBe(250_000n); // the DAO fee
+    expect(expectedRelayerFee({ base: 1_000_000n, relayerFee: 250_000, maxFee: 100_000 })).toBe(100_000n); // the member's ceiling
+    expect(expectedRelayerFee({ base: 300_000, relayerFee: 250_000, maxFee: 250_000 })).toBe(150_000n); // half of the payout
+    expect(expectedRelayerFee({ base: 5, relayerFee: 250_000, maxFee: 250_000 })).toBe(2n); // floor of half
+    expect(expectedRelayerFee({ base: 1_000_000n, relayerFee: 250_000, maxFee: 0 })).toBe(0n); // maxFee 0 means no fee
+    expect(() => expectedRelayerFee({ base: -1n, relayerFee: 1, maxFee: 1 })).toThrow(/base/);
+    expect(() => expectedRelayerFee({ base: 1, relayerFee: "1.5", maxFee: 1 })).toThrow(/relayerFee/);
   });
 
   it("TC-CT-114-01 signAction without a deadline signs now + 10 minutes; an explicit deadline is kept; maxTtlMs refuses a longer one", async () => {

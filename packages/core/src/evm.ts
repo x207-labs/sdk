@@ -48,6 +48,22 @@ export const EVM_TYPES = {
  */
 export const EVM_TYPES_WITH_MAX_FEE = { ...EVM_TYPES, Action: [...EVM_TYPES.Action, { name: "maxFee", type: "uint256" }] } as const;
 
+/**
+ * SD-100 (contract 0.0.16): the fee the relayer may take from a payout (`claim_evm`) or a stake (`withdraw_stake_evm`) of `base` credit units:
+ * `min(relayerFee, maxFee, floor(base / 2))`, where `relayerFee` is the DAO parameter from `get_params` and `maxFee` the ceiling the member signed. All values are integers of the credit unit.
+ */
+export function expectedRelayerFee(input: { base: bigint | number | string; relayerFee: bigint | number | string; maxFee: bigint | number | string }): bigint {
+  const int = (name: string, value: bigint | number | string): bigint => {
+    if (typeof value === "string" ? !/^\d+$/.test(value) : typeof value === "number" ? !Number.isSafeInteger(value) || value < 0 : value < 0n) throw new Error(`${name} must be a non-negative integer`);
+    return BigInt(value);
+  };
+  const base = int("base", input.base);
+  const fee = int("relayerFee", input.relayerFee);
+  const max = int("maxFee", input.maxFee);
+  const half = base / 2n;
+  return [fee, max, half].reduce((a, b) => (b < a ? b : a));
+}
+
 /** `auto_settle` turns settlement from the stake on, `auto_settle_off` turns it off (contract 0.0.15, CT-108): the signature fixes the choice, so a signed "on" cannot be replayed as "off". */
 export const EVM_ACTIONS = ["join", "claim", "request_exit", "withdraw_stake", "auto_settle", "auto_settle_off"] as const;
 export type EvmAction = (typeof EVM_ACTIONS)[number];
