@@ -87,7 +87,7 @@ export async function getMember(view: CircleViewFn, accountId: AccountId): Promi
  * `finalize_epoch` and stays `active` (instead of the default path). EVM members use the relayer route `/evm/auto-settle` with an `Action` signature instead.
  */
 export function buildSetAutoSettleCall(input: { circleContract: AccountId; enabled: boolean }): ContractCall {
-  return { receiverId: input.circleContract, methodName: "set_auto_settle", args: { enabled: input.enabled }, deposit: 0n, gas: 30_000_000_000_000n };
+  return { receiverId: input.circleContract, methodName: "set_auto_settle", args: { enabled: input.enabled }, deposit: 1n, gas: 30_000_000_000_000n };
 }
 
 /** View `is_auto_settle(account_id)` (contract 0.0.15); `false` for an account that never opted in. */

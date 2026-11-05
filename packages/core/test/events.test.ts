@@ -38,6 +38,8 @@ const SAMPLES: Record<string, unknown> = {
   grant_activated: { grant_id: 1, grantee: B, delivery_pubkey: null },
   grant_revoked: { grant_id: 1, reason: "defaulted" },
   intent_removed: { intent_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ", account_id: A },
+  auto_settle_set: { account_id: A, enabled: true },
+  auto_settled: { epoch: 4, account_id: A, due: "250", stake: "900", status: "active", position_status: "paid", outstanding_debt: "0" },
   intents_withdrawn: { amount: "1500000" },
   escrow_held: { grant_id: 1, nft_contract: "nft.test.near", token_id: "t1" },
   ft_escrow_held: { grant_id: 3, ft_contract: "rwa.near", amount: "2500000" },

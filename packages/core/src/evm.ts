@@ -1,4 +1,4 @@
-// EVM agents (SD-088): EIP-712 signatures for the x207 circle contract v0.0.14, separate entry `@x207/core/evm` so the main entry does not pull in viem.
+// EVM agents (SD-088): EIP-712 signatures for the x207 circle contract v0.0.15, separate entry `@x207/core/evm` so the main entry does not pull in viem.
 // Types and domain are fixed by the design note "x207 - Desain Agent EVM" and by `contracts/tests/fixtures/evm-eip712.json` (CT-104); the Rust code must match byte for byte.
 import { hashTypedData, keccak256, recoverTypedDataAddress, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";

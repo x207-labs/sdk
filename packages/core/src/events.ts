@@ -101,6 +101,11 @@ export type X207EventMap = {
   mt_escrow_held: { grant_id: number; mt_contract: AccountId; token_id: string; amount: U128String };
   escrow_failed: { grant_id: number; step: EscrowStepValue; epoch: number; payer: AccountId; payee: AccountId; delta: U128String; reverted: boolean };
   intent_removed: { intent_hash: string; account_id: AccountId };
+  auto_settle_set: { account_id: AccountId; enabled: boolean };
+  auto_settled: {
+    epoch: number; account_id: AccountId; due: U128String; stake: U128String; status: MemberStatusValue;
+    position_status: PositionStatusValue; outstanding_debt: U128String;
+  };
   intents_withdrawn: { amount: U128String };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
   // interface 0.0.12 (SD-073): freeze of a member (CT-095), official contracts of an asset type (CT-096), deal with a bond and an arbiter (CT-094)
@@ -211,6 +216,8 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
     grant_id: "int", step: { enum: ["complete", "cancel"] }, epoch: "int", payer: "str", payee: "str", delta: "str", reverted: "bool",
   },
   intent_removed: { intent_hash: "str", account_id: "str" },
+  auto_settle_set: { account_id: "str", enabled: "bool" },
+  auto_settled: { epoch: "int", account_id: "str", due: "str", stake: "str", status: MEMBER_STATUS, position_status: { enum: ["due", "paid", "defaulted", "claimable", "claimed"] }, outstanding_debt: "str" },
   intents_withdrawn: { amount: "str" },
   bundle_committed: {
     bundle_id: "bundleid", terms_hash: "str", epoch: "int",

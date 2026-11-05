@@ -68,7 +68,7 @@ describe("SD-014 settle residual and claim helpers", () => {
 describe("SD-094 auto settle helpers (CT-108)", () => {
   it("TC-SD-094-02 buildSetAutoSettleCall names the method and the argument of the contract", () => {
     expect(buildSetAutoSettleCall({ circleContract: "x207-v015.testnet", enabled: true })).toEqual({
-      receiverId: "x207-v015.testnet", methodName: "set_auto_settle", args: { enabled: true }, deposit: 0n, gas: 30_000_000_000_000n,
+      receiverId: "x207-v015.testnet", methodName: "set_auto_settle", args: { enabled: true }, deposit: 1n, gas: 30_000_000_000_000n,
     });
   });
 
