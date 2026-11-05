@@ -43,7 +43,9 @@ export function createViewAccessKeyFn(options: ViewAccessKeyOptions = {}): ViewA
           continue;
         }
         const body = (await response.json()) as { result?: AccessKeyView & { error?: string }; error?: { cause?: { name?: string }; data?: unknown } };
-        const missing = body.error?.cause?.name === "UNKNOWN_ACCESS_KEY" || /does not exist|UNKNOWN_ACCESS_KEY/.test(`${body.result?.error ?? ""}${JSON.stringify(body.error?.data ?? "")}`);
+        // BE-100 (L2): only a missing ACCESS KEY is "not on the account"; `UNKNOWN_ACCOUNT` ("account X does not exist") is an error, not a deleted key
+        const text = `${body.result?.error ?? ""}${JSON.stringify(body.error?.data ?? "")}`;
+        const missing = body.error?.cause?.name === "UNKNOWN_ACCESS_KEY" || /UNKNOWN_ACCESS_KEY|access key .* does not exist/i.test(text);
         if (missing) return null;
         if (body.error) throw new Error(`RPC error in view_access_key: ${JSON.stringify(body.error)}`);
         if (body.result?.error) throw new Error(`view_access_key failed: ${body.result.error}`);

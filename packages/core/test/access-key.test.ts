@@ -85,4 +85,16 @@ describe("SD-052 createViewAccessKeyFn", () => {
     expect(calls).toBe(2);
     await expect(createViewAccessKeyFn({ rpcUrls: ["http://a"], fetch: reply({}, false) as unknown as typeof fetch })(ACCOUNT, KEY)).rejects.toThrow(/all RPC endpoints failed/);
   });
+
+  it("TC-BE-100-04 an account that does not exist is an error, not a missing key; only an access key that does not exist is null", async () => {
+    const unknownAccount = createViewAccessKeyFn({
+      rpcUrls: ["http://rpc"],
+      fetch: reply({ error: { name: "HANDLER_ERROR", cause: { name: "UNKNOWN_ACCOUNT" }, data: "account lease.test.near does not exist while viewing" } }) as unknown as typeof fetch,
+    });
+    await expect(unknownAccount(ACCOUNT, KEY)).rejects.toThrow(/RPC error/);
+    const unknownAccountResult = createViewAccessKeyFn({ rpcUrls: ["http://rpc"], fetch: reply({ result: { error: "account lease.test.near does not exist while viewing" } }) as unknown as typeof fetch });
+    await expect(unknownAccountResult(ACCOUNT, KEY)).rejects.toThrow(/view_access_key failed/);
+    const missingKey = createViewAccessKeyFn({ rpcUrls: ["http://rpc"], fetch: reply({ result: { error: "access key ed25519:x does not exist while viewing" } }) as unknown as typeof fetch });
+    expect(await missingKey(ACCOUNT, KEY)).toBeNull();
+  });
 });
