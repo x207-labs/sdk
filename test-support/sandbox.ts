@@ -226,7 +226,9 @@ export class Sandbox {
   async advanceTo(targetMs: number): Promise<void> {
     while ((await this.blockTimestampMs()) < targetMs) {
       const missingSeconds = Math.ceil((targetMs - (await this.blockTimestampMs())) / 1000);
-      await this.fastForward(Math.min(Math.max(missingSeconds, 20), 4000));
+      // UM-150: a step of 4000 blocks takes 20 s locally (5 ms a block) but, on the loaded CI runner after a heavy test file, longer than the 90 s call limit, and a repeat
+      // of the same size never finishes. Steps of at most 500 blocks stay far under the limit, and the loop measures the block time again after each one, so progress is kept.
+      await this.fastForward(Math.min(Math.max(missingSeconds, 20), 500));
     }
   }
 
