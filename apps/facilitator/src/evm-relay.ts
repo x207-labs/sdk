@@ -28,6 +28,11 @@ export type EvmRelayOptions = {
   /** Most joins the relayer sponsors in one hour (default 20). */
   maxJoinsPerHour?: number;
   /**
+   * Security review M3: a signed `request_exit` (or any action) stays valid until its `deadline`, so a deadline far in the future is a long-lived exit ticket in the wrong hands.
+   * With this set (ms), a deadline more than this far ahead of now is refused as `deadline_too_far`. Off when absent (`main.ts` turns it on, 15 minutes by default).
+   */
+  maxDeadlineMs?: number;
+  /**
    * Testnet and sandbox: after `join_evm` the relayer stakes `amount` of `tokenId` (a mock USDT it holds) for the new member (`ft_transfer_call` with `member_id`), so the member is `active`
    * in the same request. On mainnet the stake comes through Intents instead (design note, "Rute dana dari EVM"), so this is off by default.
    */
@@ -98,6 +103,7 @@ export class EvmRelay {
     const wait = this.#perAddress.hit(who);
     if (wait > 0) throw new EvmRelayError(429, "rate_limited", "too many requests for this address", Math.max(1, Math.ceil(wait / 1000)));
     if (this.#now() > deadline) throw new EvmRelayError(400, "expired", "deadline has passed");
+    if (this.#o.maxDeadlineMs !== undefined && deadline > this.#now() + this.#o.maxDeadlineMs) throw new EvmRelayError(400, "deadline_too_far", `the deadline must be at most ${Math.round(this.#o.maxDeadlineMs / 1000)} seconds ahead`);
     const ok = await verifyEvmAction({ circle: this.#o.circleContract, action, ...expectedSignedBy } as never, sig);
     if (!ok) throw new EvmRelayError(400, "bad_signature", "the signature is not valid for this action, circle and member");
     try {

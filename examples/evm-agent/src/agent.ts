@@ -16,7 +16,7 @@ export type EvmAgentOptions = {
   fetch?: typeof fetch;
   /** Unix ms; the signature deadline is `now() + ttlMs`. Default `Date.now` (a sandbox passes its block time). */
   now?: () => number;
-  /** How long a signed action stays valid (default one hour). */
+  /** How long a signed action stays valid (default 10 minutes; the relayer refuses more than 15 minutes ahead, security review M3). */
   ttlMs?: number;
 };
 
@@ -49,7 +49,7 @@ export function createEvmAgent(options: EvmAgentOptions): EvmAgent {
   const signer = evmSignerFromPrivateKey(options.privateKey);
   const doFetch = options.fetch ?? fetch;
   const now = options.now ?? Date.now;
-  const ttl = options.ttlMs ?? 3_600_000;
+  const ttl = options.ttlMs ?? 600_000;
   const base = options.relayerUrl.replace(/\/+$/, "");
   const view: CircleViewFn = createCircleViewFn({ circleContract: options.circleContract, ...(options.rpcUrls ? { rpcUrls: options.rpcUrls } : {}), ...(options.fetch ? { fetch: options.fetch } : {}) });
 

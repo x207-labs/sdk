@@ -11,7 +11,7 @@ const sig = (name: string) => `eip712:${v[name].signature}`;
 const NOW = 1_800_000_000_000; // before the deadline 1_900_000_000_000 of the vectors
 
 type Sent = { method: string; args: Record<string, unknown>; deposit: bigint };
-function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax?: number } = {}) {
+function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax?: number; maxDeadlineMs?: number } = {}) {
   const sent: Sent[] = [];
   const caller: EvmCaller = {
     async call(method, args, deposit) {
@@ -21,7 +21,7 @@ function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax
     },
   };
   let now = NOW;
-  const relay = new EvmRelay({ circleContract: fixture.circle, caller, now: () => now, maxJoinsPerHour: options.maxJoinsPerHour ?? 20, perAddress: { max: options.perAddressMax ?? 10 } });
+  const relay = new EvmRelay({ circleContract: fixture.circle, caller, now: () => now, maxJoinsPerHour: options.maxJoinsPerHour ?? 20, perAddress: { max: options.perAddressMax ?? 10 }, ...(options.maxDeadlineMs !== undefined ? { maxDeadlineMs: options.maxDeadlineMs } : {}) });
   const service = { verify: async () => ({}), settle: async () => ({}), supported: async () => ({}) } as unknown as FacilitatorService;
   const app = createApp(service, { evm: relay, rateLimit: false });
   const post = async (path: string, body: unknown) => {
@@ -80,6 +80,14 @@ describe("SD-089 EVM relayer", () => {
     advance(200_000_000_000); // now is past 1_900_000_000_000
     expect(await post("/evm/join", joinBody())).toMatchObject({ status: 400, body: { error: "expired" } });
     expect(sent).toEqual([]);
+  });
+
+  it("TC-SD-089-04b security review M3: with maxDeadlineMs a deadline further ahead than that is refused before anything is sent", async () => {
+    const { sent, post } = setup(undefined, { maxDeadlineMs: 900_000 });
+    expect(await post("/evm/join", joinBody())).toMatchObject({ status: 400, body: { error: "deadline_too_far" } });
+    expect(sent).toEqual([]);
+    const near = setup(undefined, { maxDeadlineMs: 2e11 }); // the deadline of the vectors is 1e11 ahead of NOW
+    expect((await near.post("/evm/join", joinBody())).status).toBe(200);
   });
 
   it("TC-SD-089-05 contract panics become readable answers", async () => {

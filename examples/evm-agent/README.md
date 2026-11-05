@@ -7,7 +7,7 @@ agent (0x key) --signs--> facilitator /evm/join, /evm/claim, /evm/exit, /evm/wit
 agent (0x key) --eip712 voucher--> x402 seller --> facilitator /verify, /settle --> relayer registers the voucher
 ```
 
-The member id in the circle is the lower-case `0x` address. A voucher is signed with `signTypedData` (domain `{ name: "x207", version: "1" }`, type `Voucher`); the facilitator recovers the address with viem, the contract with `ecrecover`. The types are fixed in the design note and in `contracts/tests/fixtures/evm-eip712.json`.
+The member id in the circle is the lower-case `0x` address. A voucher is signed with `signTypedData` (domain `{ name: "x207", version: "1", salt }` with `salt = keccak256("near:" + network + ":" + contract account id)`, type `Voucher`); the facilitator recovers the address with viem, the contract with `ecrecover`. The types are fixed in the design note and in `contracts/tests/fixtures/evm-eip712.json`.
 
 ## Use it in code
 
