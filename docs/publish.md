@@ -35,3 +35,20 @@ In a clean folder: `npm pack` in each package, then `npm install x207-core-0.0.1
 4. **Version:** 0.0.1 is the version of every package of the repository; the contract is at 0.0.12 and the interface of `@x207/core` follows it (`ContractAbi`). Decide whether the first release is 0.0.1 or 0.1.0 before publishing.
 5. **Node:** `core` uses `node:crypto` in several modules (vouchers, hashes), so it runs on Node and not in a browser as it is; the modules for content licenses and grantee proofs avoid it (the frontend imports them). A browser build is not part of this item.
 6. **Dry run of the publish:** `npm publish --dry-run` was not run, because it asks for a login.
+
+## Next release (prepared, not published): core 0.0.2, scheme 0.0.2, mcp 0.0.6
+
+Published today: `@x207/core` 0.0.1, `@x207/scheme` 0.0.1, `@x207/mcp` 0.0.5. The new versions add EVM signing, auto-settle (contract 0.0.15), NEP-518 `rlp_execute` and the seller `alsoAccept` option; see [CHANGELOG.md](../CHANGELOG.md). Checked on the commit that raised the versions: `npm run build` clean, `npx vitest run` 763 passed, `npm pack --dry-run` and `npm publish --dry-run --access public` of the three packages (67, 45 and 25 files; only `dist/*.js`, `dist/*.d.ts`, `README.md`, `LICENSE`, `package.json`; no maps, tests, keys). `@x207/scheme` and `@x207/mcp` pin `@x207/core` and `@x207/scheme` at 0.0.2, so the order matters.
+
+Commands for the owner, from the root of the `sdk` repository, logged in to npm as the owner of the `@x207` scope (add `--otp=<code>` to each line if the account has 2FA for writes):
+
+```bash
+npm ci && npm run build
+npm publish -w @x207/core --access public
+npm publish -w @x207/scheme --access public
+npm publish -w @x207/mcp --access public
+git tag sdk-v0.0.2-0.0.2-0.0.6   # optional marker
+npm view @x207/core version && npm view @x207/scheme version && npm view @x207/mcp version
+```
+
+Then publish the new `@x207/mcp` entry to the MCP Registry (`packages/mcp/server.json` is already at 0.0.6): run the workflow `publish-mcp-registry.yml` or `mcp-publisher publish` from `packages/mcp`. Check afterwards in a clean folder: `npm install @x207/mcp@0.0.6` and `npx x207-mcp` (it starts the stdio server).
