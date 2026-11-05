@@ -120,3 +120,45 @@ export class NearRegistrationChain implements RegistrationChain {
     return this.options.rpc.view<ContractAbi.EpochView | null>(this.options.circleContract, "get_epoch", { epoch });
   }
 }
+
+/**
+ * Sends one transaction at a time from `account` with an ordinary access key (SD-089: the EVM relayer). It uses its own key, so it does not share the nonce of the registration relayer;
+ * a nonce error is tried again once with a new nonce.
+ */
+export class NearContractCaller {
+  readonly #signer: KeyPairSigner;
+  readonly #publicKey: PublicKey;
+  #tail: Promise<unknown> = Promise.resolve();
+
+  constructor(private readonly options: { rpc: NearRpc; circleContract: AccountId; account: { accountId: AccountId; privateKey: string }; onHash?: (hash: string) => void }) {
+    const key = KeyPair.fromString(options.account.privateKey as KeyPairString);
+    this.#signer = new KeyPairSigner(key);
+    this.#publicKey = key.getPublicKey();
+  }
+
+  call(method: string, args: Record<string, unknown>, deposit: bigint, gas = 100_000_000_000_000n): Promise<{ hash: string }> {
+    const run = this.#tail.then(() => this.#once(method, args, deposit, gas).catch((error) => {
+      if (/InvalidNonce/.test(String(error instanceof Error ? error.message : error))) return this.#once(method, args, deposit, gas);
+      throw error;
+    }));
+    this.#tail = run.catch(() => undefined);
+    return run;
+  }
+
+  async #once(method: string, args: Record<string, unknown>, deposit: bigint, gas: bigint): Promise<{ hash: string }> {
+    const { rpc, circleContract, account } = this.options;
+    const key = await rpc.call<{ nonce: number }>("query", { request_type: "view_access_key", finality: "optimistic", account_id: account.accountId, public_key: this.#publicKey.toString() });
+    const block = await rpc.call<{ header: { hash: string } }>("block", { finality: "final" });
+    const transaction = createTransaction(
+      account.accountId, this.#publicKey, circleContract, BigInt(key.nonce) + 1n,
+      [actionCreators.functionCall(method, args, gas, deposit)], base58Decode(block.header.hash),
+    );
+    const [, signed] = await this.#signer.signTransaction(transaction);
+    const result = await rpc.call<TxResult>("send_tx", { signed_tx_base64: Buffer.from(encodeTransaction(signed)).toString("base64"), wait_until: "FINAL" });
+    const hash = String((result as { transaction?: { hash?: string } }).transaction?.hash ?? "");
+    this.options.onHash?.(hash);
+    const failed = transactionFailure(result);
+    if (failed) throw new Error(failed);
+    return { hash };
+  }
+}

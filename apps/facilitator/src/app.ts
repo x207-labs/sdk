@@ -9,6 +9,7 @@ import type {
 } from "@x402/core/types";
 import type { AccountId } from "@x207/core";
 import { assertCircleId } from "@x207/scheme";
+import { EvmRelayError, type EvmRelay } from "./evm-relay.js";
 import { RateLimiter, type RateLimitOptions } from "./exact-guard.js";
 import { ChainUnavailableError } from "./rpc.js";
 
@@ -76,6 +77,8 @@ export type AppOptions = {
   /** Per client on `/verify` and `/settle` (default `RATE_LIMIT_DEFAULTS`); `false` turns it off. The client is the address of the socket, or the first `x-forwarded-for` when `trustProxy`. */
   rateLimit?: RateLimitOptions | false;
   trustProxy?: boolean;
+  /** SD-089: relayer for EVM agents; with it the routes `POST /evm/join`, `/evm/claim`, `/evm/exit` and `/evm/withdraw` exist. */
+  evm?: EvmRelay;
 };
 
 export function createApp(service: FacilitatorService, options: AppOptions = {}): Hono {
@@ -94,6 +97,7 @@ export function createApp(service: FacilitatorService, options: AppOptions = {})
     };
     app.use("/verify", limited);
     app.use("/settle", limited);
+    if (options.evm) app.use("/evm/*", limited);
   }
 
   const handlePayment = (run: (request: VerifyRequest) => Promise<unknown>) => async (c: import("hono").Context) => {
@@ -108,6 +112,22 @@ export function createApp(service: FacilitatorService, options: AppOptions = {})
 
   app.post("/verify", handlePayment((request) => service.verify(request)));
   app.post("/settle", handlePayment((request) => service.settle(request)));
+  if (options.evm) {
+    const evm = options.evm;
+    const route = (run: (body: unknown) => Promise<unknown>) => async (c: import("hono").Context) => {
+      let body: unknown;
+      try {
+        body = await c.req.json();
+      } catch {
+        throw new EvmRelayError(400, "invalid_request", "body is not JSON");
+      }
+      return c.json(await run(body) as object, 200);
+    };
+    app.post("/evm/join", route((body) => evm.join(body)));
+    app.post("/evm/claim", route((body) => evm.claim(body)));
+    app.post("/evm/exit", route((body) => evm.exit(body)));
+    app.post("/evm/withdraw", route((body) => evm.withdraw(body)));
+  }
   app.get("/supported", async (c) => c.json(await service.supported(), 200));
   app.get("/x207/pair-state", async (c) => {
     if (!service.pairState) return c.json({ error: "not_found" }, 404);
@@ -117,6 +137,10 @@ export function createApp(service: FacilitatorService, options: AppOptions = {})
   app.notFound((c) => c.json({ error: "not_found" }, 404));
 
   app.onError((error, c) => {
+    if (error instanceof EvmRelayError) {
+      if (error.retryAfterSeconds !== undefined) c.header("Retry-After", String(error.retryAfterSeconds));
+      return c.json({ error: error.code, message: error.message }, error.status);
+    }
     if (error instanceof InvalidRequestError) {
       return c.json({ error: "invalid_request", message: error.message }, 400);
     }

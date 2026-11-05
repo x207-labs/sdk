@@ -5,7 +5,8 @@ import { createFacilitatorNearSigner } from "@x402/near";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { PendingStore } from "./pending-store.js";
-import { NearRegistrationChain } from "./relay.js";
+import { EvmRelay } from "./evm-relay.js";
+import { NearContractCaller, NearRegistrationChain } from "./relay.js";
 import { EXACT_NEAR_NETWORK, createFacilitatorService, type ExactNearNetwork } from "./service.js";
 import { RegistrationScheduler } from "./scheduler.js";
 import { NearRpc } from "./rpc.js";
@@ -70,7 +71,21 @@ const service = createFacilitatorService({
 
 // Rate limit on /verify and /settle per client: X207_RATE_LIMIT_MAX per minute (default 120, 0 = off); X207_TRUST_PROXY=1 reads x-forwarded-for.
 const rateLimitMax = process.env.X207_RATE_LIMIT_MAX === undefined ? undefined : Number(process.env.X207_RATE_LIMIT_MAX);
+// SD-089: relayer for EVM agents (`/evm/*`). Needs its own NEAR account (X207_EVM_RELAYER_ACCOUNT_ID and _PRIVATE_KEY; the registration relayer would share its nonce) and the circle it serves
+// (X207_EVM_CIRCLE, a circle id of X207_CIRCLES; default the first). The account pays gas and the 0.35 NEAR deposit of each join.
+const evmAccount = process.env.X207_EVM_RELAYER_ACCOUNT_ID;
+const evmKey = process.env.X207_EVM_RELAYER_PRIVATE_KEY;
+if (Boolean(evmAccount) !== Boolean(evmKey)) throw new Error("X207_EVM_RELAYER_ACCOUNT_ID and X207_EVM_RELAYER_PRIVATE_KEY must be set together");
+const evmCircle = config.circles.find((c) => c.network === `x207:${process.env.X207_EVM_CIRCLE}`) ?? config.circles[0]!;
+const evm = evmAccount && evmKey
+  ? new EvmRelay({
+      circleContract: evmCircle.circleContract,
+      caller: new NearContractCaller({ rpc, circleContract: evmCircle.circleContract, account: { accountId: evmAccount, privateKey: evmKey }, onHash: (hash) => console.log(JSON.stringify({ evmRelayTx: hash })) }),
+      ...(process.env.X207_EVM_MAX_JOINS_PER_HOUR ? { maxJoinsPerHour: Number(process.env.X207_EVM_MAX_JOINS_PER_HOUR) } : {}),
+    })
+  : undefined;
 const app = createApp(service, {
+  ...(evm ? { evm } : {}),
   rateLimit: rateLimitMax === 0 ? false : rateLimitMax === undefined ? {} : { max: rateLimitMax },
   trustProxy: process.env.X207_TRUST_PROXY === "1",
 });
