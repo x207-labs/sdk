@@ -1,6 +1,7 @@
 // Runtime validation of x207 public types. Signatures are checked for shape only; their content is checked by
 // `verifyVoucher`, because a broken string must end in `invalid_signature`, not `invalid_payload`.
 import { CREDIT_DECIMALS, CREDIT_UNIT } from "./constants.js";
+import { EIP712_SIGNATURE_PATTERN } from "./types.js";
 import {
   EPOCH_PHASES,
   MEMBER_STATUSES,
@@ -56,7 +57,8 @@ const isAccountId = (value: unknown): value is string =>
   NEAR_ACCOUNT.test(value);
 
 const isSignatureString = (value: unknown): boolean =>
-  typeof value === "string" && value.startsWith("ed25519:") && value.length > "ed25519:".length;
+  typeof value === "string" &&
+  ((value.startsWith("ed25519:") && value.length > "ed25519:".length) || EIP712_SIGNATURE_PATTERN.test(value));
 
 const includes = <T>(values: readonly T[], value: unknown): value is T =>
   values.includes(value as T);

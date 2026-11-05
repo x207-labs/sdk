@@ -11,13 +11,13 @@ import {
   CREDIT_DECIMALS,
   CREDIT_UNIT,
   grantResource,
-  signVoucher,
   validatePaymentRequirements,
   type AccountId,
   type UnsignedVoucher,
   type VoucherSecretKey,
   type X207Payload,
 } from "@x207/core";
+import { ed25519Signer, type VoucherSigner } from "@x207/core/signers";
 import type { BuyerMeter } from "./buyer-meter.js";
 import type { MeterAnnouncement } from "../server/metering.js";
 import { X207_SCHEME } from "../shared/circle.js";
@@ -65,8 +65,10 @@ export class SpendLimitError extends Error {
 
 export type X207ClientOptions = {
   payer: AccountId;
-  /** ed25519 voucher key of the payer (ADR-06), not a NEAR access key. */
-  secretKey: VoucherSecretKey;
+  /** ed25519 voucher key of the payer (ADR-06), not a NEAR access key. Give this or `signer`. */
+  secretKey?: VoucherSecretKey;
+  /** Async signer (SD-088), e.g. `evmSigner(privateKeyToAccount(key))` from `@x207/core/evm`; then `payer` is its `id` (the `0x` address). Give this or `secretKey`. */
+  signer?: VoucherSigner;
   store?: VoucherStateStore;
   /**
    * Limit on waiting for a response before an unconfirmed voucher is released without commit, so
@@ -115,7 +117,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
   readonly store: VoucherStateStore;
 
   private readonly payer: AccountId;
-  private readonly secretKey: VoucherSecretKey;
+  private readonly signer: VoucherSigner;
   private readonly confirmTimeoutMs: number;
   private readonly bundleFor: ((payee: AccountId, epoch: number) => number | undefined) | undefined;
   private readonly spendLimit: SpendLimit | undefined;
@@ -132,7 +134,11 @@ export class X207SchemeClient implements SchemeNetworkClient {
 
   constructor(options: X207ClientOptions) {
     this.payer = options.payer;
-    this.secretKey = options.secretKey;
+    if ((options.secretKey === undefined) === (options.signer === undefined)) throw new Error("X207SchemeClient needs exactly one of secretKey and signer");
+    if (options.signer !== undefined && options.signer.scheme === "eip712" && options.signer.id !== options.payer) {
+      throw new Error(`payer must be the signer address ${options.signer.id}`);
+    }
+    this.signer = options.signer ?? ed25519Signer(options.secretKey as VoucherSecretKey);
     this.store = options.store ?? new MemoryVoucherStateStore();
     this.confirmTimeoutMs = options.confirmTimeoutMs ?? 60_000;
     this.bundleFor = options.bundleFor;
@@ -218,7 +224,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
         unit: CREDIT_UNIT,
         resource,
       };
-      const { signature, ...voucher } = signVoucher(unsigned, this.secretKey);
+      const { signature, ...voucher } = await this.signer.signVoucher(unsigned);
       const bundleId = this.bundleFor?.(payTo, extra.epoch);
       const payload: X207Payload = { voucher, signature, ...(bundleId === undefined ? {} : { bundleId }) };
 

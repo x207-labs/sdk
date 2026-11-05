@@ -32,6 +32,14 @@
     "./signer": {
       "types": "./dist/signer.d.ts",
       "default": "./dist/signer.js"
+    },
+    "./signers": {
+      "types": "./dist/voucher-signer.d.ts",
+      "default": "./dist/voucher-signer.js"
+    },
+    "./evm": {
+      "types": "./dist/evm.d.ts",
+      "default": "./dist/evm.js"
     }
   },
   "files": [
@@ -56,6 +64,7 @@
     "@noble/curves": "1.9.7",
     "@noble/hashes": "1.8.0",
     "@x402/core": "2.29.0",
-    "near-api-js": "7.4.0"
+    "near-api-js": "7.4.0",
+    "viem": "2.57.14"
   }
 }

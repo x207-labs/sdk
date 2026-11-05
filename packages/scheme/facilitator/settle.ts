@@ -4,7 +4,7 @@ import type { PaymentPayload, PaymentRequirements, SettleResponse } from "@x402/
 import {
   validateX207Payload,
   type AccountId,
-  type Ed25519Signature,
+  type Signature,
   type RegistrationState,
   type U128String,
   type UnsignedVoucher,
@@ -17,7 +17,7 @@ import { verifyPayment, type VerifyOptions } from "./verify.js";
 export type PendingVoucherRecord = {
   seq: number;
   cumulativeAmount: U128String;
-  signature: Ed25519Signature;
+  signature: Signature;
   registeredSeq: number;
   /** Failed registration attempts. */
   attempts: number;
@@ -26,7 +26,7 @@ export type PendingVoucherRecord = {
 
 export interface PendingWriter {
   /** Store only if `seq` is greater than the stored one; `false` if nothing changed. */
-  save(voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean | Promise<boolean>;
+  save(voucher: UnsignedVoucher, signature: Signature, bundleId?: number): boolean | Promise<boolean>;
   get(payer: AccountId, payee: AccountId, epoch: number): PendingVoucherRecord | null | Promise<PendingVoucherRecord | null>;
 }
 

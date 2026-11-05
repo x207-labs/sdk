@@ -14,6 +14,10 @@ export type U128String = string;
 export type SignedAmountString = string;
 export type CircleNetwork = `x207:${string}`;
 export type Ed25519Signature = `ed25519:${string}`;
+/** EVM agent signature (SD-088): `eip712:0x` + 130 hex characters (r, s, v). */
+export type Eip712Signature = `eip712:0x${string}`;
+export type Signature = Ed25519Signature | Eip712Signature;
+export const EIP712_SIGNATURE_PATTERN = /^eip712:0x[0-9a-fA-F]{130}$/;
 
 export type X207Extra = {
   circleContract: AccountId;
@@ -38,13 +42,13 @@ export type UnsignedVoucher = {
   resource: string;
 };
 
-export type Voucher = UnsignedVoucher & { signature: Ed25519Signature };
+export type Voucher = UnsignedVoucher & { signature: Signature };
 
 /**
  * x207 voucher payload. `bundleId` (SD-048, interface 0.0.4) marks an F5 bundle leg voucher: the voucher bytes do not change, only
  * its registration path (`register_in_bundle`) uses the leg's reserved headroom, not free headroom.
  */
-export type X207Payload = { voucher: UnsignedVoucher; signature: Ed25519Signature; bundleId?: number };
+export type X207Payload = { voucher: UnsignedVoucher; signature: Signature; bundleId?: number };
 
 export type CommitmentId = `${AccountId}:${AccountId}:${number}:${number}`;
 

@@ -8,6 +8,7 @@ import {
   type BundleTerms, type CircleViewFn, type ContractAbi, type ContractCall, type Listing, type Offer,
 } from "@x207/core";
 import { wrapFetchWithPayment } from "@x402/fetch";
+import { evmSignerFromPrivateKey } from "@x207/core/evm";
 import { X207PaymentClient, headroomFromRpc } from "@x207/scheme";
 import { z } from "zod";
 import type { BackendGet, BackendPost } from "./backend.js";
@@ -66,7 +67,7 @@ export function keepIfUnknown(rt: { guards: Guards }, amount: bigint, error: unk
 }
 
 const needVoucher = (rt: WriteRuntime, tool: string): `ed25519:${string}` => {
-  if (rt.cfg.voucherKey === null) throw new ToolError(`${tool} signs with the voucher key: set X207_AGENT_VOUCHER_KEY`);
+  if (rt.cfg.voucherKey === null) throw new ToolError(`${tool} signs with the voucher key: set X207_AGENT_VOUCHER_KEY${(rt.cfg.evmKey ?? null) !== null ? " (not available with X207_EVM_PRIVATE_KEY: an EVM agent only pays with x207_pay_request)" : ""}`);
   return rt.cfg.voucherKey;
 };
 const needGet = (ctx: ToolContext, tool: string): BackendGet => {
@@ -124,7 +125,7 @@ export const WRITE_TOOLS: ToolDef[] = [
     },
     handler: async (args, ctx) => {
       const rt = w(ctx);
-      needVoucher(rt, "x207_pay_request");
+      if ((rt.cfg.evmKey ?? null) === null) needVoucher(rt, "x207_pay_request");
       const url = new URL(args.url as string);
       if (url.protocol !== "http:" && url.protocol !== "https:") throw new ToolError("refused: the URL must be http or https");
       if (url.username !== "" || url.password !== "") throw new ToolError("refused: the URL must not carry credentials");
@@ -392,7 +393,7 @@ export function availableWriteTools(rt: WriteRuntime, hasBackend: boolean): Tool
   const near = rt.cfg.nearKey !== null && rt.cfg.allowFullAccessKey;
   const book = voucher && hasBackend;
   const ok: Record<string, boolean> = {
-    x207_pay_request: voucher, x207_list_offer: book, x207_make_offer: book, x207_accept_offer: book, x207_confirm_milestone: book,
+    x207_pay_request: voucher || (rt.cfg.evmKey ?? null) !== null, x207_list_offer: book, x207_make_offer: book, x207_accept_offer: book, x207_confirm_milestone: book,
     x207_join: voucher && near && rt.cfg.allowOutflows, x207_settle: near && rt.cfg.allowOutflows, x207_claim: near,
   };
   return WRITE_TOOLS.filter((t) => ok[t.name] === true);
@@ -428,7 +429,7 @@ export function createWriteRuntime(
     },
     payFetch: () => {
       if (pay === undefined) {
-        const client = new X207PaymentClient({ payer: cfg.account, secretKey: cfg.voucherKey as `ed25519:${string}`, headroom: headroomFromRpc({ rpcUrls: config.rpcUrls, fetch: fetchFn }) });
+        const client = new X207PaymentClient({ payer: cfg.account, ...(cfg.evmKey ? { signer: evmSignerFromPrivateKey(cfg.evmKey) } : { secretKey: cfg.voucherKey as `ed25519:${string}` }), headroom: headroomFromRpc({ rpcUrls: config.rpcUrls, fetch: fetchFn }) });
         client.onBeforePaymentCreation(async ({ selectedRequirements }) => {
           try {
             if (!String(selectedRequirements.network).startsWith("x207:")) throw new ToolError("refused: the payment request is not an x207 payment");

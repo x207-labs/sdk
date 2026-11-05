@@ -11,6 +11,7 @@ import {
   type Voucher,
   type X207Payload,
 } from "@x207/core";
+import { isEip712Signature, verifyEvmVoucher } from "@x207/core/evm";
 import { X207_SCHEME, type CircleConfig } from "../shared/circle.js";
 import { computeBase, computeHeadroom, type HeadroomSources } from "./headroom.js";
 
@@ -125,7 +126,11 @@ export async function verifyPayment(
     return reject("member_exiting", payer);
   }
   // 14
-  if (!verifyVoucher({ ...voucher, signature } as Voucher, payerMember.pubkey_voucher)) {
+  // SD-088: an `eip712:` signature comes from an EVM agent, whose member id is its `0x` address; every other signature is ed25519 against `pubkey_voucher`
+  const signedOk = isEip712Signature(signature)
+    ? await verifyEvmVoucher({ ...voucher, signature } as Voucher)
+    : verifyVoucher({ ...voucher, signature } as Voucher, payerMember.pubkey_voucher);
+  if (!signedOk) {
     return reject("invalid_signature", payer);
   }
   // 15

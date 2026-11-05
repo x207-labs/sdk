@@ -1,7 +1,7 @@
 // Registration scheduler (SD-028): relays `register_cumulative` per pair when the threshold is crossed or
 // near `cutoff_at`; failures are kept in D3 and retried with backoff until `cutoff_at`
 // (Spec Binding x402 6.3 and 13; ADR-17, ADR-23, K-31).
-import { contractErrorCode, type AccountId, type ContractAbi, type Ed25519Signature, type UnsignedVoucher } from "@x207/core";
+import { contractErrorCode, type AccountId, type ContractAbi, type Signature, type UnsignedVoucher } from "@x207/core";
 import { DEFAULT_FLUSH_LEAD_SECONDS } from "@x207/scheme";
 import type { PendingRow, PendingStore } from "./pending-store.js";
 
@@ -27,7 +27,7 @@ export type RegisterOutcome =
 /** Contract side the scheduler needs; `register` throws if the transaction fails. */
 export interface RegistrationChain {
   /** `bundleId` sends via `register_in_bundle` (F5 bundle leg, SD-048) instead of `register_cumulative`. */
-  register(voucher: UnsignedVoucher, signature: Ed25519Signature, mode: RegisterMode, bundleId?: number): Promise<void>;
+  register(voucher: UnsignedVoucher, signature: Signature, mode: RegisterMode, bundleId?: number): Promise<void>;
   lastSeq(payer: AccountId, payee: AccountId, epoch: number): Promise<number>;
   /** View `get_epoch(epoch)`; `null` if the epoch is unknown. */
   getEpoch(epoch: number): Promise<ContractAbi.EpochView | null>;

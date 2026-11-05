@@ -7,6 +7,7 @@ import type {
   PaymentPayload,
 } from "@x402/core/types";
 import type { AccountId, VoucherSecretKey } from "@x207/core";
+import type { VoucherSigner } from "@x207/core/signers";
 import { X207_SCHEME } from "../shared/circle.js";
 import { X207SchemeClient, type SpendLimit } from "./index.js";
 import type { VoucherStateStore } from "./store.js";
@@ -126,8 +127,10 @@ const RECOVERABLE_REASONS = new Set(["insufficient_credit", "member_exiting"]);
 
 export type X207PaymentClientOptions = {
   payer: AccountId;
-  /** The payer's ed25519 voucher key (ADR-06), not a NEAR access key. */
-  secretKey: VoucherSecretKey;
+  /** The payer's ed25519 voucher key (ADR-06), not a NEAR access key. Give this or `signer`. */
+  secretKey?: VoucherSecretKey;
+  /** Async signer, e.g. an EVM agent (SD-088); see `X207ClientOptions.signer`. Give this or `secretKey`. */
+  signer?: VoucherSigner;
   headroom: HeadroomSource;
   store?: VoucherStateStore;
   /** F5 bundle leg (SD-048); see `X207ClientOptions.bundleFor`. */
@@ -158,7 +161,8 @@ export class X207PaymentClient extends x402Client {
     this.headroom = headroom;
     this.x207 = new X207SchemeClient({
       payer: options.payer,
-      secretKey: options.secretKey,
+      ...(options.secretKey !== undefined ? { secretKey: options.secretKey } : {}),
+      ...(options.signer !== undefined ? { signer: options.signer } : {}),
       ...(options.store ? { store: options.store } : {}),
       ...(options.bundleFor ? { bundleFor: options.bundleFor } : {}),
       ...(options.spendLimit ? { spendLimit: options.spendLimit } : {}),

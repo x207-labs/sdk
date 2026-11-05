@@ -1,7 +1,7 @@
 // D3 pending store (off-chain part): accepted vouchers not yet registered on-chain.
 // One row per (circle_contract, payer, payee, epoch), only the highest `seq` (Spec Binding x402 6.2, ADR-17).
 import { DatabaseSync, type StatementSync } from "node:sqlite";
-import type { AccountId, Ed25519Signature, PendingRowState, U128String, UnsignedVoucher } from "@x207/core";
+import type { AccountId, Signature, PendingRowState, U128String, UnsignedVoucher } from "@x207/core";
 
 export type PendingKey = {
   circleContract: AccountId;
@@ -15,7 +15,7 @@ export type PendingRow = PendingKey & {
   /** Decimal U128; compare as BigInt (K-31). */
   cumulativeAmount: U128String;
   voucher: UnsignedVoucher;
-  signature: Ed25519Signature;
+  signature: Signature;
   registeredSeq: number;
   registeredCumulative: U128String;
   state: PendingRowState;
@@ -63,7 +63,7 @@ function toRow(raw: Raw): PendingRow {
     seq: raw.seq as number,
     cumulativeAmount: raw.cumulative_amount as string,
     voucher: JSON.parse(raw.voucher_json as string) as UnsignedVoucher,
-    signature: raw.signature as Ed25519Signature,
+    signature: raw.signature as Signature,
     registeredSeq: raw.registered_seq as number,
     registeredCumulative: raw.registered_cumulative as string,
     state: raw.state as PendingRowState,
@@ -133,7 +133,7 @@ export class PendingStore {
   }
 
   /** Store a voucher if `seq` is greater than the stored one. `true` if the row changed. */
-  upsert(circleContract: AccountId, voucher: UnsignedVoucher, signature: Ed25519Signature, bundleId?: number): boolean {
+  upsert(circleContract: AccountId, voucher: UnsignedVoucher, signature: Signature, bundleId?: number): boolean {
     const result = this.#upsert.run(
       circleContract, voucher.payer, voucher.payee, voucher.epoch, voucher.seq,
       voucher.cumulativeAmount, JSON.stringify(voucher), signature, this.#now(), bundleId ?? null,
