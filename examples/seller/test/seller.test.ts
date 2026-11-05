@@ -84,6 +84,19 @@ describe("SD-036 seller example", () => {
     expect(required.accepts[0]).toMatchObject({ payTo: B, amount: "20000", extra: { epoch: 42, circleContract: "x207-circle.near" } });
   });
 
+  it("TC-UM-187-01 the 402 carries the x402 Bazaar discovery extension: info.input, info.output and a schema that requires input", async () => {
+    const response = await world()(URL_);
+    expect(response.status).toBe(402);
+    const required = decode(response.headers.get("PAYMENT-REQUIRED"));
+    expect(Object.keys(required.extensions)).toEqual(["bazaar"]);
+    const bazaar = required.extensions.bazaar;
+    expect(bazaar.info.input).toMatchObject({ type: "http", method: "GET" });
+    expect(bazaar.info.output).toMatchObject({ example: { summary: "summary text" } });
+    expect(bazaar.schema).toMatchObject({ $schema: "https://json-schema.org/draft/2020-12/schema", required: expect.arrayContaining(["input"]) });
+    // the JSON body of the 402 holds the same extension as the header
+    expect((await response.json()).extensions).toEqual(required.extensions);
+  });
+
   it("TC-SD-036-02 a member pays with a voucher: 200 and x207 PAYMENT-RESPONSE", async () => {
     const routed = world();
     const client = new X207PaymentClient({

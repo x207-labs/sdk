@@ -36,6 +36,11 @@ export type X207RouteConfig = {
    * middleware options is used and there is no `grantId`.
    */
   grant?: (request: Request) => X207GrantContext | undefined | Promise<X207GrantContext | undefined>;
+  /**
+   * Top-level `extensions` of the 402 answer, e.g. the `bazaar` discovery extension from `declareDiscoveryExtension` of `@x402/extensions` (UM-187).
+   * A facilitator that indexes the Bazaar reads it when it settles a payment that echoes the extension; the x207 facilitator does not index anything.
+   */
+  extensions?: Record<string, unknown>;
 };
 
 /**
@@ -130,8 +135,9 @@ function paymentRequiredResponse(
   accepts: PaymentRequirements[],
   error: string,
   settleResponse?: unknown,
+  extensions?: Record<string, unknown>,
 ): Response {
-  const body = { x402Version: 2, error, resource, accepts };
+  const body = { x402Version: 2, error, resource, accepts, ...(extensions ? { extensions } : {}) };
   const headers = new Headers({ "content-type": "application/json", [HEADER_PAYMENT_REQUIRED]: toBase64(body) });
   if (settleResponse !== undefined) headers.set(HEADER_PAYMENT_RESPONSE, toBase64(settleResponse));
   return new Response(JSON.stringify(body), { status: 402, headers });
@@ -245,17 +251,17 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
     }
 
     const header = request.headers.get(HEADER_PAYMENT_SIGNATURE);
-    if (header === null) return paymentRequiredResponse(resource, accepts, "PAYMENT-SIGNATURE header is required");
+    if (header === null) return paymentRequiredResponse(resource, accepts, "PAYMENT-SIGNATURE header is required", undefined, route.extensions);
 
     let payload: any;
     try {
       payload = fromBase64(header);
     } catch {
-      return paymentRequiredResponse(resource, accepts, "invalid_payload");
+      return paymentRequiredResponse(resource, accepts, "invalid_payload", undefined, route.extensions);
     }
     const accepted = isRecord(payload) ? payload.accepted : undefined;
     const requirements = accepts.find((r) => r.scheme === accepted?.scheme && r.network === accepted?.network);
-    if (!requirements) return paymentRequiredResponse(resource, accepts, "invalid_payload");
+    if (!requirements) return paymentRequiredResponse(resource, accepts, "invalid_payload", undefined, route.extensions);
     const body = { x402Version: 2, paymentPayload: payload, paymentRequirements: requirements };
     const root = roots.get(requirements);
 
@@ -270,7 +276,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       if (!verdict?.isValid) {
         const reason = String(verdict?.invalidReason ?? "invalid_payload");
         const resync = RESYNC_REASONS.has(reason) ? await resyncResponse(reason, payload, requirements.network) : undefined;
-        return paymentRequiredResponse(resource, accepts, reason, resync);
+        return paymentRequiredResponse(resource, accepts, reason, resync, route.extensions);
       }
 
       if (commitment !== undefined) {
@@ -305,7 +311,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
         headers.set(HEADER_PAYMENT_RESPONSE, toBase64(settled));
         return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
       }
-      return paymentRequiredResponse(resource, accepts, String(settled?.errorReason ?? "settle_failed"), settled);
+      return paymentRequiredResponse(resource, accepts, String(settled?.errorReason ?? "settle_failed"), settled, route.extensions);
     } catch (error) {
       if (error instanceof FacilitatorUnavailable) return unavailable(error.message);
       throw error;

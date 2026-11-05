@@ -1,6 +1,7 @@
 // Minimal x207 seller: one paid endpoint `/api/summarize` behind `x207Middleware` (through `EndpointAdapter`, the class D reference adapter).
 // The 402 advertises the x207 voucher and `exact` near:mainnet, so members pay by voucher and non-members pay `exact`.
 // With `baseSepolia` it adds `exact` on Base Sepolia (`eip155:84532`, USDC testnet) for EVM buyers outside the circle (SD-093).
+import { declareDiscoveryExtension } from "@x402/extensions/bazaar";
 import { Hono } from "hono";
 import type { AccountId } from "@x207/core";
 import { EndpointAdapter } from "@x207/scheme";
@@ -32,12 +33,25 @@ export type SellerOptions = {
   fetch?: typeof fetch;
 };
 
+/**
+ * The type of `declareDiscoveryExtension` leaves `method` out, because `@x402/server` fills it in from the route. This seller does not use `@x402/server`, so it sets `method`
+ * itself: without it `info.input` has no `method` while the schema requires one, and a facilitator that validates the extension would drop it.
+ */
+const DISCOVERY = { method: "GET", output: { example: { summary: "summary text" } } } as unknown as Parameters<typeof declareDiscoveryExtension>[0];
+
 export function createSeller(options: SellerOptions): Hono {
   // Class D (F8): the x402 endpoint is wrapped by `EndpointAdapter`; `paywall()` is the same `x207Middleware`, so the 402 and the F2 flow do not change.
   const adapter = new EndpointAdapter({
     endpoint: "/api/summarize",
     paywall: {
-      routes: { "/api/summarize": { price: options.price ?? "$0.02", description: "Summarize text" } },
+      // UM-187: the 402 declares the x402 Bazaar discovery extension (input and output of the endpoint). It lists nothing by itself: see docs/discovery.md in the x207 repository.
+      routes: {
+        "/api/summarize": {
+          price: options.price ?? "$0.02",
+          description: "Summarize text",
+          extensions: declareDiscoveryExtension(DISCOVERY),
+        },
+      },
       facilitatorUrl: options.facilitatorUrl,
       circleId: options.circleId,
       payTo: options.payTo,
