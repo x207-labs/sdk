@@ -37,7 +37,7 @@ Ask an AI client about the live testnet circle through the MCP server, with no k
 
 ```bash
 X207_CIRCLE_CONTRACT=x207-v013.testnet X207_CIRCLE_ID=agents-main \
-X207_BACKEND_URL=https://x207-backend-production.up.railway.app npx -y @x207/mcp
+X207_BACKEND_URL=https://x207.boxd.sh npx -y @x207/mcp
 ```
 
 This starts a stdio server for an MCP client, so it waits for input. Configuration for Claude Desktop and Cursor: [docs in the umbrella](https://github.com/x207-labs/x207/blob/main/docs/mcp.md). To pay as a buyer:

@@ -3,7 +3,7 @@
   "name": "io.github.x207-labs/x207-mcp",
   "title": "x207",
   "description": "Read-only tools for x207 circles on NEAR: members, epochs, clearing simulation, listings.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "websiteUrl": "https://github.com/x207-labs/x207#readme",
   "repository": {
     "url": "https://github.com/x207-labs/sdk",
@@ -13,14 +13,14 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "https://x207-mcp-production.up.railway.app/mcp"
+      "url": "https://mcp.x207.boxd.sh/mcp"
     }
   ],
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@x207/mcp",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "transport": {
         "type": "stdio"
       }

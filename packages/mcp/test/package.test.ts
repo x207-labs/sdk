@@ -46,6 +46,6 @@ describe("UM-140: the entry for the official MCP Registry", () => {
 
   it("the description fits the 100 characters of the registry and the remote is Streamable HTTP", () => {
     expect(server.description.length).toBeLessThanOrEqual(100);
-    expect(server.remotes).toEqual([{ type: "streamable-http", url: "https://x207-mcp-production.up.railway.app/mcp" }]);
+    expect(server.remotes).toEqual([{ type: "streamable-http", url: "https://mcp.x207.boxd.sh/mcp" }]);
   });
 });
