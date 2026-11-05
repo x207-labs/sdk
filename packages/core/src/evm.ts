@@ -1,6 +1,8 @@
 // EVM agents (SD-088): EIP-712 signatures for the x207 circle contract v0.0.15, separate entry `@x207/core/evm` so the main entry does not pull in viem.
 // Types and domain are fixed by the design note "x207 - Desain Agent EVM" and by `contracts/tests/fixtures/evm-eip712.json` (CT-104); the Rust code must match byte for byte.
-import { hashTypedData, keccak256, recoverTypedDataAddress, toHex, type Hex } from "viem";
+import {
+  bytesToHex, decodeFunctionData, encodeFunctionData, hashTypedData, hexToBytes, hexToString, keccak256, parseAbi, parseTransaction, recoverTransactionAddress, recoverTypedDataAddress, stringToBytes, toHex, type Hex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Eip712Signature, UnsignedVoucher, Voucher } from "./types.js";
 import { EIP712_SIGNATURE_PATTERN } from "./types.js";
@@ -176,4 +178,88 @@ export const isEvmPrivateKey = (value: unknown): value is `0x${string}` => typeo
 export function evmSignerFromPrivateKey(privateKey: string): EvmVoucherSigner {
   if (!isEvmPrivateKey(privateKey)) throw new Error("EVM private key must be 0x followed by 64 hex characters");
   return evmSigner(privateKeyToAccount(privateKey));
+}
+
+// ---- NEP-518 `rlp_execute` (SD-097) -------------------------------------------------------------------------------------------------------------------------------------------------------
+// A 0x key controls the eth-implicit NEAR account with the same address. A signed Ethereum transaction (EIP-1559, chain id 398 on testnet, 397 on mainnet) that is sent to `rlp_execute` on that account makes
+// the account call any NEAR contract, and the contract sees the 0x account as `predecessor_account_id`. Recipe and on-chain proof: contracts/docs/spike-nep518.md and docs/testnet-epochs/sd094-auto-settle-run.json.
+
+export const NEP518_CHAIN_ID = { testnet: 398, mainnet: 397 } as const;
+/** Selector of `functionCall(string,string,bytes,uint64,uint32)` of the wallet contract. */
+export const NEP518_FUNCTION_CALL_SELECTOR = "0x6179b707" as const;
+const NEP518_FUNCTION_CALL_ABI = parseAbi(["function functionCall(string receiver_id, string method_name, bytes args, uint64 gas, uint32 yocto_near)"]);
+
+/** A NEAR function call as the wallet contract takes it. `args` is the JSON object of the call; `yoctoNear` is the NEAR attached (1 for the methods that need exactly one yocto). */
+export interface Nep518Call {
+  receiverId: string;
+  methodName: string;
+  args: object;
+  gas: bigint;
+  yoctoNear: number;
+}
+
+/** The `to` address of the Ethereum transaction: the last 20 bytes of `keccak256(target account id)`. */
+export const nep518ToAddress = (target: string): `0x${string}` => `0x${keccak256(stringToBytes(target)).slice(26)}`;
+
+/** ABI data of `functionCall(receiver_id, method_name, args, gas, yocto_near)`. */
+export function encodeNep518FunctionCall(call: Nep518Call): Hex {
+  return encodeFunctionData({ abi: NEP518_FUNCTION_CALL_ABI, functionName: "functionCall", args: [call.receiverId, call.methodName, toHex(stringToBytes(JSON.stringify(call.args))), call.gas, call.yoctoNear] });
+}
+
+/** Inverse of `encodeNep518FunctionCall`; throws when the data is not a `functionCall`. */
+export function decodeNep518FunctionCall(data: Hex): Nep518Call {
+  const decoded = decodeFunctionData({ abi: NEP518_FUNCTION_CALL_ABI, data });
+  const [receiverId, methodName, args, gas, yoctoNear] = decoded.args;
+  return { receiverId, methodName, args: JSON.parse(hexToString(args)) as object, gas, yoctoNear };
+}
+
+/** What is needed to sign: `target` is the NEAR account the wallet transaction is aimed at (the contract that is called), `nonce` is `get_nonce` of the eth-implicit account. */
+export interface Nep518SignInput {
+  privateKey: string;
+  target: string;
+  nonce: number;
+  call: Nep518Call;
+  chainId?: number;
+  /** Ethereum gas limit of the transaction (not NEAR gas); default 1,000,000 as in the testnet run. */
+  gasLimit?: bigint;
+  maxFeePerGas?: bigint;
+}
+
+/** Arguments of `rlp_execute` on the eth-implicit account: `{ target, tx_bytes_b64 }`. */
+export interface Nep518RlpExecuteArgs {
+  target: string;
+  tx_bytes_b64: string;
+}
+
+/** Signs the EIP-1559 transaction for `rlp_execute`. The key never leaves this function; the error for a bad key does not contain it. */
+export async function signNep518Transaction(input: Nep518SignInput): Promise<Nep518RlpExecuteArgs> {
+  if (!isEvmPrivateKey(input.privateKey)) throw new Error("EVM private key must be 0x followed by 64 hex characters");
+  const account = privateKeyToAccount(input.privateKey);
+  const signed = await account.signTransaction({
+    type: "eip1559",
+    chainId: input.chainId ?? NEP518_CHAIN_ID.testnet,
+    nonce: input.nonce,
+    to: nep518ToAddress(input.target),
+    value: 0n,
+    data: encodeNep518FunctionCall(input.call),
+    gas: input.gasLimit ?? 1_000_000n,
+    maxFeePerGas: input.maxFeePerGas ?? 1_000_000_000n,
+    maxPriorityFeePerGas: 0n,
+  });
+  return { target: input.target, tx_bytes_b64: btoa(String.fromCharCode(...hexToBytes(signed))) };
+}
+
+/** Reads a signed `rlp_execute` transaction back: the address that signed it, the fields, and the NEAR call inside. */
+export async function decodeNep518Transaction(txBytesB64: string): Promise<{
+  signer: `0x${string}`; chainId: number | undefined; type: string; nonce: number; to: `0x${string}` | null | undefined; value: bigint; gasLimit: bigint | undefined; maxFeePerGas: bigint | undefined;
+  maxPriorityFeePerGas: bigint | undefined; call: Nep518Call;
+}> {
+  const serialized = bytesToHex(Uint8Array.from(atob(txBytesB64), (c) => c.charCodeAt(0)));
+  const tx = parseTransaction(serialized);
+  const signer = await recoverTransactionAddress({ serializedTransaction: serialized as never });
+  return {
+    signer: signer.toLowerCase() as `0x${string}`, chainId: tx.chainId, type: tx.type ?? "legacy", nonce: tx.nonce ?? 0, to: tx.to, value: tx.value ?? 0n, gasLimit: tx.gas,
+    // RLP leaves a zero out, so a missing priority fee of an EIP-1559 transaction means 0
+    maxFeePerGas: "maxFeePerGas" in tx ? tx.maxFeePerGas : undefined, maxPriorityFeePerGas: tx.type === "eip1559" ? (tx.maxPriorityFeePerGas ?? 0n) : undefined, call: decodeNep518FunctionCall(tx.data ?? "0x"),
+  };
 }

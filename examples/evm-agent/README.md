@@ -40,3 +40,7 @@ The end-to-end test is `test/evm-agent.sandbox.test.ts` (`X207_SANDBOX=1`, needs
 
 `test/evm-agent.testnet.live.test.ts` (`X207_TESTNET=1`, keys under `$X207_SECRETS`) runs the whole path on `x207-v014.testnet` with a new `0x` key: join through the relayer, DAO admission (the circle has admission `dao`, so the council votes `admit_member` and the relayer stakes afterwards), a paid x402 call with an EIP-712 voucher, registration, epoch close, commit and finalize by the keeper, and `claim_evm` to the eth-implicit NEAR account of the same `0x` address. All hashes are in [docs/testnet-epochs/sd090-evm-agent-run.json](../../../docs/testnet-epochs/sd090-evm-agent-run.json).
 
+## Auto-settle and `rlp_execute` (SD-094, SD-097)
+
+Contract 0.0.15 lets a member opt in to `auto_settle`: a due that is not paid by the payment deadline is taken from its stake at `finalize_epoch` and the member stays `active`. An EVM agent sets it with `agent.setAutoSettle(true)` (EIP-712 action `auto_settle`, route `/evm/auto-settle`); the run on `x207-v015.testnet` is [docs/testnet-epochs/sd094-auto-settle-run.json](../../../docs/testnet-epochs/sd094-auto-settle-run.json). The same call also works without any x207 relayer through NEP-518: `signNep518Transaction` from `@x207/core/evm` signs an EIP-1559 transaction (chain id 398) for `rlp_execute` on the eth-implicit account of the agent, and the circle sees the `0x` account as the caller (`test/evm-agent.autosettle.rlp.testnet.live.test.ts`). `packages/core/test/nep518.test.ts` pins the encoding against a real testnet transaction.
+

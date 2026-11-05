@@ -5,9 +5,9 @@ import { createRequire } from "node:module";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { encodeFunctionData, keccak256, parseAbi, stringToBytes, toHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { buildSetAutoSettleCall, createCircleViewFn } from "@x207/core";
+import { signNep518Transaction } from "@x207/core/evm";
 
 const { Account, JsonRpcProvider, KeyPairSigner } = createRequire(join(process.cwd(), "package.json"))("near-api-js") as typeof import("near-api-js");
 
@@ -16,7 +16,6 @@ const RPC_URLS = ["https://near-testnet.drpc.org", "https://rpc.testnet.fastnear
 const secrets = process.env.X207_SECRETS ?? join(process.cwd(), "../../../.secrets");
 const demoDir = join(secrets, "testnet-demo");
 const out = process.env.RESULT_FILE ?? join(process.cwd(), "../docs/testnet-epochs/sd094-auto-settle-run.json");
-const abi = parseAbi(["function functionCall(string receiver_id, string method_name, bytes args, uint64 gas, uint32 yocto_near)"]);
 
 describe.skipIf(process.env.X207_TESTNET !== "1")("SD-094 rlp_execute (NEP-518) set_auto_settle on x207-v015.testnet", () => {
   it("TC-SD-094-06 the 0x key toggles its auto-settle opt-in through rlp_execute, no x207 relayer", async () => {
@@ -52,13 +51,12 @@ describe.skipIf(process.env.X207_TESTNET !== "1")("SD-094 rlp_execute (NEP-518) 
 
     const toggle = async (enabled: boolean): Promise<string> => {
       const call = buildSetAutoSettleCall({ circleContract: CIRCLE, enabled });
-      const data = encodeFunctionData({ abi, functionName: "functionCall", args: [call.receiverId, call.methodName, toHex(stringToBytes(JSON.stringify(call.args))), (call.gas ?? 30_000_000_000_000n), 1] });
-      const signed = await evm.signTransaction({
-        type: "eip1559", chainId: 398, nonce: Number(await nonceOf()), to: `0x${keccak256(stringToBytes(CIRCLE)).slice(26)}`, value: 0n, data,
-        gas: 1_000_000n, maxFeePerGas: 1_000_000_000n, maxPriorityFeePerGas: 0n,
+      const args = await signNep518Transaction({
+        privateKey: agentKey, target: CIRCLE, nonce: Number(await nonceOf()),
+        call: { receiverId: call.receiverId, methodName: call.methodName, args: call.args, gas: call.gas ?? 30_000_000_000_000n, yoctoNear: Number(call.deposit) },
       });
       const res = await payer.callFunctionRaw({
-        contractId: agentId, methodName: "rlp_execute", args: { target: CIRCLE, tx_bytes_b64: Buffer.from(signed.slice(2), "hex").toString("base64") },
+        contractId: agentId, methodName: "rlp_execute", args,
         deposit: 0n, gas: 300_000_000_000_000n, waitUntil: "FINAL",
       });
       return res.transaction.hash;
