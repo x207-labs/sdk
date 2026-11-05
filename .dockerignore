@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.git
+.env
+.env.*
+apps
+examples
+python
+conformance
+docs
+spec
+test-support
