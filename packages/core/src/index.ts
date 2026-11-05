@@ -11,6 +11,7 @@ export * from "./contract/client.js";
 export * from "./contract/deal.js";
 export * from "./contract/onboard.js";
 export * from "./contract/view.js";
+export * from "./rpc-failover.js";
 export * from "./barter.js";
 export * from "./marketplace.js";
 export * from "./marketplace-helpers.js";

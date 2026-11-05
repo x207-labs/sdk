@@ -7,7 +7,7 @@ import { buildClaimCall, createCircleViewFn, type ContractAbi } from "@x207/core
 import { NearContractCaller, NearRpc } from "../../../apps/facilitator/src/index.js";
 
 const CIRCLE = "x207-v015.testnet";
-const RPC_URLS = ["https://rpc.testnet.near.org", "https://rpc.testnet.fastnear.com"];
+const RPC_URLS = ["https://rpc.testnet.fastnear.com", "https://near-testnet.drpc.org"]; // UM-191: rpc.testnet.near.org is deprecated
 const secrets = process.env.X207_SECRETS ?? join(process.cwd(), "../../../.secrets");
 
 describe.skipIf(process.env.X207_TESTNET !== "1")("SD-094 creditor claim on x207-v015.testnet", () => {

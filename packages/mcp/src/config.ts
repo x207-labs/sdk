@@ -15,8 +15,8 @@ export interface McpConfig {
   fetch?: typeof fetch;
 }
 
-/** Tried in order: a public endpoint that answers 429 hands over to the next. */
-export const TESTNET_RPC_URLS = ["https://rpc.testnet.fastnear.com", "https://rpc.testnet.near.org"] as const;
+/** Tried in order: a public endpoint that answers 429 hands over to the next. `rpc.testnet.near.org` is deprecated and answers 429 to every transaction, so dRPC is the second one (UM-191). Same list as `TESTNET_RPC_URLS` of `@x207/core` (kept here so this package does not need the newest core). */
+export const TESTNET_RPC_URLS = ["https://rpc.testnet.fastnear.com", "https://near-testnet.drpc.org"] as const;
 
 const ACCOUNT = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const CIRCLE_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;

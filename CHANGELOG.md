@@ -8,6 +8,10 @@ Packages: `@x207/core`, `@x207/scheme`, `@x207/mcp`. The contract interface has 
 - `@x207/core/evm` (SD-100, contract 0.0.16): `signAction` takes `maxFee` (in the input or in the options). With it the typed `Action` has the ninth field `uint256 maxFee` (`EVM_TYPES_WITH_MAX_FEE`); without it the eight-field `Action` of contracts 0.0.14 and 0.0.15 is signed as before. `EvmActionMessage.maxFee` is optional; a negative or non-integer value is refused.
 - `@x207/core/evm` (SD-099): `signNep518Transaction` takes `valueWei`, and `nep518Attach(yocto)` splits NEAR into wei and a `uint32` yocto remainder, so a wallet call can carry the 0.35 NEAR of `join`.
 - `createViewAccessKeyFn` (BE-100, L2): only a missing access key (`UNKNOWN_ACCESS_KEY`, "access key ... does not exist") gives `null`. An account that does not exist (`UNKNOWN_ACCOUNT`) is now an error, as it was never a deleted key. The source on `main` differs from the published 0.0.2 by this change.
+- RPC failover and retry (UM-191): one helper `withRpcFailover` (+ `isRateLimited`, `isEndpointDown`, `RpcHttpError`, `TESTNET_RPC_URLS`). `createCircleViewFn` asks an endpoint that answered HTTP 429 or a JSON-RPC error -429 again after 500 ms and 1000 ms, then moves on to the next endpoint (also after HTTP 5xx, a timeout or no connection; a contract panic never moves on). `@x207/core/signer`: `createNearSender` takes `fallbackRpcUrls` (a transaction moves on only after a rate limit, since after another error it may have been executed), `createNearView` takes a list of endpoints. The testnet list is FastNEAR then dRPC (`https://near-testnet.drpc.org`); `rpc.testnet.near.org` is deprecated and answers 429 to every transaction.
+
+### @x207/mcp
+- Next version 0.0.7 (UM-191, not published: `npm publish` is the owner's decision): the default testnet endpoints are `https://rpc.testnet.fastnear.com` then `https://near-testnet.drpc.org` instead of `https://rpc.testnet.near.org`. The retry after a 429 comes with the next `@x207/core` release (the published 0.0.2 only moves on to the next endpoint).
 
 ## @x207/core 0.0.2, @x207/scheme 0.0.2, @x207/mcp 0.0.6 (published by the owner on 2026-11-05)
 

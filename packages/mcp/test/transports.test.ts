@@ -100,7 +100,7 @@ describe("SD-081: configuration from the environment", () => {
     expect(() => configFromEnv({})).toThrow(ConfigError);
     expect(() => configFromEnv({ X207_CIRCLE_CONTRACT: "Bad Name" })).toThrow(/X207_CIRCLE_CONTRACT/);
     const c = configFromEnv({ X207_CIRCLE_CONTRACT: "x207-v013.testnet" });
-    expect(c).toMatchObject({ circleId: "agents-main", rpcUrls: ["https://rpc.testnet.fastnear.com", "https://rpc.testnet.near.org"], backendUrl: null, timeoutMs: 10_000 });
+    expect(c).toMatchObject({ circleId: "agents-main", rpcUrls: ["https://rpc.testnet.fastnear.com", "https://near-testnet.drpc.org"], backendUrl: null, timeoutMs: 10_000 });
     expect(configFromEnv({ X207_CIRCLE_CONTRACT: "x207.near" }).rpcUrls.join(" ")).not.toMatch(/testnet/);
     expect(configFromEnv({ X207_CIRCLE_CONTRACT: "a.testnet", X207_RPC_URL: "https://a.test, https://b.test", X207_BACKEND_URL: "https://api.test/", X207_CIRCLE_ID: "c1" })).toMatchObject({ rpcUrls: ["https://a.test", "https://b.test"], backendUrl: "https://api.test", circleId: "c1" });
     expect(() => configFromEnv({ X207_CIRCLE_CONTRACT: "a.testnet", X207_RPC_URL: "ftp://x" })).toThrow(/not an http/);

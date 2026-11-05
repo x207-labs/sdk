@@ -25,7 +25,7 @@ Everything comes from the environment. No variable holds a secret.
 | --- | --- |
 | `X207_CIRCLE_CONTRACT` | **Required.** The circle contract account, for example `x207-v013.testnet`. |
 | `X207_CIRCLE_ID` | The circle id in the read API paths. Default `agents-main`. |
-| `X207_RPC_URL` | NEAR JSON-RPC endpoints, comma separated, tried in order. Default: `https://rpc.testnet.fastnear.com` then `https://rpc.testnet.near.org` for a `.testnet` contract, otherwise the mainnet endpoints of `@x207/core`. An endpoint that fails or answers 429 hands over to the next. |
+| `X207_RPC_URL` | NEAR JSON-RPC endpoints, comma separated, tried in order. Default: `https://rpc.testnet.fastnear.com` then `https://near-testnet.drpc.org` for a `.testnet` contract, otherwise the mainnet endpoints of `@x207/core`. An endpoint that fails or answers 429 hands over to the next. |
 | `X207_BACKEND_URL` | Base URL of the x207 read API, for example `http://127.0.0.1:8080`. Optional; without it `x207_search_listings` and `x207_order_status` explain what is missing and the other tools answer from the contract. |
 | `X207_TIMEOUT_MS` | Timeout of one RPC or read API call. Default 10000. |
 

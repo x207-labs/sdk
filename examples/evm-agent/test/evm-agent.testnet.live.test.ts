@@ -30,7 +30,7 @@ const DAO = "x207v8.sputnikv2.testnet"; // owner of the circle; admission is `da
 // where the agent wants its payout: by default the eth-implicit NEAR account that has the same 0x address as the agent (so the 0x key itself receives it); WALLET_ACCOUNT overrides
 const TERMS_HASH = "a".repeat(64); // terms hash of the testnet circles
 const STAKE = "50000000"; // 50 mock USDT
-const RPC_URLS = ["https://rpc.testnet.fastnear.com", "https://rpc.testnet.near.org"];
+const RPC_URLS = ["https://rpc.testnet.fastnear.com", "https://near-testnet.drpc.org"]; // UM-191: rpc.testnet.near.org is deprecated
 const secrets = process.env.X207_SECRETS ?? join(process.cwd(), "../../../.secrets");
 const demoDir = join(secrets, "testnet-demo");
 const out = process.env.RESULT_FILE ?? join(process.cwd(), "../docs/testnet-epochs/sd090-evm-agent-run.json");
