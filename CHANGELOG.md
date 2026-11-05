@@ -5,6 +5,8 @@ Packages: `@x207/core`, `@x207/scheme`, `@x207/mcp`. The contract interface has 
 ## Unreleased (after @x207/core 0.0.2)
 
 ### @x207/core
+- `@x207/core/evm` (SD-100, contract 0.0.16): `signAction` takes `maxFee` (in the input or in the options). With it the typed `Action` has the ninth field `uint256 maxFee` (`EVM_TYPES_WITH_MAX_FEE`); without it the eight-field `Action` of contracts 0.0.14 and 0.0.15 is signed as before. `EvmActionMessage.maxFee` is optional; a negative or non-integer value is refused.
+- `@x207/core/evm` (SD-099): `signNep518Transaction` takes `valueWei`, and `nep518Attach(yocto)` splits NEAR into wei and a `uint32` yocto remainder, so a wallet call can carry the 0.35 NEAR of `join`.
 - `createViewAccessKeyFn` (BE-100, L2): only a missing access key (`UNKNOWN_ACCESS_KEY`, "access key ... does not exist") gives `null`. An account that does not exist (`UNKNOWN_ACCOUNT`) is now an error, as it was never a deleted key. The source on `main` differs from the published 0.0.2 by this change.
 
 ## @x207/core 0.0.2, @x207/scheme 0.0.2, @x207/mcp 0.0.6 (published by the owner on 2026-11-05)

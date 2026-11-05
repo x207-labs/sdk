@@ -42,6 +42,12 @@ export const EVM_TYPES = {
   ],
 } as const;
 
+/**
+ * SD-100 (contract 0.0.16, `x207-v016.testnet`): the `Action` type has a ninth field, `uint256 maxFee`, the most the relayer may take from a payout or a stake. The contracts 0.0.14 and
+ * 0.0.15 sign the eight-field type above. `actionTypedData` uses this one only when the message has a `maxFee`; fixtures: `evm-eip712.json` (nine fields) and `evm-eip712-v1.json` (eight).
+ */
+export const EVM_TYPES_WITH_MAX_FEE = { ...EVM_TYPES, Action: [...EVM_TYPES.Action, { name: "maxFee", type: "uint256" }] } as const;
+
 /** `auto_settle` turns settlement from the stake on, `auto_settle_off` turns it off (contract 0.0.15, CT-108): the signature fixes the choice, so a signed "on" cannot be replayed as "off". */
 export const EVM_ACTIONS = ["join", "claim", "request_exit", "withdraw_stake", "auto_settle", "auto_settle_off"] as const;
 export type EvmAction = (typeof EVM_ACTIONS)[number];
@@ -56,6 +62,8 @@ export type EvmActionMessage = {
   termsHash: string;
   nonce: number | bigint;
   deadline: number | bigint;
+  /** SD-100: given (even `0`) only for contract 0.0.16, where it is the ninth signed field; absent for 0.0.14 and 0.0.15. In the credit unit of the circle (6 decimals), a non-negative integer. */
+  maxFee?: number | bigint | string;
 };
 
 const EVM_MEMBER_ID = /^0x[0-9a-f]{40}$/;
@@ -90,17 +98,16 @@ export function bundleTypedData(input: { circle: string; message: string; termsH
 }
 
 export function actionTypedData(input: EvmActionMessage) {
-  return {
-    domain: evmDomain(input.circle),
-    types: EVM_TYPES,
-    primaryType: "Action" as const,
-    message: { ...input, epoch: BigInt(input.epoch), nonce: BigInt(input.nonce), deadline: BigInt(input.deadline) },
-  };
+  const { maxFee, ...rest } = input;
+  const base = { ...rest, epoch: BigInt(input.epoch), nonce: BigInt(input.nonce), deadline: BigInt(input.deadline) };
+  if (maxFee === undefined) return { domain: evmDomain(input.circle), types: EVM_TYPES, primaryType: "Action" as const, message: base };
+  if (typeof maxFee === "string" ? !/^\d+$/.test(maxFee) : typeof maxFee === "number" ? !Number.isSafeInteger(maxFee) || maxFee < 0 : maxFee < 0n) throw new Error("maxFee must be a non-negative integer");
+  return { domain: evmDomain(input.circle), types: EVM_TYPES_WITH_MAX_FEE, primaryType: "Action" as const, message: { ...base, maxFee: BigInt(maxFee) } };
 }
 
 /** The 32-byte digest that is signed (what the contract computes with `keccak256`). */
 export const evmVoucherDigest = (voucher: UnsignedVoucher): Hex => hashTypedData(voucherTypedData(voucher));
-export const evmActionDigest = (input: EvmActionMessage): Hex => hashTypedData(actionTypedData(input));
+export const evmActionDigest = (input: EvmActionMessage): Hex => hashTypedData(actionTypedData(input) as unknown as Parameters<typeof hashTypedData>[0]);
 export const evmBundleDigest = (input: { circle: string; message: string; termsHash: string }): Hex => hashTypedData(bundleTypedData(input));
 
 /** Address that signed `typed`, lower-case, or `null` when the signature is malformed. */
@@ -144,6 +151,8 @@ export type EvmSignActionOptions = {
   now?: number;
   /** Refuse (throw) a `deadline` that is more than this many ms after `now`. Default: no limit. */
   maxTtlMs?: number;
+  /** SD-100: sign the nine-field `Action` of contract 0.0.16 with this `maxFee` (when the input has none of its own). Without it the eight-field `Action` of 0.0.14 and 0.0.15 is signed. */
+  maxFee?: number | bigint | string;
 };
 
 export interface EvmVoucherSigner extends VoucherSigner {
@@ -178,7 +187,8 @@ export function evmSigner(account: EvmAccountLike): EvmVoucherSigner {
       if (options.maxTtlMs !== undefined && BigInt(deadline) > BigInt(now) + BigInt(options.maxTtlMs)) {
         throw new Error(`deadline ${deadline} is more than ${options.maxTtlMs} ms after ${now}: sign a shorter one`);
       }
-      return asEip712(await account.signTypedData(actionTypedData({ ...input, deadline, member: input.member ?? id })));
+      const maxFee = input.maxFee ?? options.maxFee;
+      return asEip712(await account.signTypedData(actionTypedData({ ...input, deadline, member: input.member ?? id, ...(maxFee !== undefined ? { maxFee } : {}) })));
     },
     async signBundle(input) {
       return asEip712(await account.signTypedData(bundleTypedData(input)));

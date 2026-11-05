@@ -37,6 +37,12 @@ export type EvmRelayOptions = {
    * in the same request. On mainnet the stake comes through Intents instead (design note, "Rute dana dari EVM"), so this is off by default.
    */
   stake?: { tokenId: AccountId; amount: string };
+  /**
+   * SD-100: the circle is contract 0.0.16, where every signed `Action` has the ninth field `maxFee`. `claim` and `withdraw` then need `maxFee` in the body (a decimal string of the credit unit),
+   * which is checked against the signature and passed on as the argument `max_fee`; the other routes verify with `maxFee` 0 (the contract signs 0 for them) and a `maxFee` in their body is refused.
+   * Off (default) for 0.0.14 and 0.0.15: the eight-field `Action`, and a `maxFee` in the body is refused.
+   */
+  withMaxFee?: boolean;
 };
 
 export class EvmRelayError extends Error {
@@ -99,6 +105,22 @@ export class EvmRelay {
     this.#perAddress = new RateLimiter({ max: options.perAddress?.max ?? 10, windowMs: options.perAddress?.windowMs ?? 60_000, now: this.#now });
   }
 
+  /** The `maxFee` of the signed message: nothing for 0.0.14/0.0.15; for 0.0.16 `0` unless the route takes a fee (`claim`, `withdraw`), where it must be in the body. */
+  #fee(body: Record<string, unknown>, takesFee: boolean): { signed: { maxFee?: string }; arg: { max_fee?: string } } {
+    const given = body.maxFee;
+    if (!this.#o.withMaxFee) {
+      if (given !== undefined) throw new EvmRelayError(400, "invalid_request", "this circle does not take maxFee");
+      return { signed: {}, arg: {} };
+    }
+    if (!takesFee) {
+      if (given !== undefined) throw new EvmRelayError(400, "invalid_request", "this route does not take maxFee");
+      return { signed: { maxFee: "0" }, arg: {} };
+    }
+    const text = typeof given === "number" && Number.isSafeInteger(given) && given >= 0 ? String(given) : given;
+    if (typeof text !== "string" || !/^(0|[1-9]\d{0,38})$/.test(text)) throw new EvmRelayError(400, "invalid_request", "maxFee must be a non-negative integer (a decimal string)");
+    return { signed: { maxFee: text }, arg: { max_fee: text } };
+  }
+
   async #send(who: string, action: EvmAction, expectedSignedBy: Record<string, unknown>, deadline: number, sig: `eip712:0x${string}`, method: string, args: Record<string, unknown>, deposit = 0n): Promise<EvmRelayResult> {
     const wait = this.#perAddress.hit(who);
     if (wait > 0) throw new EvmRelayError(429, "rate_limited", "too many requests for this address", Math.max(1, Math.ceil(wait / 1000)));
@@ -125,7 +147,8 @@ export class EvmRelay {
     const now = this.#now();
     while (this.#joins.length > 0 && now - (this.#joins[0] as number) >= 3_600_000) this.#joins.shift();
     if (this.#joins.length >= (this.#o.maxJoinsPerHour ?? 20)) throw new EvmRelayError(503, "join_budget_used", "this relayer has sponsored its joins for this hour; try later", 600);
-    const result = await this.#send(who, "join", { member: who, epoch: 0, receiver: "", termsHash, nonce: 0, deadline }, deadline, sig, "join_evm", { address: who, terms_hash: termsHash, deadline, signature: sig }, EVM_JOIN_DEPOSIT);
+    const fee = this.#fee(body, false);
+    const result = await this.#send(who, "join", { member: who, epoch: 0, receiver: "", termsHash, nonce: 0, deadline, ...fee.signed }, deadline, sig, "join_evm", { address: who, terms_hash: termsHash, deadline, signature: sig }, EVM_JOIN_DEPOSIT);
     this.#joins.push(now);
     const stake = this.#o.stake;
     if (stake === undefined) return result;
@@ -146,7 +169,8 @@ export class EvmRelay {
     const nonce = uint(body, "nonce");
     const deadline = uint(body, "deadline");
     const sig = signature(body);
-    return this.#send(member, "claim", { member, epoch, receiver, termsHash: "", nonce, deadline }, deadline, sig, "claim_evm", { member, epoch, receiver, nonce, deadline, signature: sig });
+    const fee = this.#fee(body, true);
+    return this.#send(member, "claim", { member, epoch, receiver, termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "claim_evm", { member, epoch, receiver, nonce, deadline, ...fee.arg, signature: sig });
   }
 
   /** Body: `{ member, nonce, deadline, signature }`. */
@@ -156,7 +180,8 @@ export class EvmRelay {
     const nonce = uint(body, "nonce");
     const deadline = uint(body, "deadline");
     const sig = signature(body);
-    return this.#send(member, "request_exit", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline }, deadline, sig, "request_exit_evm", { member, nonce, deadline, signature: sig });
+    const fee = this.#fee(body, false);
+    return this.#send(member, "request_exit", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "request_exit_evm", { member, nonce, deadline, signature: sig });
   }
 
   /** Body: `{ member, receiver, nonce, deadline, signature }`. */
@@ -167,7 +192,8 @@ export class EvmRelay {
     const nonce = uint(body, "nonce");
     const deadline = uint(body, "deadline");
     const sig = signature(body);
-    return this.#send(member, "withdraw_stake", { member, epoch: 0, receiver, termsHash: "", nonce, deadline }, deadline, sig, "withdraw_stake_evm", { member, receiver, nonce, deadline, signature: sig });
+    const fee = this.#fee(body, true);
+    return this.#send(member, "withdraw_stake", { member, epoch: 0, receiver, termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "withdraw_stake_evm", { member, receiver, nonce, deadline, ...fee.arg, signature: sig });
   }
 
   /** CT-108 (contract 0.0.15). Body: `{ member, enabled, nonce, deadline, signature }`; the signed action is `auto_settle` when `enabled` is true and `auto_settle_off` when false. */
@@ -179,6 +205,7 @@ export class EvmRelay {
     const nonce = uint(body, "nonce");
     const deadline = uint(body, "deadline");
     const sig = signature(body);
-    return this.#send(member, enabled ? "auto_settle" : "auto_settle_off", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline }, deadline, sig, "set_auto_settle_evm", { member, enabled, nonce, deadline, signature: sig });
+    const fee = this.#fee(body, false);
+    return this.#send(member, enabled ? "auto_settle" : "auto_settle_off", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "set_auto_settle_evm", { member, enabled, nonce, deadline, signature: sig });
   }
 }

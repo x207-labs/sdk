@@ -5,13 +5,14 @@ import { describe, expect, it } from "vitest";
 import { createApp, type FacilitatorService } from "../src/app.js";
 import { EVM_JOIN_DEPOSIT, EvmRelay, type EvmCaller } from "../src/evm-relay.js";
 
-const fixture = JSON.parse(readFileSync(fileURLToPath(new URL("../../../packages/core/test/fixtures/evm-eip712.json", import.meta.url)), "utf8"));
+const fixture = JSON.parse(readFileSync(fileURLToPath(new URL("../../../packages/core/test/fixtures/evm-eip712-v1.json", import.meta.url)), "utf8")); // eight-field Action: contracts 0.0.14 and 0.0.15 (SD-100: v1)
+const fixture9 = JSON.parse(readFileSync(fileURLToPath(new URL("../../../packages/core/test/fixtures/evm-eip712.json", import.meta.url)), "utf8")); // nine fields, maxFee: contract 0.0.16
 const v = fixture.vectors;
 const sig = (name: string) => `eip712:${v[name].signature}`;
 const NOW = 1_800_000_000_000; // before the deadline 1_900_000_000_000 of the vectors
 
 type Sent = { method: string; args: Record<string, unknown>; deposit: bigint };
-function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax?: number; maxDeadlineMs?: number } = {}) {
+function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax?: number; maxDeadlineMs?: number; withMaxFee?: boolean } = {}) {
   const sent: Sent[] = [];
   const caller: EvmCaller = {
     async call(method, args, deposit) {
@@ -21,7 +22,7 @@ function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax
     },
   };
   let now = NOW;
-  const relay = new EvmRelay({ circleContract: fixture.circle, caller, now: () => now, maxJoinsPerHour: options.maxJoinsPerHour ?? 20, perAddress: { max: options.perAddressMax ?? 10 }, ...(options.maxDeadlineMs !== undefined ? { maxDeadlineMs: options.maxDeadlineMs } : {}) });
+  const relay = new EvmRelay({ circleContract: fixture.circle, caller, now: () => now, maxJoinsPerHour: options.maxJoinsPerHour ?? 20, perAddress: { max: options.perAddressMax ?? 10 }, ...(options.maxDeadlineMs !== undefined ? { maxDeadlineMs: options.maxDeadlineMs } : {}), ...(options.withMaxFee ? { withMaxFee: true } : {}) });
   const service = { verify: async () => ({}), settle: async () => ({}), supported: async () => ({}) } as unknown as FacilitatorService;
   const app = createApp(service, { evm: relay, rateLimit: false });
   const post = async (path: string, body: unknown) => {
@@ -151,6 +152,45 @@ describe("SD-089 EVM relayer", () => {
     expect((await post("/evm/auto-settle", { ...on, enabled: false })).body.error).toBe("bad_signature");
     expect((await post("/evm/auto-settle", { ...off, enabled: true })).body.error).toBe("bad_signature");
     expect((await post("/evm/auto-settle", { ...on, enabled: "yes" })).body.error).toBe("invalid_request");
+  });
+
+  it("TC-SD-100-04 an eight-field circle (0.0.14, 0.0.15) refuses a maxFee in the body and still verifies the eight-field vectors", async () => {
+    const { post, sent } = setup();
+    expect((await post("/evm/claim", { ...claimBody(), maxFee: "250000" })).body.error).toBe("invalid_request");
+    expect((await post("/evm/withdraw", { ...withdrawBody(), maxFee: "0" })).body.error).toBe("invalid_request");
+    expect((await post("/evm/claim", claimBody())).body.ok).toBe(true);
+    expect(sent.map((s) => s.args)).toEqual([{ member: fixture.address, epoch: 5, receiver: "agent.testnet", nonce: 0, deadline: 1_900_000_000_000, signature: sig("claim") }]);
+    // a signature of the nine-field type is not valid for an eight-field circle
+    const nine = fixture9.vectors;
+    expect((await post("/evm/claim", { ...claimBody(), signature: `eip712:${nine.claim.signature}` })).body.error).toBe("bad_signature");
+  });
+
+  it("TC-SD-100-05 a 0.0.16 circle (withMaxFee) verifies the nine-field vectors and passes max_fee to claim_evm and withdraw_stake_evm; the others sign maxFee 0 and send no max_fee", async () => {
+    const nine = fixture9.vectors;
+    const s9 = (name: string) => `eip712:${nine[name].signature}`;
+    const { post, sent } = setup(undefined, { withMaxFee: true, perAddressMax: 100 });
+    const deadline = (name: string) => Number(nine[name].message.deadline);
+    const claim = { member: fixture9.address, epoch: 5, receiver: "agent.testnet", nonce: 0, deadline: deadline("claim"), maxFee: "250000", signature: s9("claim") };
+    const withdraw = { member: fixture9.address, receiver: "agent.testnet", nonce: 2, deadline: deadline("withdraw_stake"), maxFee: "100000", signature: s9("withdraw_stake") };
+    const joined = await post("/evm/join", { address: fixture9.address, termsHash: nine.join.message.termsHash, deadline: deadline("join"), signature: s9("join") });
+    expect(joined.body, JSON.stringify(joined.body)).toMatchObject({ ok: true });
+    expect((await post("/evm/claim", claim)).body.ok).toBe(true);
+    expect((await post("/evm/exit", { member: fixture9.address, nonce: 1, deadline: deadline("request_exit"), signature: s9("request_exit") })).body.ok).toBe(true);
+    expect((await post("/evm/withdraw", withdraw)).body.ok).toBe(true);
+    expect((await post("/evm/auto-settle", { member: fixture9.address, enabled: true, nonce: 3, deadline: deadline("auto_settle"), signature: s9("auto_settle") })).body.ok).toBe(true);
+    expect(sent.map((s) => s.method)).toEqual(["join_evm", "claim_evm", "request_exit_evm", "withdraw_stake_evm", "set_auto_settle_evm"]);
+    expect(sent[1]!.args).toEqual({ member: fixture9.address, epoch: 5, receiver: "agent.testnet", nonce: 0, deadline: 1_900_000_000_000, max_fee: "250000", signature: s9("claim") });
+    expect(sent[3]!.args).toEqual({ member: fixture9.address, receiver: "agent.testnet", nonce: 2, deadline: 1_900_000_000_000, max_fee: "100000", signature: s9("withdraw_stake") });
+    expect(sent[2]!.args).not.toHaveProperty("max_fee");
+    // the ceiling is signed: another maxFee, or none, is refused and nothing is sent
+    expect((await post("/evm/claim", { ...claim, maxFee: "250001" })).body.error).toBe("bad_signature");
+    expect((await post("/evm/claim", { ...claim, maxFee: "-1" })).body.error).toBe("invalid_request");
+    expect((await post("/evm/claim", { ...claim, maxFee: undefined })).body.error).toBe("invalid_request");
+    expect((await post("/evm/claim", { ...claim, maxFee: 250000 })).body.ok).toBe(true); // a safe integer is read as the same value
+    expect((await post("/evm/exit", { member: fixture9.address, nonce: 1, maxFee: "5", deadline: deadline("request_exit"), signature: s9("request_exit") })).body.error).toBe("invalid_request");
+    // an eight-field signature is not valid for a 0.0.16 circle
+    expect((await post("/evm/claim", { ...claim, signature: sig("claim") })).body.error).toBe("bad_signature");
+    expect(sent).toHaveLength(6);
   });
 });
 

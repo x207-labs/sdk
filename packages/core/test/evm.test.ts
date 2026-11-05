@@ -15,6 +15,8 @@ import {
 const fixturePath = fileURLToPath(new URL("./fixtures/evm-eip712.json", import.meta.url));
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
 const contractFixture = fileURLToPath(new URL("../../../../contracts/tests/fixtures/evm-eip712.json", import.meta.url));
+const fixtureV1 = JSON.parse(readFileSync(fileURLToPath(new URL("./fixtures/evm-eip712-v1.json", import.meta.url)), "utf8"));
+const contractFixtureV1 = fileURLToPath(new URL("../../../../contracts/tests/fixtures/evm-eip712-v1.json", import.meta.url));
 const KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"; // public hardhat test key, the one of the fixture
 const account = privateKeyToAccount(KEY);
 const sig = (hex: string) => `eip712:${hex}`;
@@ -49,6 +51,47 @@ describe("SD-088 EVM EIP-712", () => {
     expect(signed.signature).toBe(sig(v.voucher.signature));
     expect(await signer.signBundle({ circle: fixture.circle, message: v.bundle.message.message, termsHash: v.bundle.termsHash })).toBe(sig(v.bundle.signature));
     for (const name of EVM_ACTIONS) expect(await signer.signAction(action(name))).toBe(sig(v[name].signature));
+  });
+
+  it("TC-SD-100-01 the copies of both fixtures equal the ones of the contract repository (HEAD 2ac6250): nine fields (maxFee) and eight fields (v1)", () => {
+    if (!existsSync(contractFixtureV1)) return; // sdk checked out alone
+    expect(JSON.parse(readFileSync(contractFixtureV1, "utf8"))).toEqual(fixtureV1);
+    expect(JSON.parse(readFileSync(contractFixture, "utf8"))).toEqual(fixture);
+  });
+
+  it("TC-SD-100-02 the eight-field fixture (contracts 0.0.14 and 0.0.15): no message has maxFee, digests and signatures match, and the signer without maxFee reproduces them", async () => {
+    const signer = evmSigner(account);
+    const v1 = fixtureV1.vectors;
+    for (const name of EVM_ACTIONS) {
+      expect(v1[name].message.maxFee).toBeUndefined();
+      const m = v1[name].message;
+      const message: EvmActionMessage = { ...m, epoch: BigInt(m.epoch), nonce: BigInt(m.nonce), deadline: BigInt(m.deadline) };
+      expect(evmActionDigest(message)).toBe(v1[name].digest);
+      expect(await signer.signAction(message)).toBe(sig(v1[name].signature));
+      expect(await verifyEvmAction(message, sig(v1[name].signature))).toBe(true);
+    }
+  });
+
+  it("TC-SD-100-03 the nine-field fixture (contract 0.0.16): every Action carries maxFee, the signer signs it from the message or from the option, and a signature of one form is not valid for the other", async () => {
+    const signer = evmSigner(account);
+    for (const name of EVM_ACTIONS) {
+      const message = action(name);
+      expect(typeof message.maxFee).toBe("string");
+      expect(await signer.signAction(message)).toBe(sig(v[name].signature));
+      const { maxFee, ...without } = message;
+      expect(await signer.signAction(without, { maxFee: maxFee! })).toBe(sig(v[name].signature)); // the option gives the same message
+      expect(await verifyEvmAction(message, sig(v[name].signature))).toBe(true);
+      expect(await verifyEvmAction(without, sig(v[name].signature))).toBe(false); // eight fields: another digest
+    }
+    expect(action("claim").maxFee).toBe("250000"); // the fixture holds one non-zero ceiling
+    const claim = action("claim");
+    expect(await verifyEvmAction({ ...claim, maxFee: 250_001n }, sig(v.claim.signature))).toBe(false); // another ceiling is another message
+    expect(evmActionDigest({ ...claim, maxFee: 0 })).not.toBe(evmActionDigest(claim));
+    expect(evmActionDigest({ ...claim, maxFee: 250_000n })).toBe(evmActionDigest(claim)); // bigint, number and string are the same value
+    expect(evmActionDigest({ ...claim, maxFee: 250_000 })).toBe(evmActionDigest(claim));
+    expect(() => evmActionDigest({ ...claim, maxFee: -1n })).toThrow(/non-negative/);
+    expect(() => evmActionDigest({ ...claim, maxFee: "1.5" })).toThrow(/non-negative/);
+    expect(() => evmActionDigest({ ...claim, maxFee: 0.5 })).toThrow(/non-negative/);
   });
 
   it("TC-CT-114-01 signAction without a deadline signs now + 10 minutes; an explicit deadline is kept; maxTtlMs refuses a longer one", async () => {
