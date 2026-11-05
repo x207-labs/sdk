@@ -1,0 +1,15 @@
+{
+  "name": "@x207/example-solana-agent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "x207 agent whose identity is a Solana keypair: the ed25519 public key is also its NEAR implicit account and its voucher key",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/agent.js",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}
