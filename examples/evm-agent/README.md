@@ -35,3 +35,8 @@ Without `EVM_PRIVATE_KEY` the example makes a new key and prints only the addres
 - The relayer limits requests per address and the joins it sponsors per hour.
 
 The end-to-end test is `test/evm-agent.sandbox.test.ts` (`X207_SANDBOX=1`, needs the contract 0.0.14 wasm).
+
+## Testnet run (SD-090)
+
+`test/evm-agent.testnet.live.test.ts` (`X207_TESTNET=1`, keys under `$X207_SECRETS`) runs the whole path on `x207-v014.testnet` with a new `0x` key: join through the relayer, DAO admission (the circle has admission `dao`, so the council votes `admit_member` and the relayer stakes afterwards), a paid x402 call with an EIP-712 voucher, registration, epoch close, commit and finalize by the keeper, and `claim_evm` to the eth-implicit NEAR account of the same `0x` address. All hashes are in [docs/testnet-epochs/sd090-evm-agent-run.json](../../../docs/testnet-epochs/sd090-evm-agent-run.json).
+
