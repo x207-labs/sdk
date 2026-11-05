@@ -8,7 +8,7 @@ import { keccak256, stringToBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { buildSetAutoSettleCall } from "../src/index.js";
 import {
-  NEP518_CHAIN_ID, NEP518_FUNCTION_CALL_SELECTOR, decodeNep518FunctionCall, decodeNep518Transaction, encodeNep518FunctionCall, nep518ToAddress, signNep518Transaction, type Nep518Call,
+  NEP518_CHAIN_ID, NEP518_FUNCTION_CALL_SELECTOR, decodeNep518FunctionCall, decodeNep518Transaction, encodeNep518FunctionCall, nep518Attach, nep518ToAddress, signNep518Transaction, type Nep518Call,
 } from "../src/evm.js";
 
 const real = JSON.parse(readFileSync(fileURLToPath(new URL("./fixtures/nep518-rlp-execute.json", import.meta.url)), "utf8")) as { tx_hash: string; relayer: string; receiver_id: string; method_name: string; target: string; tx_bytes_b64: string };
@@ -84,5 +84,19 @@ describe("SD-097 NEP-518 rlp_execute", () => {
 
   it("TC-SD-097-06 bytes that are not a functionCall are refused", () => {
     expect(() => decodeNep518FunctionCall("0x12345678")).toThrow();
+  });
+
+  it("TC-SD-099-01 NEAR attached to a wallet call splits into wei (1e6 yocto each) and a uint32 yocto remainder; the signed value carries it", async () => {
+    expect(nep518Attach(1n)).toEqual({ valueWei: 0n, yoctoNear: 1 });
+    expect(nep518Attach(350_000_000_000_000_000_000_000n)).toEqual({ valueWei: 350_000_000_000_000_000n, yoctoNear: 0 });
+    expect(nep518Attach(1_250_001n)).toEqual({ valueWei: 1n, yoctoNear: 250_001 });
+    expect(() => nep518Attach(-1n)).toThrow(/negative/);
+    const { valueWei, yoctoNear } = nep518Attach(350_000_000_000_000_000_000_000n);
+    const join = { receiverId: CIRCLE, methodName: "join", args: { circle_id: "agents-main" }, gas: 100_000_000_000_000n, yoctoNear };
+    const tx = await decodeNep518Transaction((await signNep518Transaction({ privateKey: NEW_KEY, target: CIRCLE, nonce: 0, call: join, valueWei })).tx_bytes_b64);
+    expect(tx.value).toBe(350_000_000_000_000_000n);
+    expect(tx.call.methodName).toBe("join");
+    const plain = await decodeNep518Transaction((await signNep518Transaction({ privateKey: NEW_KEY, target: CIRCLE, nonce: 0, call: setAutoSettle(true) })).tx_bytes_b64);
+    expect(plain.value).toBe(0n);
   });
 });

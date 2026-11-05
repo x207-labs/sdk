@@ -230,6 +230,15 @@ export function decodeNep518FunctionCall(data: Hex): Nep518Call {
   return { receiverId, methodName, args: JSON.parse(hexToString(args)) as object, gas, yoctoNear };
 }
 
+/**
+ * NEAR attached to a wallet call is `value` (wei, 1 wei = 1e6 yoctoNEAR) plus the `uint32` yocto remainder (SD-099). Splits any yoctoNEAR amount in the two:
+ * 1 yocto stays `{ valueWei: 0n, yoctoNear: 1 }`, the 0.35 NEAR of `join` becomes `{ valueWei: 350000000000000000n, yoctoNear: 0 }`.
+ */
+export function nep518Attach(yocto: bigint): { valueWei: bigint; yoctoNear: number } {
+  if (yocto < 0n) throw new Error("the attached NEAR cannot be negative");
+  return { valueWei: yocto / 1_000_000n, yoctoNear: Number(yocto % 1_000_000n) };
+}
+
 /** What is needed to sign: `target` is the NEAR account the wallet transaction is aimed at (the contract that is called), `nonce` is `get_nonce` of the eth-implicit account. */
 export interface Nep518SignInput {
   privateKey: string;
@@ -240,6 +249,8 @@ export interface Nep518SignInput {
   /** Ethereum gas limit of the transaction (not NEAR gas); default 1,000,000 as in the testnet run. */
   gasLimit?: bigint;
   maxFeePerGas?: bigint;
+  /** Wei sent with the call (1 wei = 1e6 yoctoNEAR; see `nep518Attach`), paid from the balance of the eth-implicit account. Default 0. */
+  valueWei?: bigint;
 }
 
 /** Arguments of `rlp_execute` on the eth-implicit account: `{ target, tx_bytes_b64 }`. */
@@ -257,7 +268,7 @@ export async function signNep518Transaction(input: Nep518SignInput): Promise<Nep
     chainId: input.chainId ?? NEP518_CHAIN_ID.testnet,
     nonce: input.nonce,
     to: nep518ToAddress(input.target),
-    value: 0n,
+    value: input.valueWei ?? 0n,
     data: encodeNep518FunctionCall(input.call),
     gas: input.gasLimit ?? 1_000_000n,
     maxFeePerGas: input.maxFeePerGas ?? 1_000_000_000n,
