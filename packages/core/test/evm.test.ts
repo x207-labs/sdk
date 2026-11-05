@@ -8,7 +8,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { signVoucher, validateX207Payload, verifyVoucher, voucherPublicKey, type UnsignedVoucher, type Voucher } from "../src/index.js";
 import { ed25519Signer } from "../src/voucher-signer.js";
 import {
-  EVM_ACTIONS, actionTypedData, evmActionDigest, evmBundleDigest, evmDomain, evmDomainSalt, evmSigner, evmVoucherDigest, isEvmMemberId, voucherTypedData,
+  EVM_ACTIONS, EVM_DEFAULT_DEADLINE_TTL_MS, actionTypedData, evmActionDigest, evmBundleDigest, evmDomain, evmDomainSalt, evmSigner, evmVoucherDigest, isEvmMemberId, voucherTypedData,
   verifyEvmAction, verifyEvmBundle, verifyEvmVoucher, type EvmActionMessage,
 } from "../src/evm.js";
 
@@ -49,6 +49,23 @@ describe("SD-088 EVM EIP-712", () => {
     expect(signed.signature).toBe(sig(v.voucher.signature));
     expect(await signer.signBundle({ circle: fixture.circle, message: v.bundle.message.message, termsHash: v.bundle.termsHash })).toBe(sig(v.bundle.signature));
     for (const name of EVM_ACTIONS) expect(await signer.signAction(action(name))).toBe(sig(v[name].signature));
+  });
+
+  it("TC-CT-114-01 signAction without a deadline signs now + 10 minutes; an explicit deadline is kept; maxTtlMs refuses a longer one", async () => {
+    const signer = evmSigner(account);
+    const now = 1_800_000_000_000;
+    const { deadline: _unused, ...rest } = action("auto_settle_off");
+    const withDefault = await signer.signAction(rest, { now });
+    const explicit = await signer.signAction({ ...rest, deadline: now + EVM_DEFAULT_DEADLINE_TTL_MS }, { now });
+    expect(EVM_DEFAULT_DEADLINE_TTL_MS).toBe(600_000);
+    expect(withDefault).toBe(explicit); // the default is exactly now + 10 minutes
+    expect(await verifyEvmAction({ ...rest, deadline: now + 600_000 }, withDefault)).toBe(true);
+    expect(await verifyEvmAction({ ...rest, deadline: now + 600_001 }, withDefault)).toBe(false);
+    // an explicit long deadline is allowed without a limit (the contract has none), and refused with one
+    const far = now + 365 * 24 * 3600_000;
+    await expect(signer.signAction({ ...rest, deadline: far }, { now })).resolves.toMatch(/^eip712:0x/);
+    await expect(signer.signAction({ ...rest, deadline: far }, { now, maxTtlMs: 15 * 60_000 })).rejects.toThrow(/sign a shorter one/);
+    await expect(signer.signAction({ ...rest, deadline: now + 15 * 60_000 }, { now, maxTtlMs: 15 * 60_000 })).resolves.toMatch(/^eip712:0x/);
   });
 
   it("TC-SD-088-04 verification accepts the vectors and names the signer", async () => {

@@ -135,11 +135,23 @@ export type EvmAccountLike = {
   signTypedData(parameters: any): Promise<string>;
 };
 
+/** CT-114: a signed Action is valid until its `deadline` and anybody may send it; the contract has no upper bound for the deadline (roadmap `ERR_EVM_DEADLINE_TOO_FAR`), so the signer keeps it short. */
+export const EVM_DEFAULT_DEADLINE_TTL_MS = 10 * 60_000;
+
+/** Options of `signAction` that are not part of the signed message. */
+export type EvmSignActionOptions = {
+  /** Unix ms used for the default deadline and the check of `maxTtlMs`. Default `Date.now()`. */
+  now?: number;
+  /** Refuse (throw) a `deadline` that is more than this many ms after `now`. Default: no limit. */
+  maxTtlMs?: number;
+};
+
 export interface EvmVoucherSigner extends VoucherSigner {
   readonly scheme: "eip712";
   /** Lower-case `0x` address = member id in the circle. */
   readonly id: `0x${string}`;
-  signAction(input: Omit<EvmActionMessage, "member"> & { member?: string }): Promise<Eip712Signature>;
+  /** `deadline` (ms of block time) defaults to `now + 10 minutes` (`EVM_DEFAULT_DEADLINE_TTL_MS`); a signature that is not sent in time must be signed again. */
+  signAction(input: Omit<EvmActionMessage, "member" | "deadline"> & { member?: string; deadline?: number | bigint }, options?: EvmSignActionOptions): Promise<Eip712Signature>;
   signBundle(input: { circle: string; message: string; termsHash: string }): Promise<Eip712Signature>;
 }
 
@@ -160,8 +172,13 @@ export function evmSigner(account: EvmAccountLike): EvmVoucherSigner {
       const signature = asEip712(await account.signTypedData(voucherTypedData(voucher)));
       return { ...voucher, signature };
     },
-    async signAction(input) {
-      return asEip712(await account.signTypedData(actionTypedData({ ...input, member: input.member ?? id })));
+    async signAction(input, options = {}) {
+      const now = options.now ?? Date.now();
+      const deadline = input.deadline ?? now + EVM_DEFAULT_DEADLINE_TTL_MS;
+      if (options.maxTtlMs !== undefined && BigInt(deadline) > BigInt(now) + BigInt(options.maxTtlMs)) {
+        throw new Error(`deadline ${deadline} is more than ${options.maxTtlMs} ms after ${now}: sign a shorter one`);
+      }
+      return asEip712(await account.signTypedData(actionTypedData({ ...input, deadline, member: input.member ?? id })));
     },
     async signBundle(input) {
       return asEip712(await account.signTypedData(bundleTypedData(input)));
