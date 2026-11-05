@@ -2,7 +2,12 @@
 
 Packages: `@x207/core`, `@x207/scheme`, `@x207/mcp`. The contract interface has its own changelog (`../CHANGELOG.md`). While the version is `0.0.x`, every change an outside caller can see raises the patch number.
 
-## Unreleased: @x207/core 0.0.2, @x207/scheme 0.0.2, @x207/mcp 0.0.6 (prepared, not published)
+## Unreleased (after @x207/core 0.0.2)
+
+### @x207/core
+- `createViewAccessKeyFn` (BE-100, L2): only a missing access key (`UNKNOWN_ACCESS_KEY`, "access key ... does not exist") gives `null`. An account that does not exist (`UNKNOWN_ACCOUNT`) is now an error, as it was never a deleted key. The source on `main` differs from the published 0.0.2 by this change.
+
+## @x207/core 0.0.2, @x207/scheme 0.0.2, @x207/mcp 0.0.6 (published by the owner on 2026-11-05)
 
 Published so far: `@x207/core` 0.0.1, `@x207/scheme` 0.0.1, `@x207/mcp` 0.0.5. `@x207/scheme` and `@x207/mcp` depend on `@x207/core` at the exact version, so publish in the order core, scheme, mcp.
 
