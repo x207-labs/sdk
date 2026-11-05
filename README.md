@@ -60,6 +60,17 @@ const response = await paidFetch("https://seller.example/api/summarize");
 
 `secretKey` is the voucher key: one ed25519 key used only for vouchers, never a NEAR access key ([Voucher key security](docs/voucher-key-security.md)). `X207PaymentClient` registers `x207:*` and falls back to the other entry of the `402` answer (normally `exact`) when headroom runs out. A 200 response carries the header `PAYMENT-RESPONSE`; `extensions.x207.registration` is `pending`, `retrying` or `registered`.
 
+**Already have an `x402Client` for `@x402/fetch`?** Add x207 with one `register` call (the real API of `@x402/core` 2.29, same in 2.30: `register(network, schemeClient)`; the network is `x207:<circleId>`, or `x207:*` for every circle). It does not fall back to `exact` and does not check headroom, which `X207PaymentClient` above does:
+
+```ts
+import { x402Client } from "@x402/core/client";
+import { X207SchemeClient } from "@x207/scheme";
+
+const client = new x402Client().register("x207:agents-main", new X207SchemeClient({ payer: "agent.near", secretKey }));
+```
+
+Tested in [`packages/scheme/test/readme-register.test.ts`](packages/scheme/test/readme-register.test.ts) (TC-UM-185-01): a fake seller answers `402` with the x207 entry, and `wrapFetchWithPayment(fetch, client)` retries with a signed voucher.
+
 ### One 402, two kinds of buyer (SD-093)
 
 A seller can offer the voucher to circle members and `exact` USDC on Base Sepolia (`eip155:84532`, testnet token, no real funds) to EVM buyers outside the circle, in the same `402`. The `402` then lists `batch-settlement@x207:<circleId>`, `exact@near:mainnet` and `exact@eip155:84532`. Seller ([`examples/seller`](examples/seller)):
