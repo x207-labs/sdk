@@ -35,7 +35,7 @@ const contractsAbi = existsSync(CONTRACTS_REPO) ? committedContractsAbi() : null
 describe("SD-010 contract client types from abi.json", () => {
   it("the pinned ABI version is written in the sdk", () => {
     expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe(pinned.interface_version);
-    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.15");
+    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.16"); // SD-101: pinned to contracts 0.0.16 (max_fee on claim_evm and withdraw_stake_evm, relayer_fee, relayer_fee_paid / relayer_fee_failed); the 8-field Action of 0.0.14 and 0.0.15 is still signed without maxFee
     expect(ContractAbi.X207_CIRCLE_ABI_SHA256).toBe(createHash("sha256").update(pinnedText).digest("hex"));
   });
 

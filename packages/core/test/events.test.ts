@@ -39,6 +39,8 @@ const SAMPLES: Record<string, unknown> = {
   grant_revoked: { grant_id: 1, reason: "defaulted" },
   intent_removed: { intent_hash: "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrZb9rXzFaVzJ", account_id: A },
   auto_settle_set: { account_id: A, enabled: true },
+  relayer_fee_paid: { account_id: A, relayer: "relayer.testnet", action: "claim", epoch: 4, amount: "250000" },
+  relayer_fee_failed: { account_id: A, relayer: "relayer.testnet", action: "withdraw_stake", epoch: 0, amount: "100000" },
   auto_settled: { epoch: 4, account_id: A, due: "250", stake: "900", status: "active", position_status: "paid", outstanding_debt: "0" },
   intents_withdrawn: { amount: "1500000" },
   escrow_held: { grant_id: 1, nft_contract: "nft.test.near", token_id: "t1" },

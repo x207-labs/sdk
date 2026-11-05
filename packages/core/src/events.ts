@@ -106,6 +106,9 @@ export type X207EventMap = {
     epoch: number; account_id: AccountId; due: U128String; stake: U128String; status: MemberStatusValue;
     position_status: PositionStatusValue; outstanding_debt: U128String;
   };
+  // interface 0.0.16 (SD-101, CT-117): the relayer of `claim_evm` / `withdraw_stake_evm` was paid its fee, or the fee transfer failed and the amount went back to the member
+  relayer_fee_paid: { account_id: AccountId; relayer: AccountId; action: string; epoch: number; amount: U128String };
+  relayer_fee_failed: { account_id: AccountId; relayer: AccountId; action: string; epoch: number; amount: U128String };
   intents_withdrawn: { amount: U128String };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
   // interface 0.0.12 (SD-073): freeze of a member (CT-095), official contracts of an asset type (CT-096), deal with a bond and an arbiter (CT-094)
@@ -218,6 +221,8 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   intent_removed: { intent_hash: "str", account_id: "str" },
   auto_settle_set: { account_id: "str", enabled: "bool" },
   auto_settled: { epoch: "int", account_id: "str", due: "str", stake: "str", status: MEMBER_STATUS, position_status: { enum: ["due", "paid", "defaulted", "claimable", "claimed"] }, outstanding_debt: "str" },
+  relayer_fee_paid: { account_id: "str", relayer: "str", action: "str", epoch: "int", amount: "str" },
+  relayer_fee_failed: { account_id: "str", relayer: "str", action: "str", epoch: "int", amount: "str" },
   intents_withdrawn: { amount: "str" },
   bundle_committed: {
     bundle_id: "bundleid", terms_hash: "str", epoch: "int",
