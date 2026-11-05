@@ -35,8 +35,18 @@ const contractsAbi = existsSync(CONTRACTS_REPO) ? committedContractsAbi() : null
 describe("SD-010 contract client types from abi.json", () => {
   it("the pinned ABI version is written in the sdk", () => {
     expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe(pinned.interface_version);
-    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.16"); // SD-101: pinned to contracts 0.0.16 (max_fee on claim_evm and withdraw_stake_evm, relayer_fee, relayer_fee_paid / relayer_fee_failed); the 8-field Action of 0.0.14 and 0.0.15 is still signed without maxFee
+    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.17"); // SD-102: pinned to contracts 0.0.17 (max_fee also on request_exit_evm and set_auto_settle_evm, optional max_fee on join_evm that must stay 0, boolean result, on_action_fee_resolved); the 8-field Action of 0.0.14 and 0.0.15 is still signed without maxFee
     expect(ContractAbi.X207_CIRCLE_ABI_SHA256).toBe(createHash("sha256").update(pinnedText).digest("hex"));
+  });
+
+  it("TC-SD-102-01 contract 0.0.17: max_fee on request_exit_evm and set_auto_settle_evm, optional on join_evm, boolean result, fee callback is private", () => {
+    const m = (name: string) => (pinned as unknown as { body: { functions: { name: string; modifiers?: string[]; params: { args: { name: string }[] } }[] } }).body.functions.find((x) => x.name === name)!;
+    for (const name of ["request_exit_evm", "set_auto_settle_evm"]) {
+      expect(m(name).params.args.map((a: { name: string }) => a.name)).toContain("max_fee");
+    }
+    expect(m("join_evm").params.args.map((a: { name: string }) => a.name)).toContain("max_fee");
+    expect(m("on_action_fee_resolved")).toBeDefined();
+    expect(m("on_action_fee_resolved").modifiers).toContain("private");
   });
 
   it("types.generated.ts equals the generator output for the pinned ABI", () => {

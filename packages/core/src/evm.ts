@@ -49,7 +49,8 @@ export const EVM_TYPES = {
 export const EVM_TYPES_WITH_MAX_FEE = { ...EVM_TYPES, Action: [...EVM_TYPES.Action, { name: "maxFee", type: "uint256" }] } as const;
 
 /**
- * SD-100 (contract 0.0.16): the fee the relayer may take from a payout (`claim_evm`) or a stake (`withdraw_stake_evm`) of `base` credit units:
+ * SD-100 (contract 0.0.16): the fee the relayer may take from a payout (`claim_evm`) or a stake (`withdraw_stake_evm`) of `base` credit units.
+ * SD-102 (contract 0.0.17): `request_exit_evm` and `set_auto_settle_evm` pay it from the free stake (`stake - bond_locked - outstanding_debt`), which is their `base`; `join_evm` takes none (`max_fee` above 0 is refused with `ERR_EVM_FEE_NOT_ALLOWED`):
  * `min(relayerFee, maxFee, floor(base / 2))`, where `relayerFee` is the DAO parameter from `get_params` and `maxFee` the ceiling the member signed. All values are integers of the credit unit.
  */
 export function expectedRelayerFee(input: { base: bigint | number | string; relayerFee: bigint | number | string; maxFee: bigint | number | string }): bigint {

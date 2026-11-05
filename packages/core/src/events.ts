@@ -106,7 +106,7 @@ export type X207EventMap = {
     epoch: number; account_id: AccountId; due: U128String; stake: U128String; status: MemberStatusValue;
     position_status: PositionStatusValue; outstanding_debt: U128String;
   };
-  // interface 0.0.16 (SD-101, CT-117): the relayer of `claim_evm` / `withdraw_stake_evm` was paid its fee, or the fee transfer failed and the amount went back to the member
+  // interface 0.0.16 (SD-101, CT-117; 0.0.17, SD-102, also `request_exit_evm` / `set_auto_settle_evm`): the relayer of `claim_evm` / `withdraw_stake_evm` was paid its fee, or the fee transfer failed and the amount went back to the member
   relayer_fee_paid: { account_id: AccountId; relayer: AccountId; action: string; epoch: number; amount: U128String };
   relayer_fee_failed: { account_id: AccountId; relayer: AccountId; action: string; epoch: number; amount: U128String };
   intents_withdrawn: { amount: U128String };
