@@ -8,9 +8,9 @@ The SDK is how agents meet the [contract](https://github.com/x207-labs/contracts
 
 | Folder | Package | Contents |
 | --- | --- | --- |
-| `packages/core/` | `@x207/core` (0.0.1 on npm) | Voucher types and signing, client for the `x207-circle` contract, NEP-297 event parser, `onboardMember` |
-| `packages/scheme/` | `@x207/scheme` (0.0.1 on npm) | x402 binding per role: `client/`, `server/`, `facilitator/` |
-| `packages/mcp/` | `@x207/mcp` (0.0.4 on npm, bin `x207-mcp`) | MCP server: read tools by default, signs nothing |
+| `packages/core/` | `@x207/core` (0.0.2 on npm) | Voucher types and signing, client for the `x207-circle` contract, NEP-297 event parser, `onboardMember` |
+| `packages/scheme/` | `@x207/scheme` (0.0.2 on npm) | x402 binding per role: `client/`, `server/`, `facilitator/` |
+| `packages/mcp/` | `@x207/mcp` (0.0.6 on npm, bin `x207-mcp`) | MCP server: read tools by default, signs nothing |
 | `apps/facilitator/` | `@x207/facilitator` | Reference facilitator: `/verify`, `/settle`, `/supported` |
 | `spec/` | | `scheme_batch_settlement_x207.md` and `test-vectors/` |
 | `examples/` | | `buyer`, `seller`, `mcp-paid-tool`, `python-buyer` |
