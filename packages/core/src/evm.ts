@@ -1,13 +1,16 @@
 // EVM agents (SD-088): EIP-712 signatures for the x207 circle contract v0.0.14, separate entry `@x207/core/evm` so the main entry does not pull in viem.
 // Types and domain are fixed by the design note "x207 - Desain Agent EVM" and by `contracts/tests/fixtures/evm-eip712.json` (CT-104); the Rust code must match byte for byte.
-import { hashTypedData, recoverTypedDataAddress, type Hex } from "viem";
+import { hashTypedData, keccak256, recoverTypedDataAddress, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Eip712Signature, UnsignedVoucher, Voucher } from "./types.js";
 import { EIP712_SIGNATURE_PATTERN } from "./types.js";
 import type { VoucherSigner } from "./voucher-signer.js";
 
-/** Domain: no `chainId` and no `verifyingContract`, because the contract is not an EVM contract. Replay across circles is stopped by the `circle` field of every message. */
-export const EVM_DOMAIN = { name: "x207", version: "1" } as const;
+/** `salt = keccak256("near:" + network + ":" + contract account id)` (audit C55); the network is `testnet` for an account that ends in `.testnet`, else `mainnet`. Binds a signature to one contract on one network. */
+export const evmDomainSalt = (contract: string): Hex => keccak256(toHex(`near:${contract.endsWith(".testnet") ? "testnet" : "mainnet"}:${contract}`));
+
+/** Domain `EIP712Domain(string name,string version,bytes32 salt)`: no `chainId` and no `verifyingContract`, because the contract is not an EVM contract. `contract` is the `circle` field of the message (the circle contract account). */
+export const evmDomain = (contract: string) => ({ name: "x207", version: "1", salt: evmDomainSalt(contract) }) as const;
 
 export const EVM_TYPES = {
   Voucher: [
@@ -62,7 +65,7 @@ export const isEip712Signature = (value: unknown): value is Eip712Signature => t
 /** Typed data of a voucher. `payer` is the lower-case `0x` address. */
 export function voucherTypedData(voucher: UnsignedVoucher) {
   return {
-    domain: EVM_DOMAIN,
+    domain: evmDomain(voucher.circle),
     types: EVM_TYPES,
     primaryType: "Voucher" as const,
     message: {
@@ -80,12 +83,12 @@ export function voucherTypedData(voucher: UnsignedVoucher) {
 
 /** Typed data of a bundle: `message` is the canonical terms JSON, `termsHash` its sha256 hex. */
 export function bundleTypedData(input: { circle: string; message: string; termsHash: string }) {
-  return { domain: EVM_DOMAIN, types: EVM_TYPES, primaryType: "Bundle" as const, message: { ...input } };
+  return { domain: evmDomain(input.circle), types: EVM_TYPES, primaryType: "Bundle" as const, message: { ...input } };
 }
 
 export function actionTypedData(input: EvmActionMessage) {
   return {
-    domain: EVM_DOMAIN,
+    domain: evmDomain(input.circle),
     types: EVM_TYPES,
     primaryType: "Action" as const,
     message: { ...input, epoch: BigInt(input.epoch), nonce: BigInt(input.nonce), deadline: BigInt(input.deadline) },

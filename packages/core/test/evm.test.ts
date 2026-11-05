@@ -3,11 +3,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { hashTypedData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { signVoucher, validateX207Payload, verifyVoucher, voucherPublicKey, type UnsignedVoucher, type Voucher } from "../src/index.js";
 import { ed25519Signer } from "../src/voucher-signer.js";
 import {
-  EVM_ACTIONS, actionTypedData, evmActionDigest, evmBundleDigest, evmSigner, evmVoucherDigest, isEvmMemberId,
+  EVM_ACTIONS, actionTypedData, evmActionDigest, evmBundleDigest, evmDomain, evmDomainSalt, evmSigner, evmVoucherDigest, isEvmMemberId, voucherTypedData,
   verifyEvmAction, verifyEvmBundle, verifyEvmVoucher, type EvmActionMessage,
 } from "../src/evm.js";
 
@@ -99,6 +100,17 @@ describe("SD-088 EVM EIP-712", () => {
   it("TC-SD-088-10 typed data of an action carries bigints for the uint64 fields", () => {
     const data = actionTypedData(action("join"));
     expect(data.message.deadline).toBe(1_900_000_000_000n);
-    expect(data.domain).toEqual({ name: "x207", version: "1" });
+    expect(data.domain).toEqual({ name: "x207", version: "1", salt: fixture.salt });
+  });
+
+  it("TC-SD-088-11 domain salt: the salt and the domain separator of the fixture, and other contracts or networks give other salts (audit C55)", async () => {
+    expect(evmDomainSalt(fixture.circle)).toBe(fixture.salt);
+    expect(evmDomain(fixture.circle)).toEqual({ name: "x207", version: "1", salt: fixture.salt });
+    for (const [contract, cross] of Object.entries(fixture.crossContract as Record<string, { salt: string; digest: string; signature: string }>)) {
+      expect(evmDomainSalt(contract)).toBe(cross.salt);
+      // same message, the domain of another contract: the digest differs and its signature does not verify for the circle of the fixture
+      expect(hashTypedData({ ...voucherTypedData(unsignedVoucher), domain: evmDomain(contract) })).toBe(cross.digest);
+      expect(await verifyEvmVoucher({ ...unsignedVoucher, signature: sig(cross.signature) } as unknown as Voucher)).toBe(false);
+    }
   });
 });
