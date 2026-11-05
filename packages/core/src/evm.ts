@@ -40,7 +40,8 @@ export const EVM_TYPES = {
   ],
 } as const;
 
-export const EVM_ACTIONS = ["join", "claim", "request_exit", "withdraw_stake"] as const;
+/** `auto_settle` turns settlement from the stake on, `auto_settle_off` turns it off (contract 0.0.15, CT-108): the signature fixes the choice, so a signed "on" cannot be replayed as "off". */
+export const EVM_ACTIONS = ["join", "claim", "request_exit", "withdraw_stake", "auto_settle", "auto_settle_off"] as const;
 export type EvmAction = (typeof EVM_ACTIONS)[number];
 
 /** Member action message (`join_evm`, `claim_evm`, `request_exit_evm`, `withdraw_stake_evm`). `deadline` is in ms of block time; `nonce` equals `EvmSigner.nonce` of the contract. */

@@ -77,7 +77,7 @@ export type AppOptions = {
   /** Per client on `/verify` and `/settle` (default `RATE_LIMIT_DEFAULTS`); `false` turns it off. The client is the address of the socket, or the first `x-forwarded-for` when `trustProxy`. */
   rateLimit?: RateLimitOptions | false;
   trustProxy?: boolean;
-  /** SD-089: relayer for EVM agents; with it the routes `POST /evm/join`, `/evm/claim`, `/evm/exit` and `/evm/withdraw` exist. */
+  /** SD-089: relayer for EVM agents; with it the routes `POST /evm/join`, `/evm/claim`, `/evm/exit`, `/evm/withdraw` and `/evm/auto-settle` exist. */
   evm?: EvmRelay;
 };
 
@@ -127,6 +127,7 @@ export function createApp(service: FacilitatorService, options: AppOptions = {})
     app.post("/evm/claim", route((body) => evm.claim(body)));
     app.post("/evm/exit", route((body) => evm.exit(body)));
     app.post("/evm/withdraw", route((body) => evm.withdraw(body)));
+    app.post("/evm/auto-settle", route((body) => evm.autoSettle(body)));
   }
   app.get("/supported", async (c) => c.json(await service.supported(), 200));
   app.get("/x207/pair-state", async (c) => {

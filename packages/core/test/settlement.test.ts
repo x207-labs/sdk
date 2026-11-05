@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { CLAIM_MIN_GAS, buildClaimArgs, buildClaimCall, buildSettleMsg, buildSettleTransferCall } from "@x207/core";
+import { CLAIM_MIN_GAS, buildClaimArgs, buildClaimCall, buildSettleMsg, buildSettleTransferCall, buildSetAutoSettleCall, getAutoSettle } from "@x207/core";
 
 const vector = (path: string) =>
   JSON.parse(readFileSync(fileURLToPath(new URL(`../../../spec/test-vectors/${path}`, import.meta.url)), "utf8")) as any;
@@ -64,3 +64,21 @@ describe("SD-014 settle residual and claim helpers", () => {
     expect(() => buildSettleMsg({ epoch: 42, memberId: "Bad Id" })).toThrow();
   });
 });
+
+describe("SD-094 auto settle helpers (CT-108)", () => {
+  it("TC-SD-094-02 buildSetAutoSettleCall names the method and the argument of the contract", () => {
+    expect(buildSetAutoSettleCall({ circleContract: "x207-v015.testnet", enabled: true })).toEqual({
+      receiverId: "x207-v015.testnet", methodName: "set_auto_settle", args: { enabled: true }, deposit: 0n, gas: 30_000_000_000_000n,
+    });
+  });
+
+  it("TC-SD-094-03 getAutoSettle reads the view is_auto_settle and is false for anything but true", async () => {
+    const calls: unknown[] = [];
+    const view = (answer: unknown) => async (method: string, args: object) => { calls.push([method, args]); return answer; };
+    expect(await getAutoSettle(view(true), "a.testnet")).toBe(true);
+    expect(await getAutoSettle(view(false), "a.testnet")).toBe(false);
+    expect(await getAutoSettle(view(null), "a.testnet")).toBe(false);
+    expect(calls[0]).toEqual(["is_auto_settle", { account_id: "a.testnet" }]);
+  });
+});
+

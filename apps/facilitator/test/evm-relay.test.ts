@@ -136,4 +136,21 @@ describe("SD-089 EVM relayer", () => {
     const res = await createApp(service, { rateLimit: false }).request("/evm/join", { method: "POST", body: "{}" });
     expect(res.status).toBe(404);
   });
+
+  it("TC-SD-094-01 /evm/auto-settle sends set_auto_settle_evm; the signed action decides on or off (CT-108)", async () => {
+    const { sent, post } = setup();
+    const on = { member: fixture.address, enabled: true, nonce: 3, deadline: Number(v.auto_settle.message.deadline), signature: sig("auto_settle") };
+    const off = { member: fixture.address, enabled: false, nonce: 4, deadline: Number(v.auto_settle_off.message.deadline), signature: sig("auto_settle_off") };
+    expect((await post("/evm/auto-settle", on)).body).toMatchObject({ ok: true, method: "set_auto_settle_evm" });
+    expect((await post("/evm/auto-settle", off)).body.ok).toBe(true);
+    expect(sent.map((x) => x.args)).toEqual([
+      { member: fixture.address, enabled: true, nonce: 3, deadline: 1_900_000_000_000, signature: sig("auto_settle") },
+      { member: fixture.address, enabled: false, nonce: 4, deadline: 1_900_000_000_000, signature: sig("auto_settle_off") },
+    ]);
+    // a signed "on" cannot be sent as "off", and the other way round
+    expect((await post("/evm/auto-settle", { ...on, enabled: false })).body.error).toBe("bad_signature");
+    expect((await post("/evm/auto-settle", { ...off, enabled: true })).body.error).toBe("bad_signature");
+    expect((await post("/evm/auto-settle", { ...on, enabled: "yes" })).body.error).toBe("invalid_request");
+  });
 });
+

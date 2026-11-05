@@ -82,6 +82,19 @@ export async function getMember(view: CircleViewFn, accountId: AccountId): Promi
   return (result ?? null) as MemberView | null;
 }
 
+/**
+ * CT-108 (contract 0.0.15): `set_auto_settle(enabled)` for a member with a NEAR account. When on, a member that misses its `due` in the payment window is paid from its own stake by
+ * `finalize_epoch` and stays `active` (instead of the default path). EVM members use the relayer route `/evm/auto-settle` with an `Action` signature instead.
+ */
+export function buildSetAutoSettleCall(input: { circleContract: AccountId; enabled: boolean }): ContractCall {
+  return { receiverId: input.circleContract, methodName: "set_auto_settle", args: { enabled: input.enabled }, deposit: 0n, gas: 30_000_000_000_000n };
+}
+
+/** View `is_auto_settle(account_id)` (contract 0.0.15); `false` for an account that never opted in. */
+export async function getAutoSettle(view: CircleViewFn, accountId: AccountId): Promise<boolean> {
+  return (await view("is_auto_settle", { account_id: accountId })) === true;
+}
+
 /** The contract `ERR_*` code from a panic message (`ERR_CODE: detail`), or `null`. */
 export function contractErrorCode(error: unknown): string | null {
   const text = error instanceof Error ? error.message : String(error);

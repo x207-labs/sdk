@@ -169,4 +169,16 @@ export class EvmRelay {
     const sig = signature(body);
     return this.#send(member, "withdraw_stake", { member, epoch: 0, receiver, termsHash: "", nonce, deadline }, deadline, sig, "withdraw_stake_evm", { member, receiver, nonce, deadline, signature: sig });
   }
+
+  /** CT-108 (contract 0.0.15). Body: `{ member, enabled, nonce, deadline, signature }`; the signed action is `auto_settle` when `enabled` is true and `auto_settle_off` when false. */
+  async autoSettle(body: unknown): Promise<EvmRelayResult> {
+    if (!isRecord(body)) throw new EvmRelayError(400, "invalid_request", "body must be a JSON object");
+    const member = address(body, "member");
+    if (typeof body.enabled !== "boolean") throw new EvmRelayError(400, "invalid_request", "enabled must be true or false");
+    const enabled = body.enabled;
+    const nonce = uint(body, "nonce");
+    const deadline = uint(body, "deadline");
+    const sig = signature(body);
+    return this.#send(member, enabled ? "auto_settle" : "auto_settle_off", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline }, deadline, sig, "set_auto_settle_evm", { member, enabled, nonce, deadline, signature: sig });
+  }
 }

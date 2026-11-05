@@ -41,6 +41,8 @@ export interface EvmAgent {
   claim(epoch: number, receiver: string): Promise<RelayAnswer>;
   /** Ask to leave the circle. */
   exit(): Promise<RelayAnswer>;
+  /** Opt in (or out) of settlement from the stake: a due that is missed is paid from the stake by `finalize_epoch` and the agent stays active (contract 0.0.15). */
+  setAutoSettle(enabled: boolean): Promise<RelayAnswer>;
   /** Next nonce for a member action, read from the contract (`evm_signer`). */
   nextNonce(): Promise<number>;
 }
@@ -85,6 +87,12 @@ export function createEvmAgent(options: EvmAgentOptions): EvmAgent {
       const deadline = now() + ttl;
       const signature = await signer.signAction({ circle: options.circleContract, action: "claim", epoch, receiver, termsHash: "", nonce, deadline });
       return relay("/evm/claim", { member: signer.id, epoch, receiver, nonce, deadline, signature });
+    },
+    async setAutoSettle(enabled) {
+      const nonce = await agent.nextNonce();
+      const deadline = now() + ttl;
+      const signature = await signer.signAction({ circle: options.circleContract, action: enabled ? "auto_settle" : "auto_settle_off", epoch: 0, receiver: "", termsHash: "", nonce, deadline });
+      return relay("/evm/auto-settle", { member: signer.id, enabled, nonce, deadline, signature });
     },
     async exit() {
       const nonce = await agent.nextNonce();
