@@ -60,6 +60,40 @@ const response = await paidFetch("https://seller.example/api/summarize");
 
 `secretKey` is the voucher key: one ed25519 key used only for vouchers, never a NEAR access key ([Voucher key security](docs/voucher-key-security.md)). `X207PaymentClient` registers `x207:*` and falls back to the other entry of the `402` answer (normally `exact`) when headroom runs out. A 200 response carries the header `PAYMENT-RESPONSE`; `extensions.x207.registration` is `pending`, `retrying` or `registered`.
 
+### One 402, two kinds of buyer (SD-093)
+
+A seller can offer the voucher to circle members and `exact` USDC on Base Sepolia (`eip155:84532`, testnet token, no real funds) to EVM buyers outside the circle, in the same `402`. The `402` then lists `batch-settlement@x207:<circleId>`, `exact@near:mainnet` and `exact@eip155:84532`. Seller ([`examples/seller`](examples/seller)):
+
+```ts
+const app = createSeller({
+  facilitatorUrl: "https://facilitator.example", // x207 facilitator: vouchers
+  circleId: "agents-main",
+  payTo: "seller.near",
+  baseSepolia: { payTo: "0xYourSellerAddress" }, // exact on Base Sepolia, settled by the public x402 testnet facilitator (https://x402.org/facilitator)
+});
+```
+
+Under the hood this is `x207Middleware({ …, alsoAccept: [{ network: "eip155:84532", asset, payTo, facilitatorUrl, extra }] })`: a payment that picks the extra entry is verified and settled at that facilitator, never at the x207 one. Buyer outside the circle (needs `@x402/evm`, a test key from your own wallet, kept out of the repo):
+
+```ts
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const client = new x402Client().register("eip155:*", new ExactEvmScheme(privateKeyToAccount(process.env.EVM_TEST_KEY as `0x${string}`)));
+const response = await wrapFetchWithPayment(fetch, client)("https://seller.example/api/summarize");
+```
+
+A circle member registers the voucher scheme next to it. `X207PaymentClient` is an `x402Client` that already registers `x207:*`; other schemes are added with `register`, and it prefers the voucher while headroom lasts:
+
+```ts
+const client = new X207PaymentClient({ payer: "agent.near", secretKey, headroom: headroomFromRpc({}) });
+client.register("eip155:*", new ExactEvmScheme(account)); // optional fallback in USDC
+// the same as x402Client.register(`x207:${circleId}`, …) for a client built by hand
+```
+
+Run the seller with `BASE_SEPOLIA_PAY_TO=0x… npm run start -w @x207/example-seller`. The test `examples/seller/test/seller.base-sepolia.test.ts` runs both buyers locally with a mock facilitator and no keys.
+
 Joining a circle (`onboardMember`: voucher key, `join`, stake, wait for `active`) is in the [quickstart](https://github.com/x207-labs/x207/blob/main/docs/quickstart.md). Selling: [docs/seller-quickstart.md](docs/seller-quickstart.md). Full tested examples: [`examples/buyer`](examples/buyer), [`examples/seller`](examples/seller).
 
 ## Develop and test

@@ -70,12 +70,33 @@ export function memoryInFlightGuard(): InFlightGuard {
   };
 }
 
+/**
+ * An extra `accepts` entry that another facilitator settles (SD-093), e.g. `exact` on Base Sepolia (`eip155:84532`) for buyers outside the circle.
+ * The entry is added after the x207 and near `exact` entries. A payment that picks it is verified and settled at its own `facilitatorUrl`
+ * (the x402 `/verify` and `/settle`), never at the x207 facilitator. `amount` defaults to the price of the route, so it is right only for an
+ * asset with the same decimals as the credit unit (6, as USDC); give `amount` for other assets.
+ */
+export type X207AlsoAccept = {
+  network: string;
+  asset: string;
+  /** The seller's address on that network (for `eip155:*`, the `0x` address). */
+  payTo: string;
+  facilitatorUrl: string;
+  scheme?: string;
+  amount?: string;
+  maxTimeoutSeconds?: number;
+  /** For `exact` on EVM: the EIP-3009 domain of the token, e.g. `{ name: "USDC", version: "2" }`. */
+  extra?: Record<string, unknown>;
+};
+
 export type X207MiddlewareOptions = {
   /** Key `"/path"` or `"METHOD /path"`. Routes outside the list are passed to the handler without a 402. */
   routes: Record<string, X207RouteConfig>;
   facilitatorUrl: string;
   circleId: string;
   payTo: AccountId;
+  /** Extra entries of `accepts` settled by other facilitators (SD-093). */
+  alsoAccept?: X207AlsoAccept[];
   fetch?: typeof fetch;
   timeoutMs?: number;
   /** Replaces the default `extra` source (`/supported` cache, 60 seconds). */
@@ -130,10 +151,10 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
   const inFlight = options.inFlight ?? memoryInFlightGuard();
   const maxHoldMs = options.maxHoldMs ?? IN_FLIGHT_MAX_HOLD_MS;
 
-  async function call(path: string, init?: RequestInit): Promise<any> {
+  async function call(path: string, init?: RequestInit, root: string = base): Promise<any> {
     let response: Response;
     try {
-      response = await fetchFn(`${base}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+      response = await fetchFn(`${root}${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     } catch (error) {
       throw new FacilitatorUnavailable(`${path}: ${(error as Error).message}`);
     }
@@ -144,8 +165,8 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       throw new FacilitatorUnavailable(`${path}: response is not JSON`);
     }
   }
-  const post = (path: string, body: unknown) =>
-    call(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const post = (path: string, body: unknown, root?: string) =>
+    call(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }, root);
 
   async function resyncResponse(
     reason: string,
@@ -212,6 +233,17 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       return unavailable((error as Error).message);
     }
 
+    // SD-093: entries settled by another facilitator; remember which facilitator belongs to which entry
+    const roots = new Map<PaymentRequirements, string>();
+    for (const also of options.alsoAccept ?? []) {
+      const entry: PaymentRequirements = {
+        scheme: also.scheme ?? "exact", network: also.network, amount: also.amount ?? priced.amount, asset: also.asset, payTo: also.payTo,
+        maxTimeoutSeconds: also.maxTimeoutSeconds ?? 60, extra: also.extra ?? {},
+      } as PaymentRequirements;
+      accepts.push(entry);
+      roots.set(entry, also.facilitatorUrl.replace(/\/+$/, ""));
+    }
+
     const header = request.headers.get(HEADER_PAYMENT_SIGNATURE);
     if (header === null) return paymentRequiredResponse(resource, accepts, "PAYMENT-SIGNATURE header is required");
 
@@ -225,6 +257,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
     const requirements = accepts.find((r) => r.scheme === accepted?.scheme && r.network === accepted?.network);
     if (!requirements) return paymentRequiredResponse(resource, accepts, "invalid_payload");
     const body = { x402Version: 2, paymentPayload: payload, paymentRequirements: requirements };
+    const root = roots.get(requirements);
 
     const voucher = isRecord(payload.payload) && isRecord(payload.payload.voucher) ? payload.payload.voucher : undefined;
     const commitment =
@@ -233,7 +266,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
         : undefined;
     let giveBack: (() => Promise<void>) | undefined;
     try {
-      const verdict = await post("/verify", body);
+      const verdict = await post("/verify", body, root);
       if (!verdict?.isValid) {
         const reason = String(verdict?.invalidReason ?? "invalid_payload");
         const resync = RESYNC_REASONS.has(reason) ? await resyncResponse(reason, payload, requirements.network) : undefined;
@@ -266,7 +299,7 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
       // The handler failed or refused: there is no obligation (`authorization` flow), the response is passed through as-is.
       if (response.status >= 400) return response;
 
-      const settled = await post("/settle", body);
+      const settled = await post("/settle", body, root);
       if (settled?.success === true || settled?.errorReason === "settlement_pending") {
         const headers = new Headers(response.headers);
         headers.set(HEADER_PAYMENT_RESPONSE, toBase64(settled));

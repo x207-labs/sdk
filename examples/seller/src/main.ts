@@ -12,6 +12,15 @@ const app = createSeller({
   facilitatorUrl: required("FACILITATOR_URL"),
   circleId: required("CIRCLE_ID"),
   payTo: required("PAY_TO"),
+  // optional: BASE_SEPOLIA_PAY_TO=0x… adds `exact` on Base Sepolia (USDC testnet); BASE_SEPOLIA_FACILITATOR_URL overrides the public testnet facilitator
+  ...(process.env.BASE_SEPOLIA_PAY_TO
+    ? {
+        baseSepolia: {
+          payTo: process.env.BASE_SEPOLIA_PAY_TO,
+          ...(process.env.BASE_SEPOLIA_FACILITATOR_URL ? { facilitatorUrl: process.env.BASE_SEPOLIA_FACILITATOR_URL } : {}),
+        },
+      }
+    : {}),
 });
 const port = Number(process.env.PORT ?? 3000);
 serve({ fetch: app.fetch, port }, () => console.log(`x207 seller on :${port}`));
