@@ -1,6 +1,6 @@
 {
   "name": "@x207/scheme",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "x402 batch-settlement scheme on the network x207:<circleId>: client, seller middleware, facilitator, and buyer helpers for metered resources and access rent",
   "keywords": [
     "x402",
@@ -59,7 +59,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@x207/core": "0.0.1",
+    "@x207/core": "0.0.2",
     "@x402/core": "2.29.0"
   },
   "devDependencies": {
