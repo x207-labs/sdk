@@ -116,11 +116,11 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_pay_request",
     title: "Pay an x402 endpoint with a voucher",
     description:
-      "Fetches a URL; if the server answers 402 with an x207 payment request, signs a credit voucher with the agent's voucher key and repeats the request. Nothing is sent to the chain by this tool: the seller's facilitator registers the voucher. Refused when the price is above X207_MAX_PRICE_PER_CALL, when the budget of the session X207_MAX_SPEND_SESSION is used up, or when the payee is not an allowed, active member of the circle. The price in the 402 is not trusted.",
+      "Pay for an x402 resource with credit: fetches the URL and, on a 402 with an x207 payment request, signs a voucher and repeats the request, then returns the paid response. Nothing goes to the chain here; the seller's facilitator registers the voucher, and the debt is netted at the end of the epoch. Refused (with the reason) above X207_MAX_PRICE_PER_CALL, over the X207_MAX_SPEND_SESSION budget, or when the payee is not an active allowed member; the price in the 402 is never trusted. A non-402 answer is returned as it is, unpaid.",
     access: "write",
     inputSchema: {
       url: z.string().url().max(2048).describe("http or https URL of the paid resource."),
-      method: z.enum(["GET", "POST"]).default("GET"),
+      method: z.enum(["GET", "POST"]).default("GET").describe("HTTP method of the request; GET when left out."),
       body: z.string().max(100_000).optional().describe("Body of a POST, sent as it is (JSON text)."),
     },
     handler: async (args, ctx) => {
@@ -169,17 +169,17 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_list_offer",
     title: "List something on the marketplace",
     description:
-      "Signs a listing with the agent's voucher key (it offers one thing and seeks another) and posts it to the circle's marketplace book. Values are credit units (6 decimals). Moves no money.",
+      "Publish a listing on the circle's marketplace: signs with the voucher key what the agent offers and what it seeks in return, and posts it. Use x207_make_offer to answer someone else's listing. Values are credit units (6 decimals). Returns the listing hash; moves no money. Fails if the read API or the voucher key is not configured.",
     access: "write",
     inputSchema: {
-      offer_asset_type: ASSET_TYPE, offer_class: CLASS, offer_quantity: z.number().int().min(1).max(1_000_000), offer_value: AMOUNT,
-      want_asset_type: ASSET_TYPE, want_class: CLASS, want_quantity: z.number().int().min(1).max(1_000_000), want_value: AMOUNT,
+      offer_asset_type: ASSET_TYPE.describe("Type of what the agent offers, e.g. service:summary."), offer_class: CLASS.describe("Settlement class of the offered asset."), offer_quantity: z.number().int().min(1).max(1_000_000).describe("Units offered."), offer_value: AMOUNT.describe("Value of the offer in credit, smallest unit (6 decimals)."),
+      want_asset_type: ASSET_TYPE.describe("Type of what the agent seeks in return."), want_class: CLASS.describe("Settlement class of the wanted asset."), want_quantity: z.number().int().min(1).max(1_000_000).describe("Units wanted."), want_value: AMOUNT.describe("Value of the wanted side in credit, smallest unit."),
       terms: z.string().max(1000).regex(/^[\x20-\x7e]*$/, "printable ASCII").default(""),
       detail: z.string().max(4000).regex(/^[\x20-\x7e]*$/, "printable ASCII").default(""),
-      expires_in_hours: z.number().int().min(1).max(24 * 90).default(72),
-      discount_bps: z.number().int().min(0).max(10_000).default(0),
-      accept_payment: z.boolean().default(true),
-      discoverable: z.boolean().default(true),
+      expires_in_hours: z.number().int().min(1).max(24 * 90).default(72).describe("Hours until the listing expires (default 72, at most 90 days)."),
+      discount_bps: z.number().int().min(0).max(10_000).default(0).describe("Discount in basis points (100 = 1%) if the buyer pays in credit; 0 for none."),
+      accept_payment: z.boolean().default(true).describe("Whether offers in pay mode (credit) are welcome, besides barter."),
+      discoverable: z.boolean().default(true).describe("Whether x207_search_listings shows the listing; false keeps it reachable by hash only."),
     },
     handler: async (a, ctx) => {
       const rt = w(ctx);
@@ -201,11 +201,11 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_make_offer",
     title: "Make or counter an offer on a listing",
     description:
-      "Signs an offer (mode pay or barter) on a listing with the voucher key and posts it. For the next round of a negotiation, pass `in_reply_to`, the hash of the offer being answered. An offer is a proposal, not a payment, but its value is held to X207_MAX_PRICE_PER_CALL and the other party must be an allowed, active member.",
+      "Answer a listing with an offer (mode pay in credit, or barter): signs it with the voucher key and posts it. To counter an offer, set `in_reply_to` to the hash of the offer being answered; use x207_accept_offer to take an offer instead. An offer is a proposal, not a payment, but its value is held to X207_MAX_PRICE_PER_CALL and the other party must be an allowed, active member. Refused if the listing's hash does not verify.",
     access: "write",
     inputSchema: {
-      listing_hash: HASH64, mode: z.enum(["pay", "barter"]), value: AMOUNT, quantity: z.number().int().min(1).max(1_000_000).default(1),
-      deliver_in_hours: z.number().int().min(1).max(24 * 365).default(24), in_reply_to: HASH64.optional(),
+      listing_hash: HASH64.describe("Hash of the listing to answer, from x207_search_listings."), mode: z.enum(["pay", "barter"]).describe("pay: credit voucher; barter: goods for goods."), value: AMOUNT.describe("Value of the offer in credit, smallest unit (6 decimals)."), quantity: z.number().int().min(1).max(1_000_000).default(1).describe("Units asked for (default 1)."),
+      deliver_in_hours: z.number().int().min(1).max(24 * 365).default(24).describe("Hours within which delivery is promised (default 24)."), in_reply_to: HASH64.optional().describe("Hash of the offer being countered; leave out for a first offer."),
     },
     handler: async (a, ctx) => {
       const rt = w(ctx);
@@ -241,9 +241,9 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_accept_offer",
     title: "Accept an offer",
     description:
-      "Accepts an offer on a listing. The backend previews what acceptance does (a payment or a clearing bundle); the tool refuses when the agent would pay more than X207_MAX_PRICE_PER_CALL or more than is left of X207_MAX_SPEND_SESSION, or when another party is not an allowed, active member; otherwise it signs with the voucher key and posts the acceptance.",
+      "Accept an offer on a listing. The backend first previews the effect (a payment, or a netting bundle that cancels debts in a cycle); the tool refuses if the agent would pay more than X207_MAX_PRICE_PER_CALL or what is left of X207_MAX_SPEND_SESSION, or if another party is not an allowed, active member. Otherwise it signs with the voucher key, posts the acceptance and returns the preview and the result.",
     access: "write",
-    inputSchema: { listing_hash: HASH64, offer_hash: HASH64 },
+    inputSchema: { listing_hash: HASH64.describe("Hash of the listing."), offer_hash: HASH64.describe("Hash of the offer to accept, from the listing's offers.") },
     handler: async (a, ctx) => {
       const rt = w(ctx);
       const key = needVoucher(rt, "x207_accept_offer");
@@ -281,11 +281,11 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_confirm_milestone",
     title: "Act on a milestone of an order",
     description:
-      "Signs a notice for a milestone of a service order and posts it: the buyer `confirmed` (which commits the milestone amount, held to the price and session limits) or `disputed`; the seller `delivered` (with the hash of the deliverable) or `cancelled`. Moves no money by itself.",
+      "Move a milestone of a service order: the buyer sends `confirmed` (commits the milestone amount, held to the price and session limits) or `disputed`; the seller sends `delivered` (with the deliverable hash) or `cancelled`. Read the order first with x207_order_status. Refused if the agent is neither buyer nor seller or the milestone does not exist. Moves no money by itself.",
     access: "write",
     inputSchema: {
-      order_hash: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/), index: z.number().int().min(1).max(24),
-      action: z.enum(["confirmed", "disputed", "delivered", "cancelled"]), reason: z.string().min(1).max(200).optional(), deliverable_hash: HASH64.optional(),
+      order_hash: z.string().regex(/^[A-Za-z0-9_-]{8,128}$/).describe("Hash of the order, from x207_order_status."), index: z.number().int().min(1).max(24).describe("Milestone number, counted from 1."),
+      action: z.enum(["confirmed", "disputed", "delivered", "cancelled"]).describe("Buyer: confirmed or disputed. Seller: delivered or cancelled."), reason: z.string().min(1).max(200).optional().describe("Short reason, for disputed or cancelled."), deliverable_hash: HASH64.optional().describe("Hash of the delivered work; for delivered."),
     },
     handler: async (a, ctx) => {
       const rt = w(ctx);
@@ -321,7 +321,7 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_join",
     title: "Join the circle and stake",
     description:
-      "Joins the circle as the agent account and stakes USDT: sends join (with the storage deposit of 0.35 NEAR, not returned) and an ft_transfer_call of the stake, signed with the NEAR key. Off unless X207_ALLOW_OUTFLOWS=1 and X207_ALLOW_FULL_ACCESS_KEY=1; the stake counts against X207_MAX_SPEND_SESSION.",
+      "Join the circle as the agent account: sends join (storage deposit 0.35 NEAR, not returned) and an ft_transfer_call of the USDT stake, signed with the NEAR key. Run it once, before any payment; check the result with x207_member_inspect. Off unless X207_ALLOW_OUTFLOWS=1 and X207_ALLOW_FULL_ACCESS_KEY=1; the stake counts against X207_MAX_SPEND_SESSION.",
     access: "write",
     inputSchema: { terms_hash: HASH64.describe("sha256 of the circle terms the agent accepts."), stake_amount: AMOUNT.describe("USDT to lock as stake, smallest unit (6 decimals).") },
     handler: async (a, ctx) => {
@@ -347,9 +347,9 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_settle",
     title: "Pay the residual of an epoch",
     description:
-      "Pays what the agent owes after clearing for one epoch: an ft_transfer_call of USDT to the circle with the `settle` message, signed with the NEAR key. Pays at most the amount due. Off unless X207_ALLOW_OUTFLOWS=1 and X207_ALLOW_FULL_ACCESS_KEY=1; the amount counts against X207_MAX_SPEND_SESSION.",
+      "Pay the cash the agent owes for one closed epoch, i.e. what is left after netting: an ft_transfer_call of USDT to the circle with the `settle` message. Pays at most the amount due; an epoch where the agent owes nothing is an error. Find the epoch with x207_epoch_report. Off unless X207_ALLOW_OUTFLOWS=1 and X207_ALLOW_FULL_ACCESS_KEY=1; the amount counts against X207_MAX_SPEND_SESSION.",
     access: "write",
-    inputSchema: { epoch: EPOCH, amount: AMOUNT.optional().describe("Pay this much, at most the amount due; the whole amount due when left out.") },
+    inputSchema: { epoch: EPOCH.describe("The closed epoch the agent owes for."), amount: AMOUNT.optional().describe("Pay this much, at most the amount due; the whole amount due when left out.") },
     handler: async (a, ctx) => {
       const rt = w(ctx);
       rt.guards.outflows("x207_settle");
@@ -373,9 +373,9 @@ export const WRITE_TOOLS: ToolDef[] = [
     name: "x207_claim",
     title: "Claim a credit after clearing",
     description:
-      "Claims what the agent is owed for one epoch, to its own NEAR account (`near`) or its Intents balance (`intents`): sends claim with 1 yoctoNEAR, signed with the NEAR key. The destination is always the agent itself. Needs X207_ALLOW_FULL_ACCESS_KEY=1 because the call attaches a deposit.",
+      "Claim the cash the agent is owed for one closed epoch after netting, to its own NEAR account (`near`) or its Intents balance (`intents`): sends claim with 1 yoctoNEAR. The destination is always the agent itself. Nothing claimable for the epoch is an error. Needs X207_ALLOW_FULL_ACCESS_KEY=1 because the call attaches a deposit.",
     access: "write",
-    inputSchema: { epoch: EPOCH, destination: z.enum(["near", "intents"]).default("near") },
+    inputSchema: { epoch: EPOCH.describe("The closed epoch the agent is owed for."), destination: z.enum(["near", "intents"]).default("near").describe("near: the agent's NEAR account (default); intents: its Intents balance.") },
     handler: async (a, ctx) => {
       const rt = w(ctx);
       rt.guards.nearKey(await rt.keyKind(), "x207_claim");

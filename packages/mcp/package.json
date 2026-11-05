@@ -1,6 +1,6 @@
 {
   "name": "@x207/mcp",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "mcpName": "io.github.x207-labs/x207-mcp",
   "description": "MCP server for x207: read tools for a mutual-credit circle on NEAR (circle, members, epochs, clearing simulation, listings, orders) over stdio and Streamable HTTP",
   "keywords": [

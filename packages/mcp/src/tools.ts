@@ -64,9 +64,9 @@ export const READ_TOOLS: ToolDef[] = [
     name: "x207_circle_overview",
     title: "x207 circle overview",
     description:
-      "Overview of one x207 mutual-credit circle: its record and rules from the contract (get_circle, get_params) and its members (read API GET /members, or the contract view list_members when no read API is configured). Credit amounts are strings in the smallest unit (6 decimals).",
+      "Start here: the circle itself, i.e. its record and rules (get_circle, get_params) plus a page of its members (read API GET /members, or the contract view list_members when no read API is set). Use x207_member_inspect for one member in detail and x207_epoch_report for one epoch. Returns {contract, circleId, circle, params, members, membersSource, warnings}; amounts are strings in the smallest unit (6 decimals). If the members part fails it shows up in `warnings` and the rest is still returned; an unreachable contract RPC is an error.",
     access: "read",
-    inputSchema: { members_limit: LIMIT(200, 20), members_status: z.string().min(1).max(32).optional().describe("Only members with this status, e.g. active (read API only).") },
+    inputSchema: { members_limit: LIMIT(200, 20).describe("Size of the members page, 1 to 200 (default 20); the circle may have more members than this."), members_status: z.string().min(1).max(32).optional().describe("Keep only members with this status, e.g. active, suspended or exiting. Read API only; ignored on the contract fallback.") },
     handler: async (args, ctx) => {
       const { data, warnings } = await gather(
         { circle: () => ctx.view("get_circle", {}), params: () => ctx.view("get_params", {}) },
@@ -84,9 +84,9 @@ export const READ_TOOLS: ToolDef[] = [
     name: "x207_member_inspect",
     title: "Inspect a circle member",
     description:
-      "One member of the circle: status, stake, position and credit limit. Uses the read API (GET /members/{account} and /members/{account}/limits), or the contract views member and limit when no read API is configured.",
+      "One member of the circle: status, stake, outstanding debt and credit limit (read API GET /members/{account} and /limits, or the contract views member and limit when no read API is set). Use it after x207_circle_overview has shown the account ids, or before paying a member; for epoch-level amounts use x207_epoch_report. Returns {account, member, limits|limit, source, warnings}. An account that is not a member is an error (\"not a member\" or a 404 from the read API); a failed limits lookup is only a warning.",
     access: "read",
-    inputSchema: { account: ACCOUNT },
+    inputSchema: { account: ACCOUNT.describe("The member to look up: its NEAR account id, or for an EVM agent its lower-case 0x address.") },
     handler: async (args, ctx) => {
       const account = args.account as string;
       if (ctx.backend !== null) {
@@ -103,9 +103,9 @@ export const READ_TOOLS: ToolDef[] = [
     name: "x207_epoch_report",
     title: "Epoch report (report 207)",
     description:
-      "The state and the result of one clearing epoch: the contract record (get_epoch) and, from the read API, the epoch summary (GET /epochs/{n}), its metrics (cleared ratio, GET /epochs/{n}/metrics) and its settlements (GET /epochs/{n}/settlements). Without epoch, the current epoch.",
+      "One epoch of the circle: its phase and deadlines from the contract (get_epoch), and from the read API the summary, the metrics (cleared ratio: the share of debt that netting removed, so only the net cash moves) and the settlements, i.e. who owes whom what in cash. Use it after an epoch closed; use x207_simulate_clearing to test a proposal before it is submitted. Returns {epoch, contract, summary, metrics, settlements, source, warnings}. An epoch that does not exist is an error; if the read API is down the contract record is still returned, with the failures in `warnings`.",
     access: "read",
-    inputSchema: { epoch: EPOCH.optional().describe("Epoch number; the current epoch when left out."), settlements_limit: LIMIT(200, 20) },
+    inputSchema: { epoch: EPOCH.optional().describe("Epoch number, 0 or more. Leave out for the current epoch, which is still open and has no settlements yet."), settlements_limit: LIMIT(200, 20).describe("How many settlement rows to return, 1 to 200 (default 20). A busy epoch has more; raise it to see them all.") },
     handler: async (args, ctx) => {
       const record = (await ctx.view("get_epoch", args.epoch === undefined ? {} : { epoch: args.epoch })) as { epoch?: unknown } | null;
       if (record === null || typeof record.epoch !== "number") throw new ToolError(`epoch ${args.epoch ?? "(current)"} is not on the contract`);
@@ -126,11 +126,11 @@ export const READ_TOOLS: ToolDef[] = [
     name: "x207_simulate_clearing",
     title: "Simulate a clearing proposal",
     description:
-      "Asks the contract (view simulate_clearing) whether a proposed clearing for an epoch is valid and what it would clear. Each edge nets a debt: debtor owes creditor, `cleared` is the amount to cancel (decimal string, smallest unit). Changes nothing.",
+      "Dry run of a netting proposal: asks the contract (view simulate_clearing) whether the edges would be accepted for an epoch and how much debt they would cancel. Use it to check a proposal before a solver submits it; to see what a finished epoch actually netted use x207_epoch_report. Returns {epoch, edgeCount, result}. An invalid proposal (unknown member, amount above the debt, wrong epoch phase) comes back as an error text from the contract. Read-only, sends nothing.",
     access: "read",
     inputSchema: {
-      epoch: EPOCH,
-      edges: z.array(z.object({ debtor: ACCOUNT, creditor: ACCOUNT, cleared: z.string().regex(/^\d{1,38}$/, "a decimal integer string") })).min(1).max(300),
+      epoch: EPOCH.describe("The epoch the proposal is for; it must be one that can still accept a clearing."),
+      edges: z.array(z.object({ debtor: ACCOUNT.describe("Member that owes."), creditor: ACCOUNT.describe("Member that is owed."), cleared: z.string().regex(/^\d{1,38}$/, "a decimal integer string").describe("Debt to cancel on this edge, a decimal string in the smallest unit (6 decimals), at most what the debtor owes.") })).min(1).max(300).describe("1 to 300 debt edges; a cycle of edges nets to zero cash."),
     },
     handler: async (args, ctx) => ({ epoch: args.epoch, edgeCount: (args.edges as unknown[]).length, result: await ctx.view("simulate_clearing", { epoch: args.epoch, edges: args.edges }) }),
   },
@@ -138,17 +138,17 @@ export const READ_TOOLS: ToolDef[] = [
     name: "x207_search_listings",
     title: "Search marketplace listings",
     description:
-      "Listings of the circle's marketplace (read API GET /listings): what an account offers and what it wants. Filters are optional; `status` defaults to open. Use `cursor` from `nextCursor` for the next page.",
+      "Find offers on the circle's marketplace (read API GET /listings): what an account offers and what it wants. Use it to discover who sells a service; for an order that already exists use x207_order_status. Returns {items, nextCursor}; pass nextCursor as `cursor` for the next page. No match gives an empty list, not an error. Needs the read API (X207_BACKEND_URL) and fails with a clear message without it.",
     access: "read",
     inputSchema: {
-      status: z.enum(["open", "expired", "cancelled", "filled", "all"]).optional().describe("Default open."),
+      status: z.enum(["open", "expired", "cancelled", "filled", "all"]).optional().describe("Listing state to match; open when left out, all for every state."),
       account: ACCOUNT.optional().describe("Only listings of this account."),
-      offerType: z.string().min(3).max(129).optional().describe("Asset type offered, e.g. service:summary."),
-      wantType: z.string().min(3).max(129).optional(),
-      offerClass: z.enum(["A", "B", "C", "D", "X"]).optional(),
-      wantClass: z.enum(["A", "B", "C", "D", "X"]).optional(),
-      limit: LIMIT(200, 20),
-      cursor: z.string().min(1).max(512).optional(),
+      offerType: z.string().min(3).max(129).optional().describe("Asset type the lister offers, e.g. service:summary; exact match."),
+      wantType: z.string().min(3).max(129).optional().describe("Asset type the lister wants in return, same form as offerType."),
+      offerClass: z.enum(["A", "B", "C", "D", "X"]).optional().describe("Settlement class of the offered asset (A to D, X for other); keep only listings of this class."),
+      wantClass: z.enum(["A", "B", "C", "D", "X"]).optional().describe("Same, for the wanted asset."),
+      limit: LIMIT(200, 20).describe("Page size, 1 to 200 (default 20)."),
+      cursor: z.string().min(1).max(512).optional().describe("The nextCursor of the previous page; leave out for the first page."),
     },
     handler: async (args, ctx) => {
       const b = needBackend(ctx, "x207_search_listings");
@@ -160,14 +160,14 @@ export const READ_TOOLS: ToolDef[] = [
     name: "x207_order_status",
     title: "Order status",
     description:
-      "A service order of the circle's marketplace: parties, budget, milestones and status (read API GET /orders/{hash}). Without a hash, lists orders; filter by `party` and `status`.",
+      "Orders of the circle's marketplace (read API GET /orders). With a hash: one order with its parties, budget, milestones and status. Without a hash: a page of orders, filtered by party and status. Use x207_search_listings to find offers before an order exists. An unknown hash is an error (\"no order ... in circle\"); an empty list is a normal result. Needs the read API (X207_BACKEND_URL).",
     access: "read",
     inputSchema: {
       hash: HASH.optional().describe("The order hash. Leave out to list orders."),
       party: ACCOUNT.optional().describe("Only orders where this account is buyer or seller (listing only)."),
-      status: z.string().min(1).max(32).optional().describe("Only orders with this status (listing only)."),
-      limit: LIMIT(200, 20),
-      cursor: z.string().min(1).max(512).optional(),
+      status: z.string().min(1).max(32).optional().describe("Only orders in this state, e.g. open, delivered or disputed (listing only)."),
+      limit: LIMIT(200, 20).describe("Page size, 1 to 200 (default 20); listing only."),
+      cursor: z.string().min(1).max(512).optional().describe("The nextCursor of the previous page; listing only."),
     },
     handler: async (args, ctx) => {
       const b = needBackend(ctx, "x207_order_status");
