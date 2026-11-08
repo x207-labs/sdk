@@ -8,6 +8,7 @@
 import { verifyEvmAction, isEvmMemberId, type EvmAction } from "@x207/core/evm";
 import { EIP712_SIGNATURE_PATTERN, type AccountId } from "@x207/core";
 import { RateLimiter } from "./exact-guard.js";
+import { redactUrls } from "./rpc.js";
 
 /** Deposit that `join_evm` needs and the relayer attaches: 0.35 NEAR in yoctoNEAR (`JOIN_STORAGE_DEPOSIT` of the contract). */
 export const EVM_JOIN_DEPOSIT = 350_000_000_000_000_000_000_000n;
@@ -93,7 +94,7 @@ function signature(body: Record<string, unknown>): `eip712:0x${string}` {
 
 /** Contract panic text to HTTP answer. */
 function failure(error: unknown): EvmRelayError {
-  const text = error instanceof Error ? error.message : String(error);
+  const text = redactUrls(error instanceof Error ? error.message : String(error)); // A-SD-05: no RPC URL (API key) in an HTTP answer
   const table: Array<[string, EvmRelayError["status"], string]> = [
     ["ERR_BAD_EVM_SIG", 400, "bad_signature"], ["ERR_EVM_EXPIRED", 400, "expired"], ["ERR_BAD_EVM_ADDRESS", 400, "invalid_request"],
     ["ERR_BAD_TERMS_HASH", 400, "invalid_request"], ["ERR_BAD_EVM_RECEIVER", 400, "bad_receiver"], ["ERR_EVM_NONCE", 409, "bad_nonce"],
@@ -167,7 +168,7 @@ export class EvmRelay {
       const staked = await this.#o.caller.call("ft_transfer_call", { receiver_id: this.#o.circleContract, amount: stake.amount, msg: JSON.stringify({ action: "stake", member_id: who }) }, 1n, stake.tokenId);
       return { ...result, stakeTxHash: staked.hash };
     } catch (error) {
-      throw new EvmRelayError(502, "stake_failed", `joined, but the stake transfer failed: ${(error as Error).message}`.slice(0, 300));
+      throw new EvmRelayError(502, "stake_failed", `joined, but the stake transfer failed: ${redactUrls((error as Error).message)}`.slice(0, 300));
     }
   }
 

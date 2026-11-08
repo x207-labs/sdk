@@ -9,6 +9,7 @@ import {
   ConfigError,
   DEFAULT_RPC_TIMEOUT_MS,
   NearRpc,
+  redactUrls,
   createApp,
   loadConfig,
   type FacilitatorService,
@@ -119,6 +120,25 @@ describe("SD-021 scaffold apps/facilitator", () => {
     const res = await post(createApp(rpcBackedService(both)), "/verify", BODY);
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ error: "chain_unavailable" });
+  });
+
+  it("TC-SD-107-01 the 503 answer names no RPC URL (A-SD-05): the URLs, with their API keys, stay out of the body", async () => {
+    const down = await rpcServer(failing);
+    const down2 = await rpcServer(failing);
+    const secretA = `${down}/v2/SECRETKEY-A`;
+    const both = new NearRpc({ urls: [secretA, `${down2}?apikey=SECRETKEY-B`], timeoutMs: 200 });
+    const res = await post(createApp(rpcBackedService(both)), "/verify", BODY);
+    expect(res.status).toBe(503);
+    const text = await res.text();
+    expect(JSON.parse(text)).toMatchObject({ error: "chain_unavailable" });
+    expect(text).not.toContain("SECRETKEY");
+    expect(text).not.toContain("http");
+    expect(text).not.toContain("127.0.0.1");
+  });
+
+  it("TC-SD-107-02 redactUrls replaces every URL of a text", () => {
+    expect(redactUrls("all RPC endpoints failed (https://rpc.example/v2/KEY: HTTP 500; http://h:3030/?apikey=K2: timeout)")).toBe("all RPC endpoints failed (<rpc-url>: HTTP 500; <rpc-url>: timeout)");
+    expect(redactUrls("ERR_EVM_NONCE: nonce 5 expected 6")).toBe("ERR_EVM_NONCE: nonce 5 expected 6");
   });
 
   it("TC-SD-021-07 a contract error from RPC does not trigger failover", async () => {

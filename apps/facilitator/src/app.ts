@@ -11,7 +11,7 @@ import type { AccountId } from "@x207/core";
 import { assertCircleId } from "@x207/scheme";
 import { EvmRelayError, type EvmRelay } from "./evm-relay.js";
 import { RateLimiter, type RateLimitOptions } from "./exact-guard.js";
-import { ChainUnavailableError } from "./rpc.js";
+import { ChainUnavailableError, redactUrls } from "./rpc.js";
 
 export type PairStateQuery = { network: string; payer: string; payee: string; epoch: number };
 
@@ -147,7 +147,9 @@ export function createApp(service: FacilitatorService, options: AppOptions = {})
     }
     if (error instanceof ChainUnavailableError) {
       c.header("Retry-After", String(RETRY_AFTER_SECONDS));
-      return c.json({ error: "chain_unavailable", message: error.message }, 503);
+      // A-SD-05: the message lists every RPC URL (with its API key); the caller gets a fixed text, the log gets the redacted detail
+      console.error(`chain_unavailable: ${redactUrls(error.message)}`);
+      return c.json({ error: "chain_unavailable", message: "the chain is not reachable right now; try again later" }, 503);
     }
     console.error(error);
     return c.json({ error: "internal_error" }, 500);

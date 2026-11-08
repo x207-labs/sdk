@@ -1,4 +1,10 @@
 // NEAR JSON-RPC client with failover between endpoints and a per-call timeout (ADR-25).
+
+/** A-SD-05: RPC URLs often carry an API key in the path or the query. Any text that leaves the process (HTTP body, tool error) shows `<rpc-url>` instead. */
+export function redactUrls(text: string): string {
+  return text.replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s)"',;]+/gi, (url) => `<rpc-url>${/[:.]+$/.exec(url)?.[0] ?? ""}`); // the ":" that ends "(<url>: HTTP 500" stays
+}
+
 export class ChainUnavailableError extends Error {
   constructor(message: string) {
     super(message);
