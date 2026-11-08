@@ -11,6 +11,7 @@ import {
 } from "@x207/core";
 import type { CircleConfig } from "../shared/circle.js";
 import { computeBase } from "./headroom.js";
+import { KeyedLock } from "./keyed-lock.js";
 import { verifyPayment, type VerifyOptions } from "./verify.js";
 
 /** D3 pending store row needed by `settle`. */
@@ -60,7 +61,21 @@ function succeeded(circle: CircleConfig, voucher: UnsignedVoucher, row: PendingV
   };
 }
 
+const payerLock = new KeyedLock();
+
+/** A-SD-03/A-SD-04: settles of one payer (all payees: the headroom is the payer's) run one after the other, so verify and save see each other. */
 export async function settlePayment(
+  circle: CircleConfig,
+  options: SettleOptions,
+  payload: PaymentPayload,
+  requirements: PaymentRequirements,
+): Promise<SettleResponse> {
+  const parsed = validateX207Payload(payload.payload);
+  if (!parsed.ok) return settleUnlocked(circle, options, payload, requirements);
+  return payerLock.run(`${circle.circleContract}|${parsed.value.voucher.payer}`, () => settleUnlocked(circle, options, payload, requirements));
+}
+
+async function settleUnlocked(
   circle: CircleConfig,
   options: SettleOptions,
   payload: PaymentPayload,
