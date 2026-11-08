@@ -129,6 +129,31 @@ describe("SD-089 EVM relayer", () => {
     expect((await post("/evm/join", joinBody())).status).toBe(200);
   });
 
+  it("TC-SD-112-01 joins that run at the same time cannot all pass the hourly budget (A-SD-10); a failed join gives its slot back", async () => {
+    let calls = 0;
+    const slow: EvmCaller = { async call() { calls += 1; await new Promise((r) => setTimeout(r, 20)); return { hash: `h${calls}` }; } };
+    const make = (caller: EvmCaller) => {
+      const relay = new EvmRelay({ circleContract: fixture.circle, caller, now: () => NOW, maxJoinsPerHour: 2, perAddress: { max: 100 } });
+      const app = createApp({ verify: async () => ({}), settle: async () => ({}), supported: async () => ({}) } as unknown as FacilitatorService, { evm: relay, rateLimit: false });
+      return (body: unknown) => app.request("/evm/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    };
+    const statuses = (await Promise.all([1, 2, 3, 4].map(() => make(slow)(joinBody())))).map((r) => r.status);
+    // four separate relays above would each pass; the real check is one relay below
+    expect(statuses.every((s) => s === 200)).toBe(true);
+    const one = make(slow);
+    calls = 0;
+    const parallel = await Promise.all([1, 2, 3, 4].map(() => one(joinBody())));
+    expect(parallel.filter((r) => r.status === 200)).toHaveLength(2);
+    expect(parallel.filter((r) => r.status === 503)).toHaveLength(2);
+    expect(calls).toBe(2);
+    let broken = true;
+    const flaky: EvmCaller = { async call() { if (broken) throw new Error("Smart contract panicked: ERR_X"); return { hash: "ok" }; } };
+    const two = make(flaky);
+    for (let i = 0; i < 3; i++) expect((await two(joinBody())).status).not.toBe(503);
+    broken = false;
+    expect((await two(joinBody())).status).toBe(200);
+  });
+
   it("TC-SD-089-09 with a stake option the relayer also stakes for the new member; a failing stake is reported", async () => {
     const calls: Array<{ method: string; args: Record<string, unknown>; deposit: bigint; receiverId: string | undefined }> = [];
     const caller: EvmCaller = { async call(method, args, deposit, receiverId) { calls.push({ method, args, deposit, receiverId }); return { hash: `h${calls.length}` }; } };

@@ -161,8 +161,16 @@ export class EvmRelay {
     while (this.#joins.length > 0 && now - (this.#joins[0] as number) >= 3_600_000) this.#joins.shift();
     if (this.#joins.length >= (this.#o.maxJoinsPerHour ?? 20)) throw new EvmRelayError(503, "join_budget_used", "this relayer has sponsored its joins for this hour; try later", 600);
     const fee = this.#fee(body, false);
-    const result = await this.#send(who, "join", { member: who, epoch: 0, receiver: "", termsHash, nonce: 0, deadline, ...fee.signed }, deadline, sig, "join_evm", { address: who, terms_hash: termsHash, deadline, signature: sig }, EVM_JOIN_DEPOSIT);
+    // A-SD-10: the slot is taken BEFORE the awaited send, so parallel joins cannot all pass the check above; a join that fails gives the slot back (it cost no NEAR)
     this.#joins.push(now);
+    let result: EvmRelayResult;
+    try {
+      result = await this.#send(who, "join", { member: who, epoch: 0, receiver: "", termsHash, nonce: 0, deadline, ...fee.signed }, deadline, sig, "join_evm", { address: who, terms_hash: termsHash, deadline, signature: sig }, EVM_JOIN_DEPOSIT);
+    } catch (error) {
+      const at = this.#joins.indexOf(now);
+      if (at >= 0) this.#joins.splice(at, 1);
+      throw error;
+    }
     const stake = this.#o.stake;
     if (stake === undefined) return result;
     try {
