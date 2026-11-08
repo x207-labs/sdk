@@ -108,6 +108,17 @@ describe("SD-089 EVM relayer", () => {
     expect(Number(third.retryAfter)).toBeGreaterThanOrEqual(1);
   });
 
+  it("TC-SD-109-01 requests with a bad signature do not use up the budget of the address they name (A-SD-09)", async () => {
+    const { post, sent } = setup(undefined, { perAddressMax: 2 });
+    const forged = { ...exitBody(), signature: `eip712:0x${"11".repeat(64)}1b` };
+    for (let i = 0; i < 10; i++) expect((await post("/evm/exit", forged)).body.error).toBe("bad_signature");
+    // the owner of the address can still act: two signed requests fit, the third is limited
+    expect((await post("/evm/exit", exitBody())).status).toBe(200);
+    expect((await post("/evm/exit", exitBody())).status).toBe(200);
+    expect((await post("/evm/exit", exitBody())).status).toBe(429);
+    expect(sent).toHaveLength(2);
+  });
+
   it("TC-SD-089-07 the relayer sponsors at most maxJoinsPerHour joins", async () => {
     const { sent, post, advance } = setup(undefined, { maxJoinsPerHour: 1 });
     expect((await post("/evm/join", joinBody())).status).toBe(200);

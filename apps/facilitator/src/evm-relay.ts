@@ -134,12 +134,13 @@ export class EvmRelay {
   }
 
   async #send(who: string, action: EvmAction, expectedSignedBy: Record<string, unknown>, deadline: number, sig: `eip712:0x${string}`, method: string, args: Record<string, unknown>, deposit = 0n): Promise<EvmRelayResult> {
-    const wait = this.#perAddress.hit(who);
-    if (wait > 0) throw new EvmRelayError(429, "rate_limited", "too many requests for this address", Math.max(1, Math.ceil(wait / 1000)));
     if (this.#now() > deadline) throw new EvmRelayError(400, "expired", "deadline has passed");
     if (this.#o.maxDeadlineMs !== undefined && deadline > this.#now() + this.#o.maxDeadlineMs) throw new EvmRelayError(400, "deadline_too_far", `the deadline must be at most ${Math.round(this.#o.maxDeadlineMs / 1000)} seconds ahead`);
     const ok = await verifyEvmAction({ circle: this.#o.circleContract, action, ...expectedSignedBy } as never, sig);
     if (!ok) throw new EvmRelayError(400, "bad_signature", "the signature is not valid for this action, circle and member");
+    // A-SD-09: the budget of an address is spent only by a request that the address itself signed; junk that names someone else's address cannot lock that address out
+    const wait = this.#perAddress.hit(who);
+    if (wait > 0) throw new EvmRelayError(429, "rate_limited", "too many requests for this address", Math.max(1, Math.ceil(wait / 1000)));
     try {
       const { hash } = await this.#o.caller.call(method, args, deposit);
       return { ok: true, method, txHash: hash };
