@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createApp, type FacilitatorService } from "../src/app.js";
-import { EVM_JOIN_DEPOSIT, EvmRelay, type EvmCaller } from "../src/evm-relay.js";
+import { EVM_JOIN_DEPOSIT, EvmRelay, feeModeFor, type EvmCaller } from "../src/evm-relay.js";
 
 const fixture = JSON.parse(readFileSync(fileURLToPath(new URL("../../../packages/core/test/fixtures/evm-eip712-v1.json", import.meta.url)), "utf8")); // eight-field Action: contracts 0.0.14 and 0.0.15 (SD-100: v1)
 const fixture9 = JSON.parse(readFileSync(fileURLToPath(new URL("../../../packages/core/test/fixtures/evm-eip712.json", import.meta.url)), "utf8")); // nine fields, maxFee: contract 0.0.16
@@ -12,7 +12,7 @@ const sig = (name: string) => `eip712:${v[name].signature}`;
 const NOW = 1_800_000_000_000; // before the deadline 1_900_000_000_000 of the vectors
 
 type Sent = { method: string; args: Record<string, unknown>; deposit: bigint };
-function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax?: number; maxDeadlineMs?: number; withMaxFee?: boolean } = {}) {
+function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax?: number; maxDeadlineMs?: number; withMaxFee?: boolean | "all" } = {}) {
   const sent: Sent[] = [];
   const caller: EvmCaller = {
     async call(method, args, deposit) {
@@ -22,7 +22,7 @@ function setup(fail?: string, options: { maxJoinsPerHour?: number; perAddressMax
     },
   };
   let now = NOW;
-  const relay = new EvmRelay({ circleContract: fixture.circle, caller, now: () => now, maxJoinsPerHour: options.maxJoinsPerHour ?? 20, perAddress: { max: options.perAddressMax ?? 10 }, ...(options.maxDeadlineMs !== undefined ? { maxDeadlineMs: options.maxDeadlineMs } : {}), ...(options.withMaxFee ? { withMaxFee: true } : {}) });
+  const relay = new EvmRelay({ circleContract: fixture.circle, caller, now: () => now, maxJoinsPerHour: options.maxJoinsPerHour ?? 20, perAddress: { max: options.perAddressMax ?? 10 }, ...(options.maxDeadlineMs !== undefined ? { maxDeadlineMs: options.maxDeadlineMs } : {}), ...(options.withMaxFee ? { withMaxFee: options.withMaxFee } : {}) });
   const service = { verify: async () => ({}), settle: async () => ({}), supported: async () => ({}) } as unknown as FacilitatorService;
   const app = createApp(service, { evm: relay, rateLimit: false });
   const post = async (path: string, body: unknown) => {
@@ -191,6 +191,44 @@ describe("SD-089 EVM relayer", () => {
     // an eight-field signature is not valid for a 0.0.16 circle
     expect((await post("/evm/claim", { ...claim, signature: sig("claim") })).body.error).toBe("bad_signature");
     expect(sent).toHaveLength(6);
+  });
+
+  it("TC-SD-104-01 a 0.0.17 circle (withMaxFee all) sends max_fee on claim, exit, withdraw and auto-settle, and none on join (A-SD-01)", async () => {
+    const nine = fixture9.vectors;
+    const s9 = (name: string) => `eip712:${nine[name].signature}`;
+    const { post, sent } = setup(undefined, { withMaxFee: "all", perAddressMax: 100 });
+    const deadline = (name: string) => Number(nine[name].message.deadline);
+    const joined = await post("/evm/join", { address: fixture9.address, termsHash: nine.join.message.termsHash, deadline: deadline("join"), signature: s9("join") });
+    expect(joined.body, JSON.stringify(joined.body)).toMatchObject({ ok: true });
+    expect((await post("/evm/claim", { member: fixture9.address, epoch: 5, receiver: "agent.testnet", nonce: 0, deadline: deadline("claim"), maxFee: "250000", signature: s9("claim") })).body.ok).toBe(true);
+    const exited = await post("/evm/exit", { member: fixture9.address, nonce: 1, deadline: deadline("request_exit"), maxFee: "0", signature: s9("request_exit") });
+    expect(exited.body, JSON.stringify(exited.body)).toMatchObject({ ok: true });
+    expect((await post("/evm/withdraw", { member: fixture9.address, receiver: "agent.testnet", nonce: 2, deadline: deadline("withdraw_stake"), maxFee: "100000", signature: s9("withdraw_stake") })).body.ok).toBe(true);
+    expect((await post("/evm/auto-settle", { member: fixture9.address, enabled: true, nonce: 3, deadline: deadline("auto_settle"), maxFee: "0", signature: s9("auto_settle") })).body.ok).toBe(true);
+    expect((await post("/evm/auto-settle", { member: fixture9.address, enabled: false, nonce: 4, deadline: deadline("auto_settle_off"), maxFee: "0", signature: s9("auto_settle_off") })).body.ok).toBe(true);
+    expect(sent.map((s) => s.method)).toEqual(["join_evm", "claim_evm", "request_exit_evm", "withdraw_stake_evm", "set_auto_settle_evm", "set_auto_settle_evm"]);
+    expect(sent[0]!.args).not.toHaveProperty("max_fee");
+    expect(sent[1]!.args).toMatchObject({ max_fee: "250000" });
+    expect(sent[2]!.args).toEqual({ member: fixture9.address, nonce: 1, deadline: 1_900_000_000_000, max_fee: "0", signature: s9("request_exit") });
+    expect(sent[3]!.args).toMatchObject({ max_fee: "100000" });
+    expect(sent[4]!.args).toEqual({ member: fixture9.address, enabled: true, nonce: 3, deadline: 1_900_000_000_000, max_fee: "0", signature: s9("auto_settle") });
+    expect(sent[5]!.args).toMatchObject({ enabled: false, max_fee: "0" });
+    // the ceiling of exit and auto-settle is signed too: a missing, another or malformed maxFee sends nothing
+    expect((await post("/evm/exit", { member: fixture9.address, nonce: 1, deadline: deadline("request_exit"), signature: s9("request_exit") })).body.error).toBe("invalid_request");
+    expect((await post("/evm/exit", { member: fixture9.address, nonce: 1, deadline: deadline("request_exit"), maxFee: "5", signature: s9("request_exit") })).body.error).toBe("bad_signature");
+    expect((await post("/evm/auto-settle", { member: fixture9.address, enabled: true, nonce: 3, deadline: deadline("auto_settle"), maxFee: "-1", signature: s9("auto_settle") })).body.error).toBe("invalid_request");
+    expect(sent).toHaveLength(6);
+  });
+
+  it("TC-SD-104-02 feeModeFor reads the interface_version of the circle: 0.0.17 and later all, 0.0.16 true, older and unknown false", () => {
+    expect(feeModeFor("0.0.17")).toBe("all");
+    expect(feeModeFor("0.0.18")).toBe("all");
+    expect(feeModeFor("0.1.0")).toBe("all");
+    expect(feeModeFor("0.0.16")).toBe(true);
+    expect(feeModeFor("0.0.15")).toBe(false);
+    expect(feeModeFor("0.0.14")).toBe(false);
+    expect(feeModeFor("")).toBe(false);
+    expect(feeModeFor("v17")).toBe(false);
   });
 });
 

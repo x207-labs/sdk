@@ -41,9 +41,20 @@ export type EvmRelayOptions = {
    * SD-100: the circle is contract 0.0.16, where every signed `Action` has the ninth field `maxFee`. `claim` and `withdraw` then need `maxFee` in the body (a decimal string of the credit unit),
    * which is checked against the signature and passed on as the argument `max_fee`; the other routes verify with `maxFee` 0 (the contract signs 0 for them) and a `maxFee` in their body is refused.
    * Off (default) for 0.0.14 and 0.0.15: the eight-field `Action`, and a `maxFee` in the body is refused.
+   * A-SD-01 (contract 0.0.17): `"all"` also takes `maxFee` on `exit` and `autoSettle` (`request_exit_evm` and `set_auto_settle_evm` have the required argument `max_fee`);
+   * only `join` signs 0. `true` stays the 0.0.16 behaviour (claim and withdraw only). `feeModeFor(interface_version)` picks the value from the circle.
    */
-  withMaxFee?: boolean;
+  withMaxFee?: boolean | "all";
 };
+
+/** A-SD-01: the `withMaxFee` option for the `interface_version` view of a circle: 0.0.17 and later `"all"`, 0.0.16 `true`, older `false`. Unknown text gives `false`. */
+export function feeModeFor(interfaceVersion: string): boolean | "all" {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(interfaceVersion);
+  if (!match) return false;
+  const [major, minor, patch] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  if (major > 0 || minor > 0 || patch >= 17) return "all";
+  return patch === 16 ? true : false;
+}
 
 export class EvmRelayError extends Error {
   constructor(readonly status: 400 | 404 | 409 | 429 | 502 | 503, readonly code: string, message: string, readonly retryAfterSeconds?: number) {
@@ -180,8 +191,8 @@ export class EvmRelay {
     const nonce = uint(body, "nonce");
     const deadline = uint(body, "deadline");
     const sig = signature(body);
-    const fee = this.#fee(body, false);
-    return this.#send(member, "request_exit", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "request_exit_evm", { member, nonce, deadline, signature: sig });
+    const fee = this.#fee(body, this.#o.withMaxFee === "all");
+    return this.#send(member, "request_exit", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "request_exit_evm", { member, nonce, deadline, ...fee.arg, signature: sig });
   }
 
   /** Body: `{ member, receiver, nonce, deadline, signature }`. */
@@ -205,7 +216,7 @@ export class EvmRelay {
     const nonce = uint(body, "nonce");
     const deadline = uint(body, "deadline");
     const sig = signature(body);
-    const fee = this.#fee(body, false);
-    return this.#send(member, enabled ? "auto_settle" : "auto_settle_off", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "set_auto_settle_evm", { member, enabled, nonce, deadline, signature: sig });
+    const fee = this.#fee(body, this.#o.withMaxFee === "all");
+    return this.#send(member, enabled ? "auto_settle" : "auto_settle_off", { member, epoch: 0, receiver: "", termsHash: "", nonce, deadline, ...fee.signed }, deadline, sig, "set_auto_settle_evm", { member, enabled, nonce, deadline, ...fee.arg, signature: sig });
   }
 }

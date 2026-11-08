@@ -5,7 +5,7 @@ import { createFacilitatorNearSigner } from "@x402/near";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { PendingStore } from "./pending-store.js";
-import { EvmRelay } from "./evm-relay.js";
+import { EvmRelay, feeModeFor } from "./evm-relay.js";
 import { NearContractCaller, NearRegistrationChain } from "./relay.js";
 import { EXACT_NEAR_NETWORK, createFacilitatorService, type ExactNearNetwork } from "./service.js";
 import { RegistrationScheduler } from "./scheduler.js";
@@ -77,9 +77,17 @@ const evmAccount = process.env.X207_EVM_RELAYER_ACCOUNT_ID;
 const evmKey = process.env.X207_EVM_RELAYER_PRIVATE_KEY;
 if (Boolean(evmAccount) !== Boolean(evmKey)) throw new Error("X207_EVM_RELAYER_ACCOUNT_ID and X207_EVM_RELAYER_PRIVATE_KEY must be set together");
 const evmCircle = config.circles.find((c) => c.network === `x207:${process.env.X207_EVM_CIRCLE}`) ?? config.circles[0]!;
+// A-SD-01: contract 0.0.16 and 0.0.17 sign a ninth field `maxFee`, and 0.0.17 takes `max_fee` on claim, exit, withdraw and auto-settle. X207_EVM_MAX_FEE = auto (default: read
+// `interface_version` of the circle), off (0.0.14/0.0.15), 0.0.16 (claim and withdraw) or 0.0.17 (all four routes).
+const evmFeeSetting = process.env.X207_EVM_MAX_FEE ?? "auto";
+const evmWithMaxFee: boolean | "all" =
+  evmFeeSetting === "off" ? false : evmFeeSetting === "0.0.16" ? true : evmFeeSetting === "0.0.17" ? "all"
+  : evmFeeSetting === "auto" ? (evmAccount && evmKey ? feeModeFor(await rpc.view<string>(evmCircle.circleContract, "interface_version")) : false)
+  : (() => { throw new Error("X207_EVM_MAX_FEE must be auto, off, 0.0.16 or 0.0.17"); })();
 const evm = evmAccount && evmKey
   ? new EvmRelay({
       circleContract: evmCircle.circleContract,
+      withMaxFee: evmWithMaxFee,
       caller: new NearContractCaller({ rpc, circleContract: evmCircle.circleContract, account: { accountId: evmAccount, privateKey: evmKey }, onHash: (hash) => console.log(JSON.stringify({ evmRelayTx: hash })) }),
       ...(process.env.X207_EVM_STAKE_TOKEN && process.env.X207_EVM_STAKE_AMOUNT ? { stake: { tokenId: process.env.X207_EVM_STAKE_TOKEN, amount: process.env.X207_EVM_STAKE_AMOUNT } } : {}),
       maxDeadlineMs: Number(process.env.X207_EVM_MAX_DEADLINE_SECONDS || 900) * 1000,
