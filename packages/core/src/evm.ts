@@ -1,4 +1,5 @@
-// EVM agents (SD-088): EIP-712 signatures for the x207 circle contract v0.0.15, separate entry `@x207/core/evm` so the main entry does not pull in viem.
+// EVM agents (SD-088): EIP-712 signatures for the x207 circle contract. v0.0.14 and v0.0.15 sign the eight-field `Action`; v0.0.16 and v0.0.17 the nine-field one with `maxFee`
+// (pass `maxFee`, also 0 for `join`, which the contract only accepts at 0: ERR_EVM_FEE_NOT_ALLOWED). Omitting `maxFee` against 0.0.17 fails safely with ERR_BAD_EVM_SIG (A-SD-13). Separate entry `@x207/core/evm` so the main entry does not pull in viem.
 // Types and domain are fixed by the design note "x207 - Desain Agent EVM" and by `contracts/tests/fixtures/evm-eip712.json` (CT-104); the Rust code must match byte for byte.
 import {
   bytesToHex, decodeFunctionData, encodeFunctionData, hashTypedData, hexToBytes, hexToString, keccak256, parseAbi, parseTransaction, recoverTransactionAddress, recoverTypedDataAddress, stringToBytes, toHex, type Hex,
