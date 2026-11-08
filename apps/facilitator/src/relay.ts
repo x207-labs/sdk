@@ -3,7 +3,7 @@
 import { KeyPair, PublicKey, type KeyPairString } from "@near-js/crypto";
 import { KeyPairSigner } from "@near-js/signers";
 import { actionCreators, createTransaction, encodeTransaction } from "@near-js/transactions";
-import { base58Decode, type AccountId, type ContractAbi, type Signature, type UnsignedVoucher } from "@x207/core";
+import { base58Decode, base58Encode, type AccountId, type ContractAbi, type Signature, type UnsignedVoucher } from "@x207/core";
 import { GasKeyLanes, signGasKeyTransaction } from "./gas-key.js";
 import type { NearRpc } from "./rpc.js";
 import type { RegisterMode, RegistrationChain } from "./scheduler.js";
@@ -137,9 +137,20 @@ export class NearContractCaller {
   }
 
   call(method: string, args: Record<string, unknown>, deposit: bigint, receiverId?: string, gas = 100_000_000_000_000n): Promise<{ hash: string }> {
-    const run = this.#tail.then(() => this.#once(method, args, deposit, gas, receiverId).catch((error) => {
-      if (/InvalidNonce/.test(String(error instanceof Error ? error.message : error))) return this.#once(method, args, deposit, gas, receiverId);
-      throw error;
+    const run = this.#tail.then(() => this.#once(method, args, deposit, gas, receiverId).catch(async (error) => {
+      if (!/InvalidNonce/.test(String(error instanceof Error ? error.message : error))) throw error;
+      // A-SD-11: InvalidNonce after a timeout and failover can mean that the FIRST send landed. Look the transaction up by its hash before signing a second one (a second ft_transfer_call stake would pay twice).
+      const known = (error as { txHash?: string }).txHash;
+      if (known !== undefined) {
+        const landed = await this.options.rpc.call<TxResult>("tx", { tx_hash: known, sender_account_id: this.options.account.accountId, wait_until: "FINAL" }).catch(() => null);
+        if (landed !== null) {
+          const failed = transactionFailure(landed);
+          if (failed) throw new Error(failed);
+          this.options.onHash?.(known);
+          return { hash: known };
+        }
+      }
+      return this.#once(method, args, deposit, gas, receiverId);
     }));
     this.#tail = run.catch(() => undefined);
     return run;
@@ -153,8 +164,10 @@ export class NearContractCaller {
       account.accountId, this.#publicKey, receiverId ?? circleContract, BigInt(key.nonce) + 1n,
       [actionCreators.functionCall(method, args, gas, deposit)], base58Decode(block.header.hash),
     );
-    const [, signed] = await this.#signer.signTransaction(transaction);
-    const result = await rpc.call<TxResult>("send_tx", { signed_tx_base64: Buffer.from(encodeTransaction(signed)).toString("base64"), wait_until: "FINAL" });
+    const [digest, signed] = await this.#signer.signTransaction(transaction);
+    const result = await rpc.call<TxResult>("send_tx", { signed_tx_base64: Buffer.from(encodeTransaction(signed)).toString("base64"), wait_until: "FINAL" }).catch((error: unknown) => {
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), { txHash: base58Encode(digest) });
+    });
     const hash = String((result as { transaction?: { hash?: string } }).transaction?.hash ?? "");
     this.options.onHash?.(hash);
     const failed = transactionFailure(result);
