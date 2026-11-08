@@ -61,6 +61,26 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
+/**
+ * A-SD-12: the checks of `verifyPayment` that need no chain and no store (version, scheme, network, requirements equal to what was accepted, circle, payee, no self payment).
+ * The idempotent shortcut of `settle` answers success for a stored row only when these hold, so a custom seller that never called `/verify` gets the same refusal.
+ */
+export function requirementsMatch(circle: CircleConfig, payload: PaymentPayload, requirements: PaymentRequirements): boolean {
+  const accepted = payload.accepted as unknown as Record<string, unknown> | undefined;
+  if (payload.x402Version !== 2 || accepted?.scheme !== X207_SCHEME || accepted.network !== circle.network) return false;
+  if (!deepEqual(accepted, requirements)) return false;
+  if (typeof requirements.amount !== "string" || !POSITIVE_UINT.test(requirements.amount)) return false;
+  const checkedRequirements = validatePaymentRequirements(requirements);
+  if (!checkedRequirements.ok) return false;
+  const { extra, payTo } = checkedRequirements.value;
+  const checkedPayload = validateX207Payload(payload.payload);
+  if (!checkedPayload.ok) return false;
+  const { voucher } = checkedPayload.value as X207Payload;
+  if (voucher.circle !== extra.circleContract || extra.circleContract !== circle.circleContract) return false;
+  if (voucher.payee !== payTo || voucher.payer === voucher.payee) return false;
+  return !(extra.grantId !== undefined && voucher.resource !== grantResource(extra.grantId));
+}
+
 export async function verifyPayment(
   circle: CircleConfig,
   options: VerifyOptions,

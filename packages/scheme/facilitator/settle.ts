@@ -12,7 +12,7 @@ import {
 import type { CircleConfig } from "../shared/circle.js";
 import { computeBase } from "./headroom.js";
 import { KeyedLock } from "./keyed-lock.js";
-import { verifyPayment, type VerifyOptions } from "./verify.js";
+import { requirementsMatch, verifyPayment, type VerifyOptions } from "./verify.js";
 
 /** D3 pending store row needed by `settle`. */
 export type PendingVoucherRecord = {
@@ -97,6 +97,7 @@ async function settleUnlocked(
     const stored = await options.store.get(voucher.payer, voucher.payee, voucher.epoch);
     if (
       stored &&
+      requirementsMatch(circle, payload, requirements) &&
       stored.seq === voucher.seq &&
       stored.cumulativeAmount === voucher.cumulativeAmount &&
       stored.signature === signature &&
