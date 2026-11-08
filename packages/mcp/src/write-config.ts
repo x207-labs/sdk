@@ -86,6 +86,21 @@ export function writeConfigFromEnv(env: Record<string, string | undefined> = pro
   };
 }
 
+/**
+ * A-SD-06: an unexpected error ("all RPC endpoints failed (https://rpc.example/v2/KEY: HTTP 500)") names the RPC URLs of the configuration, and those often carry an API key in the path or the query.
+ * The model gets the origin only (user name, password, path and query are dropped), enough to tell which host failed.
+ */
+export function redactUrls(text: string): string {
+  return text.replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s)"',;]+/gi, (match) => {
+    const tail = /[:.]+$/.exec(match)?.[0] ?? "";
+    try {
+      return `${new URL(match.slice(0, match.length - tail.length)).origin}${tail}`;
+    } catch {
+      return `<url>${tail}`;
+    }
+  });
+}
+
 /** Takes every secret of the write configuration out of a text, for the error of a tool and for the log. */
 export function scrub(text: string, cfg: WriteConfig | null): string {
   let out = text;

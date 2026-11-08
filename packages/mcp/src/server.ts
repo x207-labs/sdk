@@ -5,7 +5,7 @@ import { createBackendGet, createBackendPost } from "./backend.js";
 import type { McpConfig } from "./config.js";
 import { READ_TOOLS, ToolError, type ToolContext, type ToolDef } from "./tools.js";
 import { availableWriteTools, createWriteRuntime } from "./write-tools.js";
-import { scrub, type WriteConfig } from "./write-config.js";
+import { redactUrls, scrub, type WriteConfig } from "./write-config.js";
 import type { ContractCall } from "@x207/core";
 
 export type Transport = "stdio" | "http";
@@ -63,7 +63,8 @@ export function createX207McpServer(config: McpConfig, transport: Transport, opt
           return { content: [{ type: "text" as const, text: scrub(text(await tool.handler(args as never, ctx)), writeCfg) }] };
         } catch (error) {
           // a tool error is an answer for the model, not a crash of the server; no key can be in it
-          const message = error instanceof ToolError ? error.message : `${tool.name} failed: ${(error as Error).message}`;
+          // A-SD-06: an unexpected error may list the RPC URLs with their API keys; a ToolError is written for the model and stays as it is
+          const message = error instanceof ToolError ? error.message : redactUrls(`${tool.name} failed: ${(error as Error).message}`);
           return { isError: true, content: [{ type: "text" as const, text: scrub(message, writeCfg) }] };
         }
       }) as never,
