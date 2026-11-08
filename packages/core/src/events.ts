@@ -109,6 +109,10 @@ export type X207EventMap = {
   // interface 0.0.16 (SD-101, CT-117; 0.0.17, SD-102, also `request_exit_evm` / `set_auto_settle_evm`): the relayer of `claim_evm` / `withdraw_stake_evm` was paid its fee, or the fee transfer failed and the amount went back to the member
   relayer_fee_paid: { account_id: AccountId; relayer: AccountId; action: string; epoch: number; amount: U128String };
   relayer_fee_failed: { account_id: AccountId; relayer: AccountId; action: string; epoch: number; amount: U128String };
+  // interface 0.0.18 (SD-119, CT-123): a pending member without stake was removed (by the owner, or by anyone after 7 days), the slot is free again
+  member_removed: { account_id: AccountId; by_owner: boolean };
+  // interface 0.0.18 (SD-119, CT-126): the locker on the sold account registered, the account escrow is held
+  account_escrow_held: { grant_id: number; account_id: AccountId };
   intents_withdrawn: { amount: U128String };
   bundle_committed: { bundle_id: string | number; terms_hash: string; epoch: number; legs: BundleLeg[]; solver: AccountId };
   // interface 0.0.12 (SD-073): freeze of a member (CT-095), official contracts of an asset type (CT-096), deal with a bond and an arbiter (CT-094)
@@ -223,6 +227,8 @@ const SCHEMAS: { [K in X207EventName]: Schema } = {
   auto_settled: { epoch: "int", account_id: "str", due: "str", stake: "str", status: MEMBER_STATUS, position_status: { enum: ["due", "paid", "defaulted", "claimable", "claimed"] }, outstanding_debt: "str" },
   relayer_fee_paid: { account_id: "str", relayer: "str", action: "str", epoch: "int", amount: "str" },
   relayer_fee_failed: { account_id: "str", relayer: "str", action: "str", epoch: "int", amount: "str" },
+  member_removed: { account_id: "str", by_owner: "bool" },
+  account_escrow_held: { grant_id: "int", account_id: "str" },
   intents_withdrawn: { amount: "str" },
   bundle_committed: {
     bundle_id: "bundleid", terms_hash: "str", epoch: "int",
