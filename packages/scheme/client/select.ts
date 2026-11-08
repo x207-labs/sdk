@@ -9,7 +9,7 @@ import type {
 import type { AccountId, VoucherSecretKey } from "@x207/core";
 import type { VoucherSigner } from "@x207/core/signers";
 import { X207_SCHEME } from "../shared/circle.js";
-import { X207SchemeClient, type SpendLimit } from "./index.js";
+import { X207SchemeClient, type SpendLimit, type X207ClientOptions } from "./index.js";
 import type { VoucherStateStore } from "./store.js";
 
 type SelectPaymentRequirements = (
@@ -137,6 +137,8 @@ export type X207PaymentClientOptions = {
   bundleFor?: BundleLookup;
   /** Owner's local spend limit (SD-020); see `X207ClientOptions.spendLimit`. */
   spendLimit?: SpendLimit;
+  /** What a 402 may name (circles, payees, the open epoch); see `X207ClientOptions.accept`. */
+  accept?: X207ClientOptions["accept"];
   headroomCacheMs?: number;
   now?: () => number;
 };
@@ -166,6 +168,7 @@ export class X207PaymentClient extends x402Client {
       ...(options.store ? { store: options.store } : {}),
       ...(options.bundleFor ? { bundleFor: options.bundleFor } : {}),
       ...(options.spendLimit ? { spendLimit: options.spendLimit } : {}),
+      ...(options.accept ? { accept: options.accept } : {}),
     });
     this.register("x207:*", this.x207);
 
