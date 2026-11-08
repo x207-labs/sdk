@@ -83,6 +83,7 @@ export const RATE_LIMIT_DEFAULTS = { windowMs: 60_000, max: 600 } as const;
 
 /** Fixed window counter per key. `hit` returns `0` when the request may go on, or the milliseconds until the window ends. */
 export class RateLimiter {
+  static readonly MAX_KEYS = 10_000;
   readonly #windows = new Map<string, { start: number; count: number }>();
   readonly #windowMs: number;
   readonly #max: number;
@@ -99,7 +100,15 @@ export class RateLimiter {
     const now = this.#now();
     const entry = this.#windows.get(key);
     if (!entry || now - entry.start >= this.#windowMs) {
-      if (this.#windows.size > 10_000) this.#windows.clear();
+      // A-SD-08: at the cap drop the windows that ended, then the oldest ones; never wipe every key (that would give all clients, an abuser included, a fresh count)
+      this.#windows.delete(key);
+      if (this.#windows.size >= RateLimiter.MAX_KEYS) {
+        for (const [k, w] of this.#windows) if (now - w.start >= this.#windowMs) this.#windows.delete(k);
+        for (const k of this.#windows.keys()) {
+          if (this.#windows.size < RateLimiter.MAX_KEYS) break;
+          this.#windows.delete(k);
+        }
+      }
       this.#windows.set(key, { start: now, count: 1 });
       return 0;
     }

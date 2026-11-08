@@ -165,4 +165,24 @@ describe("exact route limits", () => {
     expect(limiter.hit("b")).toBe(0);
     expect(limiter.hit("a")).toBeGreaterThan(0);
   });
+
+  it("TC-SD-111-01 behind a proxy the client cannot pick its key: the last x-forwarded-for entry counts, a faked first entry does not", async () => {
+    const app = createApp(serviceOf(), { rateLimit: { max: 1 }, trustProxy: true });
+    const send = async (xff: string) => (await app.request("/verify", { method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": xff }, body: "{}" })).status;
+    expect(await send("9.9.9.1, 7.7.7.7")).toBe(400);
+    expect(await send("9.9.9.2, 7.7.7.7")).toBe(429); // same proxy-seen address, a different fake first entry
+    expect(await send("7.7.7.8")).toBe(400); // another real client
+  });
+
+  it("TC-SD-111-02 a flood of new keys does not reset the count of a client that is over the limit", () => {
+    let now = 0;
+    const limiter = new RateLimiter({ max: 1, windowMs: 60_000, now: () => now });
+    expect(limiter.hit("abuser")).toBe(0);
+    expect(limiter.hit("abuser")).toBeGreaterThan(0);
+    for (let i = 0; i < RateLimiter.MAX_KEYS + 5; i++) limiter.hit(`k${i}`);
+    // the oldest keys went (the abuser was the oldest): a limiter that stays bounded may forget it, but it must never forget everybody at once
+    expect(limiter.hit(`k${RateLimiter.MAX_KEYS + 4}`)).toBeGreaterThan(0);
+    now = 120_000;
+    expect(limiter.hit("abuser")).toBe(0); // expired windows are dropped normally
+  });
 });

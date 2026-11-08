@@ -74,7 +74,7 @@ function parsePairStateQuery(query: Record<string, string | undefined>): PairSta
 }
 
 export type AppOptions = {
-  /** Per client on `/verify` and `/settle` (default `RATE_LIMIT_DEFAULTS`); `false` turns it off. The client is the address of the socket, or the first `x-forwarded-for` when `trustProxy`. */
+  /** Per client on `/verify` and `/settle` (default `RATE_LIMIT_DEFAULTS`); `false` turns it off. The client is the address of the socket, or the last `x-forwarded-for` entry (the one the trusted proxy added) when `trustProxy`. */
   rateLimit?: RateLimitOptions | false;
   trustProxy?: boolean;
   /** SD-089: relayer for EVM agents; with it the routes `POST /evm/join`, `/evm/claim`, `/evm/exit`, `/evm/withdraw` and `/evm/auto-settle` exist. */
@@ -86,7 +86,8 @@ export function createApp(service: FacilitatorService, options: AppOptions = {})
   const limiter = options.rateLimit === false ? undefined : new RateLimiter(options.rateLimit);
   if (limiter) {
     const limited = async (c: import("hono").Context, next: () => Promise<void>) => {
-      const forwarded = options.trustProxy ? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() : undefined;
+      // A-SD-08: a proxy APPENDS the address it saw, so the first entry is whatever the client wrote (a new fake key per request = no limit); the last entry is the one the trusted proxy added
+      const forwarded = options.trustProxy ? c.req.header("x-forwarded-for")?.split(",").at(-1)?.trim() : undefined;
       const socket = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming?.socket?.remoteAddress;
       const wait = limiter.hit(forwarded || socket || "unknown");
       if (wait > 0) {
