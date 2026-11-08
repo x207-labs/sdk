@@ -90,6 +90,22 @@ export const isEvmMemberId = (value: unknown): value is `0x${string}` => typeof 
 
 export const isEip712Signature = (value: unknown): value is Eip712Signature => typeof value === "string" && EIP712_SIGNATURE_PATTERN.test(value);
 
+/** Order of the secp256k1 group halved: a valid `s` is at most this (low-s). */
+const SECP256K1_HALF_ORDER = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0n;
+
+/**
+ * A-SD-02: the contract recovers with `env::ecrecover(digest, sig, v, true)` (`evm.rs`), which refuses a high-s (malleable) signature and a `v` other than 0, 1, 27, 28.
+ * A verifier that accepts the high-s twin would say yes where the contract says no: a seller would serve and never be paid. `true` only for a canonical signature.
+ */
+export function isCanonicalEvmSignature(signature: string): boolean {
+  if (!isEip712Signature(signature)) return false;
+  const hex = signature.slice("eip712:0x".length);
+  if (hex.length !== 130) return false;
+  const s = BigInt(`0x${hex.slice(64, 128)}`);
+  const v = Number.parseInt(hex.slice(128, 130), 16);
+  return s !== 0n && s <= SECP256K1_HALF_ORDER && (v === 0 || v === 1 || v === 27 || v === 28);
+}
+
 /** Typed data of a voucher. `payer` is the lower-case `0x` address. */
 export function voucherTypedData(voucher: UnsignedVoucher) {
   return {
@@ -130,6 +146,7 @@ export const evmBundleDigest = (input: { circle: string; message: string; termsH
 /** Address that signed `typed`, lower-case, or `null` when the signature is malformed. */
 async function recover(typed: ReturnType<typeof voucherTypedData> | ReturnType<typeof actionTypedData> | ReturnType<typeof bundleTypedData>, signature: string): Promise<string | null> {
   if (!isEip712Signature(signature)) return null;
+  if (!isCanonicalEvmSignature(signature)) return null;
   try {
     const address = await recoverTypedDataAddress({ ...typed, signature: `0x${signature.slice("eip712:0x".length)}` } as unknown as Parameters<typeof recoverTypedDataAddress>[0]);
     return address.toLowerCase();
