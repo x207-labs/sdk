@@ -79,6 +79,12 @@ describe("UM-191 RPC failover and retry", () => {
     expect(isRateLimited(new RpcHttpError(429, "u"))).toBe(true);
     expect(isRateLimited(new Error("Rate limits exceeded. For higher rate limits get a subscription"))).toBe(true);
     expect(isRateLimited(new Error("THIS ENDPOINT IS DEPRECATED, HTTP 429"))).toBe(true);
+    // A-SD-07: digits 429 inside contract or action text are not a rate limit (the transaction may have run)
+    expect(isRateLimited(new Error("ERR_EVM_NONCE: nonce 429 expected 430"))).toBe(false);
+    expect(isRateLimited(new Error("Action #0: deposit 429 yocto exceeds balance"))).toBe(false);
+    expect(isRateLimited(new Error("Smart contract panicked: ERR_RATE_LIMIT_EXCEEDED"))).toBe(false);
+    expect(isRateLimited(new Error("balance is 4290000"))).toBe(false);
+    expect(isRateLimited(new Error("status 429 Too Many Requests"))).toBe(true);
     expect(isRateLimited(new RpcHttpError(503, "u"))).toBe(false);
     expect(isEndpointDown(new RpcHttpError(503, "u"))).toBe(true);
     expect(isEndpointDown(new Error("getaddrinfo ENOTFOUND near-testnet.drpc.org"))).toBe(true);

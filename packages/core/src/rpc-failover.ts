@@ -13,13 +13,16 @@ export class RpcHttpError extends Error {
   }
 }
 
-/** The endpoint refused because of its rate limit (HTTP 429, JSON-RPC code -429, or the words "rate limit" / "429" in the message). Nothing was executed. */
+/** The endpoint refused because of its rate limit (HTTP 429, JSON-RPC code -429, or the words "rate limit" / "HTTP 429" in a transport message, never in a contract panic or action error). Nothing was executed. */
 export function isRateLimited(error: unknown): boolean {
   if (error instanceof RpcHttpError) return error.status === 429;
   const code = (error as { code?: unknown } | null)?.code;
   if (code === -429 || code === 429) return true;
   const message = error instanceof Error ? error.message : String(error);
-  return /\b429\b|rate.?limit/i.test(message);
+  // A-SD-07: a contract panic or a failed action means the transaction may have run, and its text can hold the digits 429 ("ERR_EVM_NONCE: nonce 429 expected 430"). Never a rate limit.
+  if (/\bERR_[A-Z0-9_]+|smart contract panicked|Action #\d+|ExecutionError/i.test(message)) return false;
+  // "429" counts only as a status ("HTTP 429", "status 429", "code -429"), never as a bare number
+  return /\b(?:HTTP|status|code)[\s:=]*-?429\b|rate.?limit/i.test(message);
 }
 
 /** The endpoint may work for another one to ask: rate limited, HTTP 5xx, timeout, or no connection. A contract panic is not. */
