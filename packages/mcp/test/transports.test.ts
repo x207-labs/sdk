@@ -49,6 +49,21 @@ describe("SD-081: Streamable HTTP transport (read tools only)", () => {
     expect(big.status).toBe(413);
   });
 
+  it("TC-SD-116-01 a client over the per-minute limit gets 429 with retry-after, and gets service again in the next window (A-SD-14)", async () => {
+    let now = 1_000_000;
+    const http = await startHttpServer(mock().config, { port: 0, maxRequestsPerMinute: 2, now: () => now });
+    closers.push(http.close);
+    const post = async () => (await fetch(http.url, { method: "POST", headers: { "content-type": "application/json" }, body: "{not json" })).status;
+    expect(await post()).toBe(400);
+    expect(await post()).toBe(400);
+    const third = await fetch(http.url, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    expect(third.status).toBe(429);
+    expect(third.headers.get("retry-after")).toBe("60");
+    expect((await fetch(`${http.url.replace(/\/mcp$/, "")}/healthz`)).status).toBe(200); // health checks are not counted
+    now += 60_000;
+    expect(await post()).toBe(400);
+  });
+
   it("TC-SD-081-15 the server listens on 127.0.0.1 by default", async () => {
     const http = await startHttpServer(mock().config, { port: 0 });
     closers.push(http.close);

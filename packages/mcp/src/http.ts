@@ -14,6 +14,9 @@ export interface HttpOptions {
   maxBodyBytes?: number;
   /** Values of the `Host` header that are served, e.g. `["mcp.example.org"]`. On a loopback address the default is `127.0.0.1`, `localhost` and `[::1]` (with the port). */
   allowedHosts?: readonly string[];
+  /** A-SD-14: most `POST /mcp` requests per client address per minute (each one fans out to RPC and the read API); default 300, 0 turns it off. */
+  maxRequestsPerMinute?: number;
+  now?: () => number;
 }
 
 const json = (res: ServerResponse, status: number, body: unknown, extra: Record<string, string> = {}) => {
@@ -59,6 +62,26 @@ export function startHttpServer(config: McpConfig, options: HttpOptions = {}): P
     if (!loopback) return true;
     return [`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`, "127.0.0.1", "localhost", "[::1]", bind.toLowerCase(), `${bind.toLowerCase()}:${port}`, `[${bind.toLowerCase()}]:${port}`].includes(name);
   };
+  const limit = options.maxRequestsPerMinute ?? 300;
+  const clock = options.now ?? Date.now;
+  const windows = new Map<string, { start: number; count: number }>();
+  /** Fixed window per socket address; at 10 000 addresses the windows that ended go first, then the oldest (never all at once). */
+  const overLimit = (client: string): boolean => {
+    if (limit <= 0) return false;
+    const now = clock();
+    const entry = windows.get(client);
+    if (entry && now - entry.start < 60_000) return ++entry.count > limit;
+    windows.delete(client);
+    if (windows.size >= 10_000) {
+      for (const [k, w] of windows) if (now - w.start >= 60_000) windows.delete(k);
+      for (const k of windows.keys()) {
+        if (windows.size < 10_000) break;
+        windows.delete(k);
+      }
+    }
+    windows.set(client, { start: now, count: 1 });
+    return false;
+  };
   const server = createServer(async (req, res) => {
     try {
       const port = (req.socket.localPort ?? options.port ?? 0) as number;
@@ -67,6 +90,7 @@ export function startHttpServer(config: McpConfig, options: HttpOptions = {}): P
       if (path === "/healthz" && req.method === "GET") return json(res, 200, { ok: true, name: "x207-mcp" });
       if (path !== "/mcp") return json(res, 404, { error: "not_found" });
       if (req.method !== "POST") return json(res, 405, { jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed: this server is stateless, use POST /mcp" }, id: null }, { allow: "POST" });
+      if (overLimit(req.socket.remoteAddress ?? "unknown")) return json(res, 429, { jsonrpc: "2.0", error: { code: -32000, message: "too many requests" }, id: null }, { "retry-after": "60" });
       const body = await readBody(req, maxBody);
       const mcp = createX207McpServer(config, "http");
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
