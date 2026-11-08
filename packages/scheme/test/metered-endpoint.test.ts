@@ -99,4 +99,19 @@ describe("SD-064 createMeteredEndpoint", () => {
     expect(resourceListingDetail({ kind: "storage", unit: "GB", unitPriceAtomic: "20000", endpoint: "https://s.example.com/x" })).toBe(e.listingDetail("https://s.example.com/x"));
     expect(() => resourceListingDetail({ kind: "storage", unit: "GB", unitPriceAtomic: "20000", endpoint: "http://s.example.com" })).toThrow(/https/);
   });
+
+  it("TC-SD-118-01 home-device (#90) takes minute, day and job; each unit has its own ceiling, the 402 announces the meter, and the listing detail carries the unit", async () => {
+    for (const unit of ["minute", "day", "job"] as const) {
+      const e = createMeteredEndpoint({ kind: "home-device", unit, unitPrice: "$0.01", handler: () => new Response("ok") });
+      expect(e).toMatchObject({ assetType: "compute:home-device", assetClass: "D", unit, maxQuantity: String(DEFAULT_MAX_QUANTITY[unit]) });
+      expect(JSON.parse(e.listingDetail("https://home.example.com/api/device"))).toEqual({ kind: "home-device", unit, unit_price: "10000", endpoint: "https://home.example.com/api/device" });
+    }
+    expect(reject(() => createMeteredEndpoint({ kind: "home-device", unit: "GB", unitPrice: 1, handler: () => new Response() }))).toMatch(/does not fit home-device/);
+    const minutes = mount(createMeteredEndpoint({ kind: "home-device", unit: "minute", unitPrice: "$0.01", handler: vi.fn(() => new Response("ok")) }));
+    expect(required(await minutes.call("?quantity=30")).accepts[0]).toMatchObject({ amount: "300000", extra: { meter: { unit: "minute", quantity: "30", unit_price: "10000", max_quantity: "1440" } } });
+    expect((await minutes.call("?quantity=1441")).status).toBe(413);
+    const day = mount(createMeteredEndpoint({ kind: "home-device", unit: "day", unitPrice: "$1", handler: () => new Response("ok") }));
+    expect((await day.call("?quantity=32")).status).toBe(413);
+    expect(METERED_PRESETS["home-device"].warnings.join(" ")).toMatch(/security/);
+  });
 });
