@@ -78,12 +78,12 @@ const evmKey = process.env.X207_EVM_RELAYER_PRIVATE_KEY;
 if (Boolean(evmAccount) !== Boolean(evmKey)) throw new Error("X207_EVM_RELAYER_ACCOUNT_ID and X207_EVM_RELAYER_PRIVATE_KEY must be set together");
 const evmCircle = config.circles.find((c) => c.network === `x207:${process.env.X207_EVM_CIRCLE}`) ?? config.circles[0]!;
 // A-SD-01: contract 0.0.16 and 0.0.17 sign a ninth field `maxFee`, and 0.0.17 takes `max_fee` on claim, exit, withdraw and auto-settle. X207_EVM_MAX_FEE = auto (default: read
-// `interface_version` of the circle), off (0.0.14/0.0.15), 0.0.16 (claim and withdraw) or 0.0.17 (all four routes).
+// `interface_version` of the circle; 0.0.18 and later give "all" too), off (0.0.14/0.0.15), 0.0.16 (claim and withdraw) or 0.0.17 / 0.0.18 (all four routes; 0.0.18 changes no signed action).
 const evmFeeSetting = process.env.X207_EVM_MAX_FEE ?? "auto";
 const evmWithMaxFee: boolean | "all" =
-  evmFeeSetting === "off" ? false : evmFeeSetting === "0.0.16" ? true : evmFeeSetting === "0.0.17" ? "all"
+  evmFeeSetting === "off" ? false : evmFeeSetting === "0.0.16" ? true : evmFeeSetting === "0.0.17" || evmFeeSetting === "0.0.18" ? "all"
   : evmFeeSetting === "auto" ? (evmAccount && evmKey ? feeModeFor(await rpc.view<string>(evmCircle.circleContract, "interface_version")) : false)
-  : (() => { throw new Error("X207_EVM_MAX_FEE must be auto, off, 0.0.16 or 0.0.17"); })();
+  : (() => { throw new Error("X207_EVM_MAX_FEE must be auto, off, 0.0.16, 0.0.17 or 0.0.18"); })();
 const evm = evmAccount && evmKey
   ? new EvmRelay({
       circleContract: evmCircle.circleContract,
