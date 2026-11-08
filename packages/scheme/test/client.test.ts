@@ -35,7 +35,7 @@ const req = (overrides: { payTo?: string; epoch?: number; amount?: string } = {}
 
 const key = (epoch = 42, payee = PAYEE_B): VoucherPairKey => ({ payer: PAYER, payee, epoch });
 
-function setup(options: { confirmTimeoutMs?: number } = {}) {
+function setup(options: { confirmTimeoutMs?: number; accept?: ConstructorParameters<typeof X207SchemeClient>[0]["accept"] } = {}) {
   const store = new MemoryVoucherStateStore();
   const scheme = new X207SchemeClient({ payer: PAYER, secretKey: SEED, store, ...options });
   const client = new x402Client().register(X207_NETWORK_FAMILY, scheme);
@@ -219,5 +219,19 @@ describe("SD-018 client createPaymentPayload", () => {
     const voucher = voucherOf(await pay());
     expect(voucher.seq).toBe(1);
     expect(scheme.scheme).toBe("batch-settlement");
+  });
+
+  it("TC-AG-045-01 accept: a circle, payee or epoch the buyer did not choose is refused before any voucher is signed (A-AG-08, A-AG-09)", async () => {
+    let open: number | null = 42;
+    const { pay, scheme, ok } = setup({ accept: { circles: ["x207-circle.near"], payees: [PAYEE_B], currentEpoch: async () => open } });
+    const first = await pay();
+    expect(voucherOf(first).payee).toBe(PAYEE_B);
+    await ok(first);
+    await expect(pay(req({ payTo: "evil.x207-circle.near" }))).rejects.toThrow(/not one that this buyer pays/);
+    await expect(pay({ ...req(), extra: { ...req().extra, circleContract: "other-circle.near" } })).rejects.toThrow(/is not one that this buyer pays in/);
+    await expect(pay(req({ epoch: 43 }))).rejects.toThrow(/not the open epoch 42/);
+    expect(scheme.spentInEpoch(43)).toBe(0n); // nothing was reserved for the refused epoch
+    open = null; // epoch unknown: not checked
+    expect(voucherOf(await pay(req({ epoch: 43 }))).epoch).toBe(43);
   });
 });

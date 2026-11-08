@@ -85,6 +85,12 @@ export type X207ClientOptions = {
   spendLimit?: SpendLimit;
   /** The buyer's own count (SD-068): a 402 that announces `extra.meter` must match what the buyer requested, otherwise no voucher is signed. */
   meter?: BuyerMeter;
+  /**
+   * A-AG-09: what the buyer accepts from a 402, because circle, payee and epoch all come from the seller's answer. Each field is optional and checked before anything is reserved or signed.
+   * `circles`: circle contract accounts; `payees`: accounts the buyer may pay; `currentEpoch`: the open epoch (A-AG-08: a seller cannot announce a future epoch to get a fresh per-epoch allowance);
+   * when it returns `null` (unknown) the epoch is not checked.
+   */
+  accept?: { circles?: readonly string[]; payees?: readonly AccountId[]; currentEpoch?: () => Promise<number | null> };
 };
 
 type InFlight = {
@@ -122,6 +128,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
   private readonly bundleFor: ((payee: AccountId, epoch: number) => number | undefined) | undefined;
   private readonly spendLimit: SpendLimit | undefined;
   private readonly meter: BuyerMeter | undefined;
+  private readonly accept: X207ClientOptions["accept"];
   /** Spend per epoch already reserved: vouchers signed and not yet rejected by the server. */
   private readonly spent = new Map<number, bigint>();
   /** x402 `createPaymentPayload` does not accept `resource`; the before-creation hook passes it along. */
@@ -144,6 +151,7 @@ export class X207SchemeClient implements SchemeNetworkClient {
     this.bundleFor = options.bundleFor;
     this.spendLimit = options.spendLimit;
     this.meter = options.meter;
+    this.accept = options.accept;
   }
 
   /** Spend in epoch `epoch` counted against `maxPerEpoch`. */
@@ -196,6 +204,13 @@ export class X207SchemeClient implements SchemeNetworkClient {
       throw new Error("resource.url unknown: build the payload through x402Client so the hook is installed");
     }
 
+    const accept = this.accept;
+    if (accept?.circles !== undefined && !accept.circles.includes(extra.circleContract)) throw new Error(`circle ${extra.circleContract} is not one that this buyer pays in`);
+    if (accept?.payees !== undefined && !accept.payees.includes(payTo)) throw new Error(`payee ${payTo} is not one that this buyer pays`);
+    if (accept?.currentEpoch !== undefined) {
+      const open = await accept.currentEpoch();
+      if (open !== null && open !== extra.epoch) throw new Error(`epoch ${extra.epoch} announced by the seller is not the open epoch ${open}`);
+    }
     this.meter?.authorize((requirements.extra as { meter?: MeterAnnouncement } | undefined)?.meter, amount);
     // Spending limit is checked and reserved synchronously, before the pair queue and before signVoucher.
     this.reserve(extra.epoch, BigInt(amount));
