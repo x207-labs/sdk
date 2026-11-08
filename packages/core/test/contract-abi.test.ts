@@ -55,6 +55,7 @@ describe("SD-010 contract client types from abi.json", () => {
     expect(m("complete_account_escrow").params.args.map((a) => a.name)).toEqual(["grant_id", "voucher", "signature", "delivery_pubkey"]);
     expect(m("account_on_lock").params.args.map((a) => a.name)).toEqual(["grant_id"]);
     expect(m("remove_pending").params.args.map((a) => a.name)).toEqual(["account_id"]);
+    expect(m("cancel_expired_account_escrow").params.args.map((a) => a.name)).toEqual(["grant_id"]);
     expect(m("set_locker_code_hashes").kind).toBe("call");
     for (const view of ["get_account_escrow", "get_locker_code_hashes"]) expect(m(view).kind).toBe("view");
     // complete_escrow of 0.0.17 keeps its shape: the account sale has its own method

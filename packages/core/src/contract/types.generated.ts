@@ -3,7 +3,7 @@
 
 export const X207_CIRCLE_ABI_VERSION = "0.0.18";
 export const X207_CIRCLE_ABI_SCHEMA_VERSION = "0.4.0";
-export const X207_CIRCLE_ABI_SHA256 = "fadc660dc355a43c1454f4c6cf4c36a1a9c2b646b330af46b2c2cf19f87e49b4";
+export const X207_CIRCLE_ABI_SHA256 = "1f6457769a4aaebeb9f4c030447d521b5bced3305c7bf63ff94aa95b4d49cb89";
 export const X207_CIRCLE_EVENT_STANDARD = "x207";
 
 export type AccessGrant = { "asset_type": string; "class": AssetClass; "delivery_pubkey"?: string | null; "grant_id": number; "grantee"?: string | null; "grantor": string; "limits": GrantLimits; "operator"?: string | null; "proof_hash"?: string | null; "proof_kind"?: string | null; "status": GrantStatus; "unit": string; "unit_price": string };
@@ -113,6 +113,7 @@ export type CircleCalls = {
   "apply_freeze": { args: { "account_id": string }; result: void };
   "apply_upgrade": { args: Record<string, never>; result: Promise };
   "cancel_escrow": { args: { "grant_id": number }; result: Promise };
+  "cancel_expired_account_escrow": { args: { "grant_id": number }; result: Promise };
   "cancel_freeze": { args: { "account_id": string }; result: void };
   "claim": { args: { "epoch": number; "destination": ClaimDestination }; result: Promise; payable: true };
   "claim_evm": { args: { "member": string; "epoch": number; "receiver": string; "nonce": number; "deadline": number; "max_fee": string; "signature": string }; result: Promise };
@@ -170,7 +171,7 @@ export type CircleCalls = {
 };
 
 export const CIRCLE_VIEW_METHODS = ["bond_locked","evm_signer","get_account_escrow","get_asset_class","get_asset_contracts","get_bundle","get_circle","get_clearing_proposal","get_deal","get_epoch","get_escrow","get_freeze","get_ft_escrow","get_grant","get_intent","get_locker_code_hashes","get_mt_escrow","get_owner","get_params","get_pending_params","get_pool","get_proposal","get_upgrade","grants_of","headroom","intents_balance","interface_version","is_auto_settle","is_frozen","last_seq","limit","list_asset_classes","list_members","list_obligations","list_positions","member","net_position","obligation","outstanding_debt","simulate_clearing","solver_fee_balance"] as const;
-export const CIRCLE_CALL_METHODS = ["accept_grant","account_on_lock","admit_member","apply_freeze","apply_upgrade","cancel_escrow","cancel_freeze","claim","claim_evm","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","complete_account_escrow","complete_escrow","confirm_deal","dispute_deal","finalize_epoch","ft_on_transfer","join","join_evm","migrate","mt_on_transfer","new","nft_on_transfer","offer_grant","on_action_fee_resolved","on_claim_resolved","on_claim_resolved_fee","on_escrow_resolved","on_fee_refund_resolved","on_intents_withdrawn","on_solver_fee_resolved","on_withdraw_resolved","on_withdraw_resolved_fee","post_intent","propose_freeze","propose_upgrade","prune_epoch","register_cumulative","register_in_bundle","register_voucher","remove_intent","remove_pending","request_exit","request_exit_evm","revoke_grant","rule_deal","set_asset_class","set_asset_contracts","set_auto_settle","set_auto_settle_evm","set_locker_code_hashes","set_params","settle_deal","submit_clearing","unfreeze_member","withdraw_intents_balance","withdraw_stake","withdraw_stake_evm"] as const;
+export const CIRCLE_CALL_METHODS = ["accept_grant","account_on_lock","admit_member","apply_freeze","apply_upgrade","cancel_escrow","cancel_expired_account_escrow","cancel_freeze","claim","claim_evm","claim_solver_fee","close_epoch","commit_bundle","commit_epoch","complete_account_escrow","complete_escrow","confirm_deal","dispute_deal","finalize_epoch","ft_on_transfer","join","join_evm","migrate","mt_on_transfer","new","nft_on_transfer","offer_grant","on_action_fee_resolved","on_claim_resolved","on_claim_resolved_fee","on_escrow_resolved","on_fee_refund_resolved","on_intents_withdrawn","on_solver_fee_resolved","on_withdraw_resolved","on_withdraw_resolved_fee","post_intent","propose_freeze","propose_upgrade","prune_epoch","register_cumulative","register_in_bundle","register_voucher","remove_intent","remove_pending","request_exit","request_exit_evm","revoke_grant","rule_deal","set_asset_class","set_asset_contracts","set_auto_settle","set_auto_settle_evm","set_locker_code_hashes","set_params","settle_deal","submit_clearing","unfreeze_member","withdraw_intents_balance","withdraw_stake","withdraw_stake_evm"] as const;
 
 /** NEP-297 event names and the order of their `data` fields. */
 export const CIRCLE_EVENTS = {
