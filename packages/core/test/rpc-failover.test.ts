@@ -43,7 +43,7 @@ describe("UM-191 RPC failover and retry", () => {
 
   it("TC-UM-191-04 a 429 that goes away on the same endpoint is asked again there and never reaches the next one", async () => {
     let n = 0;
-    const fetchMock = vi.fn(async () => (++n === 1 ? new Response("", { status: 429 }) : ok("7")));
+    const fetchMock = vi.fn(async (_url?: unknown) => (++n === 1 ? new Response("", { status: 429 }) : ok("7")));
     const view = createCircleViewFn({
       circleContract: "c.testnet", rpcUrls: ["http://first.test", "http://second.test"], fetch: fetchMock as unknown as typeof fetch,
       failover: { sleep: async () => {} },
