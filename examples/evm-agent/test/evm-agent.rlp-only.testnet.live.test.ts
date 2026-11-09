@@ -95,7 +95,7 @@ describe.skipIf(process.env.X207_TESTNET !== "1")("SD-099 an EVM agent joins, st
     };
 
     // 0. the eth-implicit account exists and holds NEAR for the join deposit and the 1 yocto deposits
-    const balance = async () => { try { return BigInt((await provider.viewAccount(agentId)).amount); } catch { return 0n; } };
+    const balance = async () => { try { return BigInt((await provider.viewAccount({ accountId: agentId })).amount); } catch { return 0n; } };
     if ((await balance()) < 600_000_000_000_000_000_000_000n) {
       const sent = await payer.transfer({ receiverId: agentId, amount: 1_500_000_000_000_000_000_000_000n });
       note("fund 1.5 NEAR to the eth-implicit account (plain transfer from x207-demo-helper.testnet)", sent.transaction.hash);

@@ -16,7 +16,7 @@ describe("SD-098 agent identified by a Solana keypair", () => {
 
   it("TC-SD-098-02 a keypair whose public half does not match its seed is refused", () => {
     const pair = generateSolanaKeypair();
-    pair[40] ^= 1;
+    pair[40]! ^= 1;
     expect(() => solanaAgentKeysFromKeypair(pair)).toThrow(/does not match/);
   });
 

@@ -94,7 +94,7 @@ describe("SD-036 seller example", () => {
     expect(bazaar.info.output).toMatchObject({ example: { summary: "summary text" } });
     expect(bazaar.schema).toMatchObject({ $schema: "https://json-schema.org/draft/2020-12/schema", required: expect.arrayContaining(["input"]) });
     // the JSON body of the 402 holds the same extension as the header
-    expect((await response.json()).extensions).toEqual(required.extensions);
+    expect(((await response.json()) as { extensions: unknown }).extensions).toEqual(required.extensions);
   });
 
   it("TC-SD-036-02 a member pays with a voucher: 200 and x207 PAYMENT-RESPONSE", async () => {

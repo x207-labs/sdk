@@ -114,7 +114,7 @@ describe.skipIf(process.env.X207_TESTNET !== "1")("SD-098 mixed epoch: an EVM ag
 
     // 1. fund the implicit account, join, admission, stake
     const provider = new JsonRpcProvider({ url: RPC_URLS[0]! });
-    const exists = await provider.viewAccount(solana.accountId).then(() => true, () => false);
+    const exists = await provider.viewAccount({ accountId: solana.accountId }).then(() => true, () => false);
     if (!exists) {
       const helperAccount = new Account(helper.accountId, provider, KeyPairSigner.fromSecretKey(helper.privateKey as never));
       const funded = await helperAccount.transfer({ receiverId: solana.accountId, amount: 1_000_000_000_000_000_000_000_000n });

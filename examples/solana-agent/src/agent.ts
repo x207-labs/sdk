@@ -3,7 +3,7 @@
 // `pubkey_voucher` (`ed25519:<base58>`). Nothing in the contract changes: the agent is a plain NEAR member whose account id is the hex of its public key.
 // Nothing here prints or returns more than the caller asks for; the secret goes only to the key file the caller writes.
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign as nodeSign } from "node:crypto";
-import { base58Encode, nep413SigningHash, voucherPublicKey, type VoucherSecretKey } from "@x207/core";
+import { base58Encode, nep413SigningHash, voucherPublicKey } from "@x207/core";
 
 const PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
 const SPKI_PREFIX_LENGTH = 12;
@@ -14,7 +14,7 @@ export type SolanaAgentKeys = {
   /** NEAR implicit account and x207 member id: 64 lower-case hex characters of the same public key. */
   accountId: string;
   /** `ed25519:<base58 of seed||public key>`: valid as a NEAR access key and as an x207 voucher key. */
-  secretKey: VoucherSecretKey;
+  secretKey: `ed25519:${string}`;
   /** `ed25519:<base58 public key>`: the `pubkey_voucher` given to `join`. */
   voucherPublicKey: `ed25519:${string}`;
   /** The 64 bytes of a Solana `id.json` keypair file (seed then public key). */
@@ -28,7 +28,7 @@ export function solanaAgentKeysFromKeypair(keypair: Uint8Array): SolanaAgentKeys
   const publicKey = keypair.slice(32);
   const derived = createPublicKey(createPrivateKey({ key: Buffer.concat([PKCS8_PREFIX, seed]), format: "der", type: "pkcs8" })).export({ format: "der", type: "spki" }).subarray(SPKI_PREFIX_LENGTH);
   if (Buffer.compare(Buffer.from(derived), Buffer.from(publicKey)) !== 0) throw new Error("the public key half of the keypair does not match its seed");
-  const secretKey: VoucherSecretKey = `ed25519:${base58Encode(keypair)}`;
+  const secretKey: `ed25519:${string}` = `ed25519:${base58Encode(keypair)}`;
   return { solanaAddress: base58Encode(publicKey), accountId: Buffer.from(publicKey).toString("hex"), secretKey, voucherPublicKey: voucherPublicKey(secretKey), solanaKeypairBytes: keypair };
 }
 
