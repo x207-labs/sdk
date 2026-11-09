@@ -35,7 +35,7 @@ const contractsAbi = existsSync(CONTRACTS_REPO) ? committedContractsAbi() : null
 describe("SD-010 contract client types from abi.json", () => {
   it("the pinned ABI version is written in the sdk", () => {
     expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe(pinned.interface_version);
-    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.17"); // SD-102: pinned to contracts 0.0.17 (max_fee also on request_exit_evm and set_auto_settle_evm, optional max_fee on join_evm that must stay 0, boolean result, on_action_fee_resolved); the 8-field Action of 0.0.14 and 0.0.15 is still signed without maxFee
+    expect(ContractAbi.X207_CIRCLE_ABI_VERSION).toBe("0.0.18"); // SD-119: pinned to contracts 0.0.18 (branch p1-0.0.18: account escrow through a locker, remove_pending). Before: SD-102, 0.0.17 (max_fee also on request_exit_evm and set_auto_settle_evm, optional max_fee on join_evm that must stay 0, boolean result, on_action_fee_resolved); the 8-field Action of 0.0.14 and 0.0.15 is still signed without maxFee
     expect(ContractAbi.X207_CIRCLE_ABI_SHA256).toBe(createHash("sha256").update(pinnedText).digest("hex"));
   });
 
@@ -47,6 +47,20 @@ describe("SD-010 contract client types from abi.json", () => {
     expect(m("join_evm").params.args.map((a: { name: string }) => a.name)).toContain("max_fee");
     expect(m("on_action_fee_resolved")).toBeDefined();
     expect(m("on_action_fee_resolved").modifiers).toContain("private");
+  });
+
+  it("TC-SD-119-01 contract 0.0.18: account escrow methods, locker hash list, remove_pending and the two new events", () => {
+    const fns = (pinned as unknown as { body: { functions: { name: string; kind: string; params: { args: { name: string }[] } }[] } }).body.functions;
+    const m = (name: string) => fns.find((x) => x.name === name)!;
+    expect(m("complete_account_escrow").params.args.map((a) => a.name)).toEqual(["grant_id", "voucher", "signature", "delivery_pubkey"]);
+    expect(m("account_on_lock").params.args.map((a) => a.name)).toEqual(["grant_id"]);
+    expect(m("remove_pending").params.args.map((a) => a.name)).toEqual(["account_id"]);
+    expect(m("cancel_expired_account_escrow").params.args.map((a) => a.name)).toEqual(["grant_id"]);
+    expect(m("set_locker_code_hashes").kind).toBe("call");
+    for (const view of ["get_account_escrow", "get_locker_code_hashes"]) expect(m(view).kind).toBe("view");
+    // complete_escrow of 0.0.17 keeps its shape: the account sale has its own method
+    expect(m("complete_escrow").params.args.map((a) => a.name)).toEqual(["grant_id", "voucher", "signature"]);
+    expect(pinned.events.map((e) => e.name)).toEqual(expect.arrayContaining(["member_removed", "account_escrow_held"]));
   });
 
   it("types.generated.ts equals the generator output for the pinned ABI", () => {
