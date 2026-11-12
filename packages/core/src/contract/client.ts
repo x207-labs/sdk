@@ -106,6 +106,21 @@ export function buildRequestExitCall(circleContract: AccountId): ContractCall {
   return { receiverId: circleContract, methodName: "request_exit", args: {}, deposit: 1n };
 }
 
+/**
+ * SD-121: `register_voucher(voucher, signature)` (demo mode, ADR-26: `seq` must be the last registered `seq` + 1). Permissionless, no deposit: the seller of the
+ * middleware option `settleMode: "register-first"` sends it from its own account before it serves. Refusals: `ERR_INSUFFICIENT_CREDIT` (the limit of the payer is used up),
+ * `ERR_BAD_SIGNATURE`, `ERR_EPOCH_MISMATCH`, `ERR_PAST_CUTOFF`, ...
+ */
+export function buildRegisterVoucherCall(input: { circleContract: AccountId; voucher: Record<string, unknown>; signature: string }): ContractCall {
+  return { receiverId: input.circleContract, methodName: "register_voucher", args: { voucher: input.voucher, signature: input.signature }, deposit: 0n, gas: 100_000_000_000_000n };
+}
+
+/** `{ ok: false, reason: <ERR_* code> }` for a failed call of `buildRegisterVoucherCall`, `null` if the error carries no contract code (then the call itself could not be made: rethrow it). */
+export function registerRefusal(error: unknown): { ok: false; reason: string } | null {
+  const code = contractErrorCode(error);
+  return code === null ? null : { ok: false, reason: code };
+}
+
 /** `remove_intent(intent_hash)` (interface 0.0.8): the intent owner withdraws it and gets its slot back; not payable. */
 export function buildRemoveIntentCall(circleContract: AccountId, intentHashBase58: string): ContractCall {
   return { receiverId: circleContract, methodName: "remove_intent", args: { intent_hash: intentHashBase58 }, deposit: 0n };

@@ -107,6 +107,39 @@ Run the seller with `BASE_SEPOLIA_PAY_TO=0x… npm run start -w @x207/example-se
 
 Joining a circle (`onboardMember`: voucher key, `join`, stake, wait for `active`) is in the [quickstart](https://github.com/x207-labs/x207/blob/main/docs/quickstart.md). Selling: [docs/seller-quickstart.md](docs/seller-quickstart.md). Full tested examples: [`examples/buyer`](examples/buyer), [`examples/seller`](examples/seller).
 
+### Overspend across sellers: `settleMode: "register-first"` (SD-121)
+
+**The gap.** A buyer can sign vouchers to many sellers up to its limit. The headroom check of a facilitator only sees the vouchers that facilitator holds, so with two sellers behind two facilitators the buyer can sign vouchers that are each valid but above the limit together. The contract is first come, first served: it registers the first voucher and refuses the late one with `ERR_INSUFFICIENT_CREDIT`. In the default mode (`verify-first`: `/verify`, handler, `/settle`) the seller has served on the word of its facilitator before the chain is asked, so the seller whose voucher is late has served and cannot be paid.
+
+**The mitigation.** Pass `settleMode: "register-first"` and a `registerVoucher` function. The seller then registers the voucher on-chain first and runs the handler only if the contract accepts it; a refusal answers `402` (`errorReason: "insufficient_credit"`, the contract code in `extensions.x207.contractCode`) and the handler does not run. `registerVoucher` is permissionless, so the seller sends it from its own account:
+
+```ts
+import { buildRegisterVoucherCall, registerRefusal } from "@x207/core";
+
+const registerVoucher: RegisterVoucherFn = async ({ voucher, signature }) => {
+  try {
+    await sellerAccount.call(buildRegisterVoucherCall({ circleContract: "x207-circle.near", voucher, signature }));
+    return { ok: true };
+  } catch (error) {
+    const refusal = registerRefusal(error); // { ok: false, reason: "ERR_…" } for a contract refusal
+    if (refusal) return refusal;
+    throw error; // RPC or key problem: the middleware answers 503 with Retry-After
+  }
+};
+app.use(x207Middleware({ …, settleMode: "register-first", registerVoucher }));
+```
+
+**The trade-off.** One on-chain call (about 2 seconds) runs before every response, and the facilitator `/settle` is skipped for that request because the voucher is already registered. The default stays `verify-first` and is unchanged.
+
+**What stays open.**
+- If the handler fails after the voucher is registered, the buyer is still charged (the response is passed through, there is no refund path).
+- It covers the x207 entry only: `exact` and other `alsoAccept` entries, and vouchers with a `bundleId`, are not registered by the middleware.
+- The voucher `seq` must be the last registered `seq` + 1 (`register_voucher` demo mode); a seller that serves many requests in parallel for one buyer needs to order them.
+- A seller with its own guard in front of the middleware is not helped by the option; the check is the on-chain call itself.
+- The facilitator is not asked about headroom across sellers; only the chain decides.
+
+Evidence: 9 unit tests (`packages/scheme/test/register-first.test.ts`), one near-sandbox test with the real contract (`register-first.sandbox.test.ts`, two sellers, three facilitators, mock facilitators), and the testnet run `contracts/scripts/ct132-overspend-demo.mjs` (CT-132) on circle 0.0.18, which records the accepted and the refused `register_voucher` transaction hashes in `contracts/docs/testnet-epochs/ct132-overspend-run.json`.
+
 ## Develop and test
 
 Needs Node ≥ 22.22.2 and npm 11 (the lockfiles are made with it; `package.json` enforces only the Node version). All dependencies are pinned exactly.

@@ -3,6 +3,7 @@
 // so it can be mounted in Hono (`c.req.raw`), Express (adapter), or any fetch handler.
 import type { PaymentRequirements } from "@x402/core/types";
 import type { AccountId, PairState } from "@x207/core";
+import { X207_SCHEME } from "../shared/circle.js";
 import { X207ExtraSource } from "./extra.js";
 import { buildPaymentRequirements } from "./index.js";
 import { MeterRejection, resolvePrice, type PriceFn } from "./metering.js";
@@ -110,7 +111,22 @@ export type X207MiddlewareOptions = {
   inFlight?: InFlightGuard;
   /** Longest time a voucher stays held by one request (default `IN_FLIGHT_MAX_HOLD_MS`). */
   maxHoldMs?: number;
+  /**
+   * SD-121. `"verify-first"` (default, unchanged): serve after the facilitator's `/verify`, then `/settle`. The facilitator's answer is its own view: a buyer can sign
+   * vouchers to several sellers through different facilitators until the sum is above the limit, and the contract (first come, first served) then refuses the late
+   * ones with `ERR_INSUFFICIENT_CREDIT` after the seller has already served. `"register-first"`: after `/verify` the middleware calls `registerVoucher` and serves only
+   * if the voucher is registered on-chain; a refused voucher gets 402 and the handler does not run. Costs one on-chain call (about 2 seconds on NEAR) before the
+   * response, and needs `registerVoucher`. Applies to the x207 entry only (not `alsoAccept` entries) and to vouchers without `bundleId`. Registration replaces `/settle`:
+   * the facilitator is not asked to settle, because the voucher is already on-chain.
+   */
+  settleMode?: "verify-first" | "register-first";
+  /** Registers the voucher on-chain (`register_voucher`, permissionless: any account can send it). Required for `settleMode: "register-first"`. */
+  registerVoucher?: RegisterVoucherFn;
 };
+
+/** Result of `registerVoucher`: `reason` is the contract code of the refusal (`ERR_INSUFFICIENT_CREDIT`, `ERR_SEQ_NOT_NEXT`, ...). A thrown error means the call could not be made (503). */
+export type RegisterVoucherResult = { ok: true } | { ok: false; reason: string };
+export type RegisterVoucherFn = (input: { voucher: Record<string, unknown>; signature: string }) => Promise<RegisterVoucherResult>;
 
 export type NextHandler = (request: Request) => Response | Promise<Response>;
 export type X207Middleware = (request: Request, next: NextHandler) => Promise<Response>;
@@ -156,6 +172,9 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
   const extra = options.extra ?? new X207ExtraSource({ facilitatorUrl: base, fetch: fetchFn });
   const inFlight = options.inFlight ?? memoryInFlightGuard();
   const maxHoldMs = options.maxHoldMs ?? IN_FLIGHT_MAX_HOLD_MS;
+  if (options.settleMode === "register-first" && options.registerVoucher === undefined) {
+    throw new Error("settleMode 'register-first' needs the option registerVoucher");
+  }
 
   async function call(path: string, init?: RequestInit, root: string = base): Promise<any> {
     let response: Response;
@@ -301,9 +320,39 @@ export function x207Middleware(options: X207MiddlewareOptions): X207Middleware {
         };
       }
 
+      // SD-121 register-first: the voucher must be on-chain before the handler runs; the contract's answer, not the facilitator's, decides.
+      const signature = isRecord(payload.payload) ? payload.payload.signature : undefined;
+      const registerFirst =
+        options.settleMode === "register-first" && requirements.scheme === X207_SCHEME && voucher !== undefined && typeof signature === "string" &&
+        payload.payload.bundleId === undefined;
+      if (registerFirst) {
+        let outcome: RegisterVoucherResult;
+        try {
+          outcome = await options.registerVoucher!({ voucher: voucher!, signature });
+        } catch (error) {
+          return unavailable(`registerVoucher: ${(error as Error).message}`);
+        }
+        if (!outcome.ok) {
+          const reason = outcome.reason.replace(/^ERR_/, "").toLowerCase();
+          const refused = { success: false, errorReason: reason, transaction: "", network: requirements.network, payer: voucher!.payer, extensions: { x207: { contractCode: outcome.reason } } };
+          return paymentRequiredResponse(resource, accepts, reason, refused, route.extensions);
+        }
+      }
+
       const response = await next(request);
       // The handler failed or refused: there is no obligation (`authorization` flow), the response is passed through as-is.
+      // With register-first the voucher is already on-chain, so the buyer owes it even when the handler failed (see `settleMode`).
       if (response.status >= 400) return response;
+
+      if (registerFirst) {
+        const registered = {
+          success: true, transaction: commitment, network: requirements.network, payer: voucher!.payer,
+          extensions: { x207: { epoch: voucher!.epoch, seq: voucher!.seq, cumulativeAmount: voucher!.cumulativeAmount, registration: "registered" } },
+        };
+        const headers = new Headers(response.headers);
+        headers.set(HEADER_PAYMENT_RESPONSE, toBase64(registered));
+        return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+      }
 
       const settled = await post("/settle", body, root);
       if (settled?.success === true || settled?.errorReason === "settlement_pending") {
