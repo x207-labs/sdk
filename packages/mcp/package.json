@@ -55,7 +55,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "@x207/core": "0.0.3",
-    "@x207/scheme": "0.0.2",
+    "@x207/scheme": "0.0.3",
     "@x402/fetch": "2.29.0",
     "zod": "4.6.7"
   }

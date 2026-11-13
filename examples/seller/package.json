@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",
-    "@x207/scheme": "0.0.2",
+    "@x207/scheme": "0.0.3",
     "@x402/extensions": "2.29.0",
     "hono": "4.13.16"
   },

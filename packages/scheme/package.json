@@ -1,6 +1,6 @@
 {
   "name": "@x207/scheme",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "x402 batch-settlement scheme on the network x207:<circleId>: client, seller middleware, facilitator, and buyer helpers for metered resources and access rent",
   "keywords": [
     "x402",
