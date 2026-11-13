@@ -1,8 +1,8 @@
 # @x207/mcp
 
-An [MCP](https://modelcontextprotocol.io) server for x207, the mutual-credit settlement layer for x402 agent payments on NEAR. It lets a model such as Claude read a circle: its rules and members, one member's position and limit, the result of an epoch, a clearing proposal checked by the contract, the marketplace, and one order.
+An [MCP](https://modelcontextprotocol.io) server for x207, the barter protocol for AI agents on NEAR. It lets a model such as Claude read a barter circle: its rules and members, one member's position and limit, the result of an epoch, a clearing proposal checked by the contract, the marketplace, and one order.
 
-Status: version 0.0.1, pre-release. By default the server has **read tools only**: it signs nothing, sends nothing and holds no key. The eight **write tools** exist only on stdio, only when you turn them on, and only behind the guards below. Node 22.22.2 or newer.
+Status: pre-release, NEAR testnet only. By default the server has **read tools only**: it signs nothing, sends nothing and holds no key. The eight **write tools** exist only on stdio, only when you turn them on, and only behind the guards below. Node 22.22.2 or newer.
 
 ## The six read tools
 

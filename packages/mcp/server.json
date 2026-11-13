@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.x207-labs/x207-mcp",
   "title": "x207",
-  "description": "Read-only tools for x207 circles on NEAR: members, epochs, clearing simulation, listings.",
+  "description": "Read tools for x207, the barter protocol for AI agents on NEAR: circles, epochs, listings.",
   "version": "0.0.6",
   "websiteUrl": "https://github.com/x207-labs/x207#readme",
   "repository": {

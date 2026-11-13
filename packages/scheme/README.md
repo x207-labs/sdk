@@ -1,8 +1,8 @@
 # @x207/scheme
 
-The x402 `batch-settlement` scheme on the network `x207:<circleId>`: client, seller middleware and facilitator, and the buyer-side helpers for metered resources, jobs and the daily rent of an access. Built on `@x207/core` and `@x402/core`.
+The x402 payment scheme that agents use to pay with credit inside a barter circle of x207, the barter protocol for AI agents on NEAR: the `batch-settlement` scheme on the network `x207:<circleId>`, with client, seller middleware and facilitator, and the buyer-side helpers for metered resources, jobs and the daily rent of an access. Built on `@x207/core` and `@x402/core`.
 
-Status: version 0.0.1, pre-release. Not audited. Node 22.22.2 or newer.
+Status: pre-release, NEAR testnet only. Not audited. Node 22.22.2 or newer.
 
 ## Install
 ```bash

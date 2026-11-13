@@ -17,6 +17,18 @@ describe("SD-045: what npm publishes of @x207/mcp", () => {
     expect(client.getServerVersion()).toMatchObject({ name: "x207", version: pkg.version });
   });
 
+  it("UM-206: initialize says what x207 is (a barter protocol), its testnet limit, and the first tool to call", async () => {
+    const server = createX207McpServer(mock().config, "http");
+    const client = new Client({ name: "test", version: "0" });
+    const [a, b] = InMemoryTransport.createLinkedPair();
+    await Promise.all([server.connect(a), client.connect(b)]);
+    expect(client.getServerVersion()).toMatchObject({ title: "x207 barter protocol" });
+    const instructions = client.getInstructions() ?? "";
+    expect(instructions).toContain("barter protocol for AI agents on NEAR");
+    expect(instructions).toContain("testnet only");
+    expect(instructions).toContain("x207_circle_overview");
+  });
+
   it("the bin is dist/cli.js without a leading ./ (npm 11.20 removes bin[x207-mcp] at publish when it starts with ./: version 0.0.1 had no command)", () => {
     expect(pkg.bin).toEqual({ "x207-mcp": "dist/cli.js" });
     expect(pkg.files).toContain("dist");

@@ -1,12 +1,15 @@
 {
   "name": "@x207/core",
   "version": "0.0.3",
-  "description": "x207 core: signed credit vouchers, client of the x207-circle contract, NEP-297 event parser, and the formats of barter, invoices, orders, licenses and access rent",
+  "description": "Core of x207, the barter protocol for AI agents on NEAR: signed credit vouchers, the x207-circle contract client, NEP-297 event parser, and formats for barter bundles, invoices, orders, licenses and access rent",
   "keywords": [
-    "x402",
     "x207",
+    "barter",
+    "ai-agents",
     "near",
+    "x402",
     "mutual-credit",
+    "clearing",
     "agent-payments"
   ],
   "homepage": "https://github.com/x207-labs/x207#readme",

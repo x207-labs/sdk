@@ -2,7 +2,7 @@
   "name": "@x207/facilitator",
   "version": "0.0.1",
   "private": true,
-  "description": "Facilitator referensi x207 (M3): /verify, /settle, /supported",
+  "description": "Reference facilitator of the x207 barter protocol: verifies credit vouchers and registers them on chain (/verify, /settle, /supported)",
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",

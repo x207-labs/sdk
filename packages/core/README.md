@@ -1,8 +1,8 @@
 # @x207/core
 
-Core of x207, the mutual credit settlement layer for x402 agent payments on NEAR: signed credit vouchers, the client of the `x207-circle` contract, the parser of its NEP-297 events, and the formats of barter bundles, invoices, service orders, content licenses and access rent.
+Core of x207, the barter protocol for AI agents on NEAR: signed credit vouchers, the client of the `x207-circle` contract, the parser of its NEP-297 events, and the formats of barter bundles, invoices, service orders, content licenses and access rent.
 
-Status: version 0.0.1, pre-release. Not audited (our own reviews are in `docs/security.md` of the repository). Node 22.22.2 or newer.
+Status: pre-release, NEAR testnet only. Not audited (our own reviews are in `docs/security.md` of the repository). Node 22.22.2 or newer.
 
 ## Install
 ```bash

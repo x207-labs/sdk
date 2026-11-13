@@ -1,6 +1,6 @@
 # x207 SDK
 
-TypeScript packages that let an x402 agent pay and sell in a clearing circle: the x402 `batch-settlement` binding on the network `x207:<circleId>`, plus a reference facilitator, an MCP server and test vectors. Part of [x207](https://github.com/x207-labs/x207).
+TypeScript packages of [x207](https://github.com/x207-labs/x207), the barter protocol for AI agents on NEAR. They let an x402 agent pay and sell on credit inside a barter circle: the x402 `batch-settlement` binding on the network `x207:<circleId>`, plus a reference facilitator, an MCP server and test vectors.
 
 ## Its role in x207
 

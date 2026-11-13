@@ -2,7 +2,7 @@
   "name": "sdk",
   "version": "0.0.1",
   "private": true,
-  "description": "x207 SDK: @x207/core, @x207/scheme, spec + test vector, facilitator referensi",
+  "description": "SDK of the x207 barter protocol for AI agents on NEAR: @x207/core, @x207/scheme, @x207/mcp, spec and test vectors, reference facilitator",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

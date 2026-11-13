@@ -1,10 +1,13 @@
 {
   "name": "@x207/scheme",
   "version": "0.0.3",
-  "description": "x402 batch-settlement scheme on the network x207:<circleId>: client, seller middleware, facilitator, and buyer helpers for metered resources and access rent",
+  "description": "x402 payment scheme agents use to pay with credit inside an x207 barter circle on NEAR (batch-settlement on x207:<circleId>): client, seller middleware, facilitator, buyer helpers",
   "keywords": [
     "x402",
+    "x402-scheme",
     "x207",
+    "barter",
+    "ai-agents",
     "near",
     "mutual-credit",
     "agent-payments"
