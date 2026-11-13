@@ -1,6 +1,6 @@
 {
   "name": "@x207/mcp",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "mcpName": "io.github.x207-labs/x207-mcp",
   "description": "MCP server for x207, the barter protocol for AI agents on NEAR: read tools for a barter circle (members, epochs, clearing simulation, listings, orders) over stdio and Streamable HTTP",
   "keywords": [
