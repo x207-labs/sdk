@@ -1,6 +1,6 @@
 {
   "name": "@x207/core",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "x207 core: signed credit vouchers, client of the x207-circle contract, NEP-297 event parser, and the formats of barter, invoices, orders, licenses and access rent",
   "keywords": [
     "x402",

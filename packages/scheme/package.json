@@ -59,7 +59,7 @@
     "build": "tsc -b"
   },
   "dependencies": {
-    "@x207/core": "0.0.2",
+    "@x207/core": "0.0.3",
     "@x402/core": "2.29.0"
   },
   "devDependencies": {

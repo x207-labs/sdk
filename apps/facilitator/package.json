@@ -18,7 +18,7 @@
     "@near-js/crypto": "2.5.1",
     "@near-js/signers": "2.5.1",
     "@near-js/transactions": "2.5.1",
-    "@x207/core": "0.0.2",
+    "@x207/core": "0.0.3",
     "@x207/scheme": "0.0.2",
     "@x402/core": "2.29.0",
     "@x402/near": "2.29.0",
