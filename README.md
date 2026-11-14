@@ -1,19 +1,43 @@
+<p align="center"><img src="assets/readme/banner.png" alt="x207 sdk: TypeScript packages that let an x402 agent pay and sell on credit in a barter circle" width="100%"></p>
+
+<p align="center">
+  <img alt="NEAR testnet" src="https://img.shields.io/badge/NEAR-testnet-0a0a0a?style=flat-square&labelColor=0a0a0a&color=5DCAA5">
+  <img alt="built at NEAR HACKATHON" src="https://img.shields.io/badge/built_at-NEAR_HACKATHON-0a0a0a?style=flat-square&labelColor=0a0a0a&color=f5b042">
+  <img alt="license Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-0a0a0a?style=flat-square&labelColor=0a0a0a&color=8a8a8a">
+  <img alt="TypeScript" src="https://img.shields.io/badge/language-TypeScript-0a0a0a?style=flat-square&labelColor=0a0a0a&color=3178c6">
+  <br>
+  <a href="https://www.npmjs.com/package/@x207/core"><img alt="@x207/core on npm" src="https://img.shields.io/npm/v/@x207/core?style=flat-square&labelColor=0a0a0a&color=cb3837&label=%40x207%2Fcore"></a>
+  <a href="https://www.npmjs.com/package/@x207/scheme"><img alt="@x207/scheme on npm" src="https://img.shields.io/npm/v/@x207/scheme?style=flat-square&labelColor=0a0a0a&color=cb3837&label=%40x207%2Fscheme"></a>
+  <a href="https://www.npmjs.com/package/@x207/mcp"><img alt="@x207/mcp on npm" src="https://img.shields.io/npm/v/@x207/mcp?style=flat-square&labelColor=0a0a0a&color=cb3837&label=%40x207%2Fmcp"></a>
+</p>
+
+<p align="center">
+  <a href="https://x.com/x207labs/status/2121600254063910974">Demo video</a> ·
+  <a href="https://x207-docs.vercel.app">Docs</a> ·
+  <a href="https://x207.vercel.app">Dashboard</a> ·
+  <a href="https://www.npmjs.com/package/@x207/core">npm</a> ·
+  <a href="https://glama.ai/mcp/servers/x207-labs/sdk">MCP server on Glama</a> ·
+  <a href="https://github.com/x207-labs/x207">x207 umbrella repo</a>
+</p>
+
 # x207 SDK
 
-TypeScript packages of [x207](https://github.com/x207-labs/x207), the barter protocol for AI agents on NEAR. They let an x402 agent pay and sell on credit inside a barter circle: the x402 `batch-settlement` binding on the network `x207:<circleId>`, plus a reference facilitator, an MCP server and test vectors.
+TypeScript packages of [x207](https://github.com/x207-labs/x207), the barter protocol for AI agents on NEAR. They let an x402 agent **pay and sell on credit inside a barter circle**: the x402 `batch-settlement` binding on the network `x207:<circleId>`, plus a reference facilitator, an MCP server and test vectors.
 
-## Its role in x207
+| At a glance | x207 SDK |
+| --- | --- |
+| **What** | The x402 `batch-settlement` binding on the network `x207:<circleId>`, a reference facilitator, an MCP server and test vectors |
+| **Role** | How agents meet the [contract](https://github.com/x207-labs/contracts) without knowing NEAR |
+| **Run** | `npx -y @x207/mcp` (the live testnet circle, no key; environment in [Try it](#try-it)) |
+| **Proof** | [`packages/scheme/test/readme-register.test.ts`](packages/scheme/test/readme-register.test.ts) (TC-UM-185-01) |
 
-The SDK is how agents meet the [contract](https://github.com/x207-labs/contracts) without knowing NEAR. A buyer wraps `fetch` once and pays with signed vouchers; a seller adds one middleware and its `402` answer offers the voucher entry next to `exact`; the facilitator verifies vouchers and registers them on chain. `spec/` holds the voucher format and test vectors that the TypeScript and Rust CI share.
+## Packages
 
-| Folder | Package | Contents |
+| Package | What it is | Install |
 | --- | --- | --- |
-| `packages/core/` | `@x207/core` (0.0.2 on npm) | Voucher types and signing, client for the `x207-circle` contract, NEP-297 event parser, `onboardMember` |
-| `packages/scheme/` | `@x207/scheme` (0.0.2 on npm) | x402 binding per role: `client/`, `server/`, `facilitator/` |
-| `packages/mcp/` | `@x207/mcp` (0.0.6 on npm, bin `x207-mcp`) | MCP server: read tools by default, signs nothing |
-| `apps/facilitator/` | `@x207/facilitator` | Reference facilitator: `/verify`, `/settle`, `/supported` |
-| `spec/` | | `scheme_batch_settlement_x207.md` and `test-vectors/` |
-| `examples/` | | `buyer`, `seller`, `mcp-paid-tool`, `python-buyer` |
+| `@x207/core` 0.0.3 | Voucher types and signing, client for the `x207-circle` contract, NEP-297 event parser, `onboardMember` | `npm install @x207/core` |
+| `@x207/scheme` 0.0.3 | x402 binding per role: `client/`, `server/`, `facilitator/` | `npm install @x207/scheme` |
+| `@x207/mcp` 0.0.7 | MCP server: read tools by default, signs nothing (bin `x207-mcp`) | `npx -y @x207/mcp` |
 
 ```mermaid
 flowchart LR
@@ -58,9 +82,23 @@ const paidFetch = wrapFetchWithPayment(fetch, client);
 const response = await paidFetch("https://seller.example/api/summarize");
 ```
 
-`secretKey` is the voucher key: one ed25519 key used only for vouchers, never a NEAR access key ([Voucher key security](docs/voucher-key-security.md)). `X207PaymentClient` registers `x207:*` and falls back to the other entry of the `402` answer (normally `exact`) when headroom runs out. A 200 response carries the header `PAYMENT-RESPONSE`; `extensions.x207.registration` is `pending`, `retrying` or `registered`.
+- `secretKey` is the voucher key: one ed25519 key used only for vouchers, never a NEAR access key ([Voucher key security](docs/voucher-key-security.md)).
+- `X207PaymentClient` registers `x207:*` and falls back to the other entry of the `402` answer (normally `exact`) when headroom runs out.
+- A 200 response carries the header `PAYMENT-RESPONSE`; `extensions.x207.registration` is `pending`, `retrying` or `registered`.
 
-**Already have an `x402Client` for `@x402/fetch`?** Add x207 with one `register` call (the real API of `@x402/core` 2.29, same in 2.30: `register(network, schemeClient)`; the network is `x207:<circleId>`, or `x207:*` for every circle). It does not fall back to `exact` and does not check headroom, which `X207PaymentClient` above does:
+> [!TIP]
+> Joining a circle (`onboardMember`: voucher key, `join`, stake, wait for `active`) is in the [quickstart](https://github.com/x207-labs/x207/blob/main/docs/quickstart.md). Selling: [docs/seller-quickstart.md](docs/seller-quickstart.md). Full tested examples: [`examples/buyer`](examples/buyer), [`examples/seller`](examples/seller).
+
+> [!IMPORTANT]
+> **Honest limits.**
+> - The live circle is on NEAR testnet (`x207-v013.testnet`). The USDC entry is on Base Sepolia (`eip155:84532`), a testnet token with no real funds.
+> - In the default `verify-first` mode the seller serves before the chain is asked, so when a buyer signs vouchers to many sellers the seller whose voucher is late has served and cannot be paid. `settleMode: "register-first"` mitigates it: one on-chain call (about 2 seconds) runs before every response, and there is no refund path if the handler fails after the voucher is registered. Full list: [Overspend across sellers](#overspend-across-sellers-settlemode-register-first-sd-121).
+> - The MCP server reads by default and signs nothing. The proposal to the x402 Foundation is a local draft, not sent ([Documents](#documents)).
+
+<details>
+<summary><b>Already have an <code>x402Client</code> for <code>@x402/fetch</code>?</b> Add x207 with one <code>register</code> call</summary>
+
+Add x207 with one `register` call (the real API of `@x402/core` 2.29, same in 2.30: `register(network, schemeClient)`; the network is `x207:<circleId>`, or `x207:*` for every circle). It does not fall back to `exact` and does not check headroom, which `X207PaymentClient` above does:
 
 ```ts
 import { x402Client } from "@x402/core/client";
@@ -71,9 +109,16 @@ const client = new x402Client().register("x207:agents-main", new X207SchemeClien
 
 Tested in [`packages/scheme/test/readme-register.test.ts`](packages/scheme/test/readme-register.test.ts) (TC-UM-185-01): a fake seller answers `402` with the x207 entry, and `wrapFetchWithPayment(fetch, client)` retries with a signed voucher.
 
+</details>
+
 ### One 402, two kinds of buyer (SD-093)
 
-A seller can offer the voucher to circle members and `exact` USDC on Base Sepolia (`eip155:84532`, testnet token, no real funds) to EVM buyers outside the circle, in the same `402`. The `402` then lists `batch-settlement@x207:<circleId>`, `exact@near:mainnet` and `exact@eip155:84532`. Seller ([`examples/seller`](examples/seller)):
+A seller can offer the voucher to circle members and `exact` USDC on Base Sepolia (`eip155:84532`, testnet token, no real funds) to EVM buyers outside the circle, in the same `402`. The `402` then lists `batch-settlement@x207:<circleId>`, `exact@near:mainnet` and `exact@eip155:84532`.
+
+<details>
+<summary><b>Read more</b>: seller, buyer outside the circle, circle member, tests</summary>
+
+Seller ([`examples/seller`](examples/seller)):
 
 ```ts
 const app = createSeller({
@@ -105,13 +150,16 @@ client.register("eip155:*", new ExactEvmScheme(account)); // optional fallback i
 
 Run the seller with `BASE_SEPOLIA_PAY_TO=0x… npm run start -w @x207/example-seller`. The test `examples/seller/test/seller.base-sepolia.test.ts` runs both buyers locally with a mock facilitator and no keys. `seller.x402-evm.test.ts` (SD-096) does the same with the real `ExactEvmScheme` of `@x402/evm` 2.29.0 as buyer and the real `ExactEvmScheme` facilitator as verifier (a fresh key per run, chain reads stubbed): the payload passes structure, EIP-712 signature and time checks, and a payload changed after signing is refused with `invalid_exact_evm_signature`. The same check passes with `@x402/evm` 2.30.0.
 
-Joining a circle (`onboardMember`: voucher key, `join`, stake, wait for `active`) is in the [quickstart](https://github.com/x207-labs/x207/blob/main/docs/quickstart.md). Selling: [docs/seller-quickstart.md](docs/seller-quickstart.md). Full tested examples: [`examples/buyer`](examples/buyer), [`examples/seller`](examples/seller).
+</details>
 
 ### Overspend across sellers: `settleMode: "register-first"` (SD-121)
 
 **The gap.** A buyer can sign vouchers to many sellers up to its limit. The headroom check of a facilitator only sees the vouchers that facilitator holds, so with two sellers behind two facilitators the buyer can sign vouchers that are each valid but above the limit together. The contract is first come, first served: it registers the first voucher and refuses the late one with `ERR_INSUFFICIENT_CREDIT`. In the default mode (`verify-first`: `/verify`, handler, `/settle`) the seller has served on the word of its facilitator before the chain is asked, so the seller whose voucher is late has served and cannot be paid.
 
 **The mitigation.** Pass `settleMode: "register-first"` and a `registerVoucher` function. The seller then registers the voucher on-chain first and runs the handler only if the contract accepts it; a refusal answers `402` (`errorReason: "insufficient_credit"`, the contract code in `extensions.x207.contractCode`) and the handler does not run. `registerVoucher` is permissionless, so the seller sends it from its own account:
+
+<details>
+<summary><b>Read more</b>: code, trade-off, what stays open, evidence</summary>
 
 ```ts
 import { buildRegisterVoucherCall, registerRefusal } from "@x207/core";
@@ -140,6 +188,21 @@ app.use(x207Middleware({ …, settleMode: "register-first", registerVoucher }));
 
 Evidence: 9 unit tests (`packages/scheme/test/register-first.test.ts`), one near-sandbox test with the real contract (`register-first.sandbox.test.ts`, two sellers, three facilitators, mock facilitators), and the testnet run `contracts/scripts/ct132-overspend-demo.mjs` (CT-132) on circle 0.0.18, which records the accepted and the refused `register_voucher` transaction hashes in `contracts/docs/testnet-epochs/ct132-overspend-run.json`.
 
+</details>
+
+## Its role in x207
+
+The SDK is how agents meet the [contract](https://github.com/x207-labs/contracts) without knowing NEAR. A buyer wraps `fetch` once and pays with signed vouchers; a seller adds one middleware and its `402` answer offers the voucher entry next to `exact`; the facilitator verifies vouchers and registers them on chain. `spec/` holds the voucher format and test vectors that the TypeScript and Rust CI share.
+
+| Folder | Package | Contents |
+| --- | --- | --- |
+| `packages/core/` | `@x207/core` (0.0.3 on npm) | Voucher types and signing, client for the `x207-circle` contract, NEP-297 event parser, `onboardMember` |
+| `packages/scheme/` | `@x207/scheme` (0.0.3 on npm) | x402 binding per role: `client/`, `server/`, `facilitator/` |
+| `packages/mcp/` | `@x207/mcp` (0.0.7 on npm, bin `x207-mcp`) | MCP server: read tools by default, signs nothing |
+| `apps/facilitator/` | `@x207/facilitator` | Reference facilitator: `/verify`, `/settle`, `/supported` |
+| `spec/` | | `scheme_batch_settlement_x207.md` and `test-vectors/` |
+| `examples/` | | `buyer`, `seller`, `mcp-paid-tool`, `python-buyer` |
+
 ## Develop and test
 
 Needs Node ≥ 22.22.2 and npm 11 (the lockfiles are made with it; `package.json` enforces only the Node version). All dependencies are pinned exactly.
@@ -166,6 +229,20 @@ The sandbox binary is looked up in `X207_SANDBOX_BIN`, or in the build output of
 
 Overview, live demo links and the claims map: [x207-labs/x207](https://github.com/x207-labs/x207).
 
+**Part of x207**
+
+| Repository | What it holds |
+| --- | --- |
+| [x207](https://github.com/x207-labs/x207) | Umbrella: overview, live demo links and the claims map |
+| [contracts](https://github.com/x207-labs/contracts) | The `x207-circle` smart contract (Rust, NEAR), the `x207-locker` account locker and the Sputnik DAO scripts |
+| **[sdk](https://github.com/x207-labs/sdk)** | **TypeScript packages: `@x207/core`, `@x207/scheme`, `@x207/mcp`, reference facilitator, test vectors** |
+| [backend](https://github.com/x207-labs/backend) | The indexer, read API, HTTP `207` report and settlement worker |
+| [frontend](https://github.com/x207-labs/frontend) | The dashboard |
+| [solver](https://github.com/x207-labs/solver) | The open clearing solver and its barter matching (`x207-barter`) |
+| [agents](https://github.com/x207-labs/agents) | Six demo agents that trade services over x402 |
+
 ## License
 
 Apache-2.0
+
+<p align="center"><sub>Built at NEAR HACKATHON · testnet · Apache-2.0</sub></p>
