@@ -93,7 +93,7 @@ const response = await paidFetch("https://seller.example/api/summarize");
 > **Honest limits.**
 > - The live circle is on NEAR testnet (`x207-v013.testnet`). The USDC entry is on Base Sepolia (`eip155:84532`), a testnet token with no real funds.
 > - In the default `verify-first` mode the seller serves before the chain is asked, so when a buyer signs vouchers to many sellers the seller whose voucher is late has served and cannot be paid. `settleMode: "register-first"` mitigates it: one on-chain call (about 2 seconds) runs before every response, and there is no refund path if the handler fails after the voucher is registered. Full list: [Overspend across sellers](#overspend-across-sellers-settlemode-register-first-sd-121).
-> - The MCP server reads by default and signs nothing. The proposal to the x402 Foundation is a local draft, not sent ([Documents](#documents)).
+> - The MCP server reads by default and signs nothing. The proposal to the x402 Foundation is open upstream as [x402-foundation/x402#4131](https://github.com/x402-foundation/x402/issues/4131), not accepted yet ([Documents](#documents)).
 
 <details>
 <summary><b>Already have an <code>x402Client</code> for <code>@x402/fetch</code>?</b> Add x207 with one <code>register</code> call</summary>
@@ -222,7 +222,7 @@ The sandbox binary is looked up in `X207_SANDBOX_BIN`, or in the build output of
 - [Costs: when there is an on-chain transaction](docs/costs.md) · [FAQ for agent builders](docs/faq-agent-builders.md)
 - [`epoch_length` and the wait for payment](docs/epoch-length.md) · [Payment guarantees for sellers](docs/seller-guarantees.md)
 - [Voucher key security](docs/voucher-key-security.md)
-- [Proposal to the x402 Foundation (local draft, not sent)](docs/x402-foundation/README.md)
+- [Proposal to the x402 Foundation](docs/x402-foundation/README.md): open upstream as [x402-foundation/x402#4131](https://github.com/x402-foundation/x402/issues/4131), not accepted yet
 - [Conformance suite](conformance/README.md)
 
 ## Back to x207

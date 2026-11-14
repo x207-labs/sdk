@@ -1,6 +1,6 @@
-# Proposal to the x402 Foundation (SD-046): local drafts only
+# Proposal to the x402 Foundation (SD-046)
 
-Status: **drafts, nothing sent.** Opening an issue or a pull request in `x402-foundation/x402` is an outward action that a human owner does or confirms. No link exists yet, so none is recorded in the README of this repository.
+Status: **the issue is open upstream, not accepted yet:** [x402-foundation/x402#4131](https://github.com/x402-foundation/x402/issues/4131) (opened 2026-11-04, state `OPEN` on 2026-11-14). No pull request with the spec has been opened; `pr-draft.md` stays a local draft. The checklist below is what a human does before that pull request.
 
 | File | What it is |
 | --- | --- |
